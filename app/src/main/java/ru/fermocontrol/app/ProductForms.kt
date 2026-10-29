@@ -31,7 +31,7 @@ private fun FormDialog(title: String, busy: Boolean, onDismiss: () -> Unit,
         usePlatformDefaultWidth = false, dismissOnBackPress = !busy, dismissOnClickOutside = !busy
     )) {
         Surface(shape = MaterialTheme.shapes.large, modifier = Modifier
-            .fillMaxWidth().padding(12.dp).heightIn(max = 720.dp)) {
+            .fillMaxWidth().padding(12.dp).heightIn(max = 760.dp)) {
             Column(Modifier.imePadding().verticalScroll(rememberScrollState()).padding(20.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(title, style = MaterialTheme.typography.headlineSmall)
@@ -116,6 +116,69 @@ fun AddProductDialog(number: Int, busy: Boolean, onDismiss: () -> Unit, onSave: 
 }
 
 @Composable
+fun EditProductDialog(product: Product, busy: Boolean, onDismiss: () -> Unit, onSave: (Product) -> Unit) {
+    var name by rememberSaveable(product.id) { mutableStateOf(product.name) }
+    var basis by rememberSaveable(product.id) { mutableStateOf(product.basis) }
+    var casing by rememberSaveable(product.id) { mutableStateOf(product.casing) }
+    var spices by rememberSaveable(product.id) { mutableStateOf(ArrayList(product.spices)) }
+    var weight by rememberSaveable(product.id) { mutableStateOf(grams(product.initialWeight)) }
+    var target by rememberSaveable(product.id) { mutableStateOf(decimal(product.targetLoss)) }
+    var spiceOpen by remember { mutableStateOf(false) }
+    var submitted by rememberSaveable(product.id) { mutableStateOf(false) }
+    val parsedWeight = parsePositiveNumber(weight)
+    val parsedTarget = parsePositiveNumber(target)?.takeIf { it < 100.0 }
+    val valid = name.isNotBlank() && basis.isNotBlank() && casing.isNotBlank() &&
+        spices.isNotEmpty() && parsedWeight != null && parsedTarget != null
+
+    FormDialog("Параметры · №${product.number}", busy, onDismiss) {
+        Text("История взвешиваний (${product.weighings.size}) сохранится без изменений.", style = MaterialTheme.typography.bodySmall)
+        OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("Название продукта") },
+            singleLine = true, enabled = !busy, isError = submitted && name.isBlank(), modifier = Modifier.fillMaxWidth())
+        ChoiceCapsule("Основа продукта", basis, bases, !busy) { basis = it }
+        ChoiceCapsule("Оболочка", casing, casings, !busy) { casing = it }
+        OutlinedButton(onClick = { spiceOpen = !spiceOpen }, enabled = !busy, modifier = Modifier.fillMaxWidth()) {
+            Text("Специи: " + spices.joinToString().ifBlank { "выбрать" })
+        }
+        if (spiceOpen) {
+            Text("Можно выбрать несколько вариантов", style = MaterialTheme.typography.bodySmall)
+            spiceOptions.forEach { option ->
+                FilterChip(selected = option in spices, enabled = !busy, onClick = {
+                    spices = when {
+                        option in spices -> ArrayList(spices.filterNot { it == option })
+                        option == "Без специй" -> arrayListOf(option)
+                        else -> ArrayList(spices.filterNot { it == "Без специй" } + option)
+                    }
+                }, label = { Text(option) })
+            }
+        }
+        OutlinedTextField(value = weight, onValueChange = { weight = it }, label = { Text("Начальный вес, г") },
+            singleLine = true, enabled = !busy, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+            isError = submitted && parsedWeight == null, modifier = Modifier.fillMaxWidth())
+        OutlinedTextField(value = target, onValueChange = { target = it }, label = { Text("Целевая потеря веса, %") },
+            singleLine = true, enabled = !busy, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+            isError = submitted && parsedTarget == null, modifier = Modifier.fillMaxWidth())
+        if (submitted && !valid) Text("Заполните все поля. Вес должен быть больше нуля, цель — больше 0 и меньше 100%.",
+            color = MaterialTheme.colorScheme.error)
+        Button(enabled = !busy, modifier = Modifier.fillMaxWidth(), onClick = {
+            submitted = true
+            if (valid) {
+                onSave(
+                    product.copy(
+                        name = name.trim(),
+                        basis = basis,
+                        casing = casing,
+                        spices = spices.toList(),
+                        initialWeight = parsedWeight!!,
+                        targetLoss = parsedTarget!!
+                    )
+                )
+            }
+        }) { Text(if (busy) "Сохранение…" else "Сохранить изменения") }
+        TextButton(enabled = !busy, onClick = onDismiss, modifier = Modifier.fillMaxWidth()) { Text("Отмена") }
+    }
+}
+
+@Composable
 fun WeighProductDialog(product: Product, busy: Boolean, onDismiss: () -> Unit, onSave: (Weighing) -> Unit) {
     var weight by rememberSaveable(product.id) { mutableStateOf("") }
     var smell by rememberSaveable(product.id) { mutableStateOf("Не оценивал") }
@@ -160,15 +223,18 @@ fun WeighProductDialog(product: Product, busy: Boolean, onDismiss: () -> Unit, o
 fun ProductDetailsDialog(
     product: Product,
     nextActiveNumber: Int,
+    initialTab: Int = 0,
     busy: Boolean,
+    onEdit: () -> Unit,
     onDeleteWeighing: (Int) -> Unit,
     onUnarchive: () -> Unit,
     onDismiss: () -> Unit
 ) {
+    var selectedTab by rememberSaveable(product.id) { mutableIntStateOf(initialTab) }
     var confirmDeleteIndex by remember { mutableStateOf<Int?>(null) }
     var confirmUnarchive by remember { mutableStateOf(false) }
 
-    FormDialog("Журнал продукта", busy, onDismiss) {
+    FormDialog("Карточка продукта", busy, onDismiss) {
         Text((if (product.archivedAt == null) "№${product.number}" else "Бывший №${product.number}") +
             " · ${product.name}", style = MaterialTheme.typography.titleLarge)
         if (product.archivedAt != null) {
@@ -180,37 +246,65 @@ fun ProductDetailsDialog(
             ) {
                 Text("Вернуть в работу (№$nextActiveNumber)")
             }
+        } else {
+            OutlinedButton(
+                enabled = !busy,
+                onClick = onEdit,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Изменить параметры продукта")
+            }
         }
-        Text("Основа: ${product.basis}")
+        Text("Основа: ${product.basis} · Оболочка: ${product.casing}")
         Text("Специи: ${product.spices.joinToString()}")
-        Text("Оболочка: ${product.casing}")
         Text("Добавлен: ${dateTime(product.startedAt)} · ${grams(product.initialWeight)} г")
         Text("Текущий вес: ${grams(product.currentWeight)} г · потеря ${decimal(product.lossPercent)}%")
         Text("Цель: ${decimal(product.targetLoss)}% · ${grams(product.targetWeight)} г")
+        Text(weighingStatusText(product), style = MaterialTheme.typography.bodySmall,
+            color = if (needsWeighing(product)) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant)
+
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FilterChip(
+                selected = selectedTab == 0,
+                onClick = { selectedTab = 0 },
+                label = { Text("Журнал (${product.weighings.size})") }
+            )
+            FilterChip(
+                selected = selectedTab == 1,
+                onClick = { selectedTab = 1 },
+                label = { Text("График и темп") }
+            )
+        }
         HorizontalDivider()
-        if (product.weighings.isEmpty()) Text("Взвешиваний пока нет")
-        product.weighings.indices.reversed().forEach { idx ->
-            val record = product.weighings[idx]
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(dateTime(record.at), style = MaterialTheme.typography.titleSmall)
-                if (product.archivedAt == null) {
-                    TextButton(
-                        enabled = !busy,
-                        onClick = { confirmDeleteIndex = idx }
-                    ) {
-                        Text("Удалить", color = MaterialTheme.colorScheme.error)
+
+        if (selectedTab == 0) {
+            if (product.weighings.isEmpty()) Text("Взвешиваний пока нет")
+            product.weighings.indices.reversed().forEach { idx ->
+                val record = product.weighings[idx]
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(dateTime(record.at), style = MaterialTheme.typography.titleSmall)
+                    if (product.archivedAt == null) {
+                        TextButton(
+                            enabled = !busy,
+                            onClick = { confirmDeleteIndex = idx }
+                        ) {
+                            Text("Удалить", color = MaterialTheme.colorScheme.error)
+                        }
                     }
                 }
+                Text("Вес: ${grams(record.weight)} г")
+                record.observations.forEach { (key, value) -> Text("$key: $value") }
+                if (record.note.isNotBlank()) Text("Заметка: ${record.note}")
+                HorizontalDivider()
             }
-            Text("Вес: ${grams(record.weight)} г")
-            record.observations.forEach { (key, value) -> Text("$key: $value") }
-            if (record.note.isNotBlank()) Text("Заметка: ${record.note}")
-            HorizontalDivider()
+        } else {
+            ProductWeightChart(product = product)
         }
+
         Text("Журнал не является заключением о безопасности продукта.", style = MaterialTheme.typography.bodySmall)
         TextButton(enabled = !busy, onClick = onDismiss, modifier = Modifier.fillMaxWidth()) { Text("Закрыть") }
     }

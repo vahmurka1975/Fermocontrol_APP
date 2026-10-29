@@ -1,8 +1,10 @@
 package ru.fermocontrol.app
 
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -30,9 +32,13 @@ fun FermocontrolApp() {
     var writeError by remember { mutableStateOf<String?>(null) }
     var attempt by remember { mutableIntStateOf(0) }
     var archived by rememberSaveable { mutableStateOf(false) }
+    var onlyDueWeighing by rememberSaveable { mutableStateOf(false) }
+    var searchQuery by rememberSaveable { mutableStateOf("") }
     var adding by rememberSaveable { mutableStateOf(false) }
     var weighingId by rememberSaveable { mutableStateOf<String?>(null) }
     var detailsId by rememberSaveable { mutableStateOf<String?>(null) }
+    var detailsInitialTab by rememberSaveable { mutableIntStateOf(0) }
+    var editingId by rememberSaveable { mutableStateOf<String?>(null) }
     var archiveId by rememberSaveable { mutableStateOf<String?>(null) }
 
     LaunchedEffect(attempt) {
@@ -65,6 +71,8 @@ fun FermocontrolApp() {
 
     val activeCount = products.count { it.archivedAt == null }
     val archiveCount = products.size - activeCount
+    val dueWeighingCount = products.count { needsWeighing(it) }
+
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         floatingActionButton = {
@@ -91,16 +99,57 @@ fun FermocontrolApp() {
                         adding = false
                         weighingId = null
                         detailsId = null
+                        editingId = null
                         archiveId = null
                     })
             }
             Text("Дневник сыровяления", color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Spacer(Modifier.height(18.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FilterChip(selected = !archived, onClick = { archived = false },
-                    label = { Text("Продукты · $activeCount") })
-                FilterChip(selected = archived, onClick = { archived = true },
-                    label = { Text("Архив · $archiveCount") })
+            Spacer(Modifier.height(12.dp))
+
+            if (products.isNotEmpty()) {
+                OutlinedTextField(
+                    value = searchQuery,
+                    onValueChange = { searchQuery = it },
+                    placeholder = { Text("Поиск по №, названию, основе, специям…") },
+                    singleLine = true,
+                    trailingIcon = {
+                        if (searchQuery.isNotEmpty()) {
+                            TextButton(onClick = { searchQuery = "" }) { Text("Сброс") }
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(Modifier.height(8.dp))
+            }
+
+            Row(
+                modifier = Modifier.horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                FilterChip(
+                    selected = !archived && !onlyDueWeighing,
+                    onClick = {
+                        archived = false
+                        onlyDueWeighing = false
+                    },
+                    label = { Text("Продукты · $activeCount") }
+                )
+                FilterChip(
+                    selected = !archived && onlyDueWeighing,
+                    onClick = {
+                        archived = false
+                        onlyDueWeighing = !onlyDueWeighing
+                    },
+                    label = { Text("Ждут взвешивания · $dueWeighingCount") }
+                )
+                FilterChip(
+                    selected = archived,
+                    onClick = {
+                        archived = true
+                        onlyDueWeighing = false
+                    },
+                    label = { Text("Архив · $archiveCount") }
+                )
             }
             if (busy) LinearProgressIndicator(Modifier.fillMaxWidth())
             when {
@@ -112,28 +161,51 @@ fun FermocontrolApp() {
                     Button(onClick = { attempt++ }) { Text("Повторить чтение") }
                 }
                 else -> {
-                    val visible = if (archived) products.filter { it.archivedAt != null }
-                        .sortedByDescending { it.archivedAt }
-                    else products.filter { it.archivedAt == null }.sortedBy { it.number }
+                    val baseList = when {
+                        archived -> products.filter { it.archivedAt != null }.sortedByDescending { it.archivedAt }
+                        onlyDueWeighing -> products.filter { needsWeighing(it) }.sortedBy { lastWeighingOrStartTime(it) }
+                        else -> products.filter { it.archivedAt == null }.sortedBy { it.number }
+                    }
+                    val visible = baseList.filter { matchesProductQuery(it, searchQuery) }
+
                     if (visible.isEmpty()) {
                         Box(Modifier.fillMaxSize().padding(bottom = 90.dp), contentAlignment = Alignment.Center) {
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Text(if (archived) "В архиве пока пусто" else "Добавьте первый продукт",
-                                    style = MaterialTheme.typography.titleLarge)
+                                val emptyTitle = when {
+                                    searchQuery.isNotBlank() -> "По запросу ничего не найдено"
+                                    onlyDueWeighing -> "Все активные продукты взвешены вовремя"
+                                    archived -> "В архиве пока пусто"
+                                    else -> "Добавьте первый продукт"
+                                }
+                                val emptySubtitle = when {
+                                    searchQuery.isNotBlank() -> "Попробуйте изменить строку поиска или сбросить фильтр."
+                                    onlyDueWeighing -> "Продукты попадают сюда, если с последнего взвешивания прошло 3 и более суток."
+                                    archived -> "Здесь сохраняются извлечённые продукты и их журналы."
+                                    else -> "Записывайте вес и наблюдения в одном месте."
+                                }
+                                Text(emptyTitle, style = MaterialTheme.typography.titleLarge)
                                 Spacer(Modifier.height(8.dp))
-                                Text(if (archived) "Здесь сохраняются извлечённые продукты и их журналы."
-                                    else "Записывайте вес и наблюдения в одном месте.",
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text(emptySubtitle, color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                         }
                     } else {
                         LazyColumn(contentPadding = PaddingValues(top = 12.dp, bottom = 100.dp),
                             verticalArrangement = Arrangement.spacedBy(12.dp)) {
                             items(visible, key = { it.id }) { product ->
-                                ProductCard(product, busy,
-                                    onDetails = { detailsId = product.id },
+                                ProductCard(
+                                    product = product,
+                                    busy = busy,
+                                    onDetails = {
+                                        detailsInitialTab = 0
+                                        detailsId = product.id
+                                    },
+                                    onChart = {
+                                        detailsInitialTab = 1
+                                        detailsId = product.id
+                                    },
                                     onWeigh = { weighingId = product.id },
-                                    onArchive = { archiveId = product.id })
+                                    onArchive = { archiveId = product.id }
+                                )
                             }
                         }
                     }
@@ -155,12 +227,31 @@ fun FermocontrolApp() {
                     it.copy(weighings = it.weighings + record) else it }
                 persist(next) { weighingId = null }
             })
+        val editing = products.find { it.id == editingId && it.archivedAt == null }
+        if (editing != null) {
+            EditProductDialog(
+                product = editing,
+                busy = busy,
+                onDismiss = { if (!busy) editingId = null },
+                onSave = { updated ->
+                    persist(products.map { if (it.id == updated.id) updated else it }) {
+                        editingId = null
+                    }
+                }
+            )
+        }
         products.find { it.id == detailsId }?.let { product ->
             val nextNumber = nextActiveNumberForRestore(products, product.id)
             ProductDetailsDialog(
                 product = product,
                 nextActiveNumber = nextNumber,
+                initialTab = detailsInitialTab,
                 busy = busy,
+                onEdit = {
+                    val targetId = product.id
+                    detailsId = null
+                    editingId = targetId
+                },
                 onDeleteWeighing = { removeIndex ->
                     val updated = product.copy(
                         weighings = product.weighings.filterIndexed { idx, _ -> idx != removeIndex }
@@ -197,13 +288,42 @@ fun FermocontrolApp() {
 }
 
 @Composable
-private fun ProductCard(product: Product, busy: Boolean,
-    onDetails: () -> Unit, onWeigh: () -> Unit, onArchive: () -> Unit) {
+private fun ProductCard(
+    product: Product,
+    busy: Boolean,
+    onDetails: () -> Unit,
+    onChart: () -> Unit,
+    onWeigh: () -> Unit,
+    onArchive: () -> Unit
+) {
+    val due = needsWeighing(product)
     ElevatedCard(shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(if (product.archivedAt == null) "№${product.number} · В работе"
-                else "Архив · бывший №${product.number}",
-                color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelLarge)
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    if (product.archivedAt == null) "№${product.number} · В работе"
+                    else "Архив · бывший №${product.number}",
+                    color = MaterialTheme.colorScheme.primary,
+                    style = MaterialTheme.typography.labelLarge
+                )
+                if (due) {
+                    Surface(
+                        color = MaterialTheme.colorScheme.errorContainer,
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text(
+                            "Пора взвесить",
+                            color = MaterialTheme.colorScheme.onErrorContainer,
+                            style = MaterialTheme.typography.labelSmall,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                        )
+                    }
+                }
+            }
             Text(product.name, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
             Text("${product.basis} · ${product.casing}", color = MaterialTheme.colorScheme.onSurfaceVariant)
             Text("${grams(product.currentWeight)} г", style = MaterialTheme.typography.headlineSmall)
@@ -220,13 +340,21 @@ private fun ProductCard(product: Product, busy: Boolean,
             Text(if (product.archivedAt == null) "Начало: ${dateTime(product.startedAt)}"
                 else "Извлечён: ${dateTime(product.archivedAt)}",
                 style = MaterialTheme.typography.bodySmall)
+            Text(
+                weighingStatusText(product),
+                style = MaterialTheme.typography.bodySmall,
+                color = if (due) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
+            )
             if (product.archivedAt == null) {
                 Button(onClick = onWeigh, enabled = !busy, modifier = Modifier.fillMaxWidth()) {
                     Text("Взвесить")
                 }
             }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                TextButton(onClick = onDetails) { Text("Журнал") }
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    TextButton(onClick = onDetails) { Text("Журнал (${product.weighings.size})") }
+                    TextButton(onClick = onChart) { Text("График") }
+                }
                 if (product.archivedAt == null) TextButton(onClick = onArchive, enabled = !busy) {
                     Text("Извлечь")
                 }
