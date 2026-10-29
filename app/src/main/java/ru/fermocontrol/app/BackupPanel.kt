@@ -13,9 +13,12 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.time.LocalDateTime
@@ -40,6 +43,15 @@ fun BackupPanel(
     var recovery by remember { mutableStateOf(false) }
     var checkingRecovery by remember { mutableStateOf(true) }
 
+    var yandexToken by rememberSaveable { mutableStateOf(CloudBackupManager.getYandexToken(context)) }
+    var lastSyncTime by rememberSaveable { mutableStateOf(CloudBackupManager.getLastSyncTime(context)) }
+    var tokenDialog by rememberSaveable { mutableStateOf(false) }
+    var tokenDraft by rememberSaveable { mutableStateOf("") }
+    var showToken by rememberSaveable { mutableStateOf(false) }
+
+    var autoBackups by remember { mutableStateOf<List<AutoBackupItem>>(emptyList()) }
+    var autoBackupChoices by remember { mutableStateOf<List<AutoBackupItem>?>(null) }
+
     var updateInfo by remember { mutableStateOf<UpdateInfo?>(null) }
     var downloading by remember { mutableStateOf(false) }
     var downloadProgress by remember { mutableIntStateOf(0) }
@@ -59,9 +71,9 @@ fun BackupPanel(
                 @Suppress("DEPRECATION")
                 context.packageManager.getPackageInfo(context.packageName, 0)
             }
-            pInfo.versionName ?: "1.0.2"
+            pInfo.versionName ?: "1.0.5"
         } catch (_: Exception) {
-            "1.0.2"
+            "1.0.5"
         }
     }
 
@@ -71,6 +83,18 @@ fun BackupPanel(
         } finally {
             checkingRecovery = false
         }
+    }
+
+    LaunchedEffect(products, journalAvailable) {
+        if (journalAvailable && products.isNotEmpty()) {
+            delay(500)
+            withContext(Dispatchers.IO) {
+                runCatching {
+                    CloudBackupManager.saveAutoBackup(context, BackupCodec.encode(products))
+                }
+            }
+        }
+        autoBackups = CloudBackupManager.listAutoBackups(context)
     }
 
     fun work(task: suspend () -> Unit) {
@@ -162,7 +186,26 @@ fun BackupPanel(
                     modifier = Modifier.verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
+                    Text(
+                        "Файловые и облачные копии",
+                        style = MaterialTheme.typography.titleSmall
+                    )
                     Text("JSON сохраняет все продукты и журналы. CSV предназначен для просмотра в Excel и не подходит для восстановления.")
+
+                    Button(
+                        enabled = available && journalAvailable,
+                        onClick = {
+                            work {
+                                check(latestJournal) { "Журнал не прочитан. Сначала восстановите данные." }
+                                val snapshot = latestProducts
+                                val name = filename("json")
+                                val bytes = withContext(Dispatchers.IO) { BackupCodec.encode(snapshot) }
+                                menu = false
+                                CloudBackupManager.shareBackupFile(activityContext, name, bytes)
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text("Отправить копию в облако (Яндекс / Google Диск)") }
 
                     OutlinedButton(
                         enabled = available && journalAvailable,
@@ -174,7 +217,7 @@ fun BackupPanel(
                             }
                         },
                         modifier = Modifier.fillMaxWidth()
-                    ) { Text("Сохранить JSON-копию") }
+                    ) { Text("Сохранить JSON-копию в телефон") }
 
                     OutlinedButton(
                         enabled = available && journalAvailable,
@@ -198,11 +241,116 @@ fun BackupPanel(
                             }
                         },
                         modifier = Modifier.fillMaxWidth()
-                    ) { Text("Восстановить из JSON") }
+                    ) { Text("Восстановить из JSON-файла") }
 
                     HorizontalDivider()
 
-                    Text("Перед заменой журнал автоматически сохраняется во внутреннюю копию. Хранится только последняя такая копия. Она удалится вместе с данными приложения.")
+                    Text(
+                        "Яндекс Диск (в 1 клик по OAuth-токену)",
+                        style = MaterialTheme.typography.titleSmall
+                    )
+                    Text(
+                        if (yandexToken.isBlank()) {
+                            "Токен не указан. Укажите OAuth-токен для прямой выгрузки и восстановления одной кнопкой."
+                        } else {
+                            "Токен сохранён." + (lastSyncTime?.let { "\nПоследняя синхронизация: $it" } ?: "")
+                        }
+                    )
+
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Button(
+                            enabled = available && journalAvailable,
+                            onClick = {
+                                if (yandexToken.isBlank()) {
+                                    tokenDraft = ""
+                                    tokenDialog = true
+                                } else {
+                                    work {
+                                        check(latestJournal) { "Журнал не прочитан. Сначала восстановите данные." }
+                                        val snapshot = latestProducts
+                                        val bytes = withContext(Dispatchers.IO) { BackupCodec.encode(snapshot) }
+                                        val syncAt = CloudBackupManager.uploadToYandexDisk(context, bytes)
+                                        lastSyncTime = syncAt
+                                        menu = false
+                                        message = "Копия выгружена на Яндекс Диск (${snapshot.size} продуктов).\nСинхронизация: $syncAt"
+                                    }
+                                }
+                            },
+                            modifier = Modifier.weight(1f)
+                        ) { Text("Выгрузить") }
+
+                        OutlinedButton(
+                            enabled = available,
+                            onClick = {
+                                if (yandexToken.isBlank()) {
+                                    tokenDraft = ""
+                                    tokenDialog = true
+                                } else {
+                                    work {
+                                        val bytes = CloudBackupManager.downloadFromYandexDisk(context)
+                                        val decoded = withContext(Dispatchers.IO) { BackupCodec.decode(bytes) }
+                                        lastSyncTime = CloudBackupManager.getLastSyncTime(context)
+                                        preview = decoded
+                                        menu = false
+                                    }
+                                }
+                            },
+                            modifier = Modifier.weight(1f)
+                        ) { Text("Восстановить") }
+                    }
+
+                    TextButton(
+                        enabled = available,
+                        onClick = {
+                            tokenDraft = yandexToken
+                            showToken = false
+                            tokenDialog = true
+                        }
+                    ) {
+                        Text(if (yandexToken.isBlank()) "Указать OAuth-токен Яндекс Диска" else "Изменить OAuth-токен")
+                    }
+
+                    HorizontalDivider()
+
+                    Text(
+                        "Локальная автозащита",
+                        style = MaterialTheme.typography.titleSmall
+                    )
+                    Text(
+                        if (autoBackups.isEmpty()) {
+                            "Автокопия создаётся автоматически при работе с журналом."
+                        } else {
+                            "Последняя автокопия: ${autoBackups.first().updatedAt} (доступно снапшотов: ${autoBackups.size})."
+                        }
+                    )
+
+                    OutlinedButton(
+                        enabled = available && autoBackups.isNotEmpty(),
+                        onClick = {
+                            work {
+                                val items = CloudBackupManager.listAutoBackups(context)
+                                autoBackups = items
+                                when {
+                                    items.isEmpty() -> message = "Локальные автокопии пока отсутствуют."
+                                    items.size == 1 -> {
+                                        val bytes = CloudBackupManager.readAutoBackup(items.first())
+                                        preview = withContext(Dispatchers.IO) { BackupCodec.decode(bytes) }
+                                        menu = false
+                                    }
+                                    else -> {
+                                        autoBackupChoices = items
+                                        menu = false
+                                    }
+                                }
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text("Восстановить из автокопии") }
+
+                    Text("Перед любой заменой журнал также сохраняется во внутреннюю страховочную копию.")
 
                     OutlinedButton(
                         enabled = available && recovery && !checkingRecovery,
@@ -215,7 +363,7 @@ fun BackupPanel(
                             }
                         },
                         modifier = Modifier.fillMaxWidth()
-                    ) { Text("Вернуть локальную копию") }
+                    ) { Text("Вернуть копию до последнего восстановления") }
 
                     TextButton(
                         enabled = available && recovery && !checkingRecovery,
@@ -226,7 +374,7 @@ fun BackupPanel(
                                 message = e.localizedMessage ?: "Недоступен выбор файла"
                             }
                         }
-                    ) { Text("Сохранить локальную копию в файл") }
+                    ) { Text("Сохранить эту копию в файл") }
 
                     HorizontalDivider()
 
@@ -248,13 +396,103 @@ fun BackupPanel(
                         modifier = Modifier.fillMaxWidth()
                     ) { Text("Проверить обновления") }
 
-                    Text("Файлы не зашифрованы. Сохраните JSON вне телефона, чтобы защититься от его потери. При ошибке экспорта удалите неполный файл и повторите сохранение.")
+                    Text("Файлы не зашифрованы. Храните облачную или внешнюю JSON-копию, чтобы защитить журнал при потере телефона.")
                 }
             },
             confirmButton = {
                 TextButton(enabled = available, onClick = { menu = false }) {
                     Text("Закрыть")
                 }
+            }
+        )
+    }
+
+    if (tokenDialog) {
+        AlertDialog(
+            onDismissRequest = { tokenDialog = false },
+            title = { Text("OAuth-токен Яндекс Диска") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        "Вставьте OAuth-токен Яндекс Диска с правами доступа к Диску. " +
+                            "Копия будет сохраняться в папку «Fermocontrol/fermocontrol_backup.json»."
+                    )
+                    OutlinedTextField(
+                        value = tokenDraft,
+                        onValueChange = { tokenDraft = it },
+                        label = { Text("OAuth-токен") },
+                        singleLine = true,
+                        visualTransformation = if (showToken) {
+                            VisualTransformation.None
+                        } else {
+                            PasswordVisualTransformation()
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        TextButton(onClick = { showToken = !showToken }) {
+                            Text(if (showToken) "Скрыть" else "Показать")
+                        }
+                        if (yandexToken.isNotBlank()) {
+                            TextButton(
+                                onClick = {
+                                    CloudBackupManager.clearYandexToken(context)
+                                    yandexToken = ""
+                                    tokenDraft = ""
+                                    tokenDialog = false
+                                    message = "Токен Яндекс Диска удалён с устройства."
+                                }
+                            ) { Text("Удалить токен") }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        CloudBackupManager.saveYandexToken(context, tokenDraft)
+                        yandexToken = CloudBackupManager.getYandexToken(context)
+                        tokenDialog = false
+                    }
+                ) { Text("Сохранить") }
+            },
+            dismissButton = {
+                TextButton(onClick = { tokenDialog = false }) {
+                    Text("Отмена")
+                }
+            }
+        )
+    }
+
+    autoBackupChoices?.let { choices ->
+        AlertDialog(
+            onDismissRequest = { if (available) autoBackupChoices = null },
+            title = { Text("Выберите автокопию") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Доступны два последних различающихся локальных состояния журнала:")
+                    choices.forEach { item ->
+                        OutlinedButton(
+                            enabled = available,
+                            onClick = {
+                                work {
+                                    val bytes = CloudBackupManager.readAutoBackup(item)
+                                    preview = withContext(Dispatchers.IO) { BackupCodec.decode(bytes) }
+                                    autoBackupChoices = null
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("${item.title}\n(${item.updatedAt})")
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = available,
+                    onClick = { autoBackupChoices = null }
+                ) { Text("Отмена") }
             }
         )
     }
@@ -333,7 +571,7 @@ fun BackupPanel(
                             recovery = true
                             preview = null
                             menu = false
-                            message = "Данные восстановлены. Предыдущий журнал доступен через «Данные → Вернуть локальную копию»."
+                            message = "Данные восстановлены. Предыдущий журнал доступен через «Данные → Вернуть копию до последнего восстановления»."
                         }
                     }
                 ) { Text("Заменить данные") }
