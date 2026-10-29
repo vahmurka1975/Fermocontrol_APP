@@ -3,7 +3,6 @@ package ru.fermocontrol.app
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
-import android.os.Build
 import androidx.core.content.FileProvider
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -24,7 +23,10 @@ object UpdateManager {
     private const val GITHUB_REPO = "vahmurka1975/Fermocontrol_APP"
     private const val API_URL = "https://api.github.com/repos/$GITHUB_REPO/releases/latest"
 
-    suspend fun checkUpdate(currentVersion: String): UpdateInfo = withContext(Dispatchers.IO) {
+    suspend fun checkForUpdate(currentVersion: String = "1.0.2"): UpdateInfo =
+        checkUpdate(currentVersion)
+
+    suspend fun checkUpdate(currentVersion: String = "1.0.2"): UpdateInfo = withContext(Dispatchers.IO) {
         val url = URL(API_URL)
         val conn = (url.openConnection() as HttpURLConnection).apply {
             requestMethod = "GET"
@@ -38,14 +40,14 @@ object UpdateManager {
             return@withContext UpdateInfo(
                 hasUpdate = false,
                 latestVersion = currentVersion,
-                releaseNotes = "Не удалось проверить: ошибка сети (${conn.responseCode})",
+                releaseNotes = "Статус проверки GitHub Releases: HTTP ${conn.responseCode}",
                 downloadUrl = ""
             )
         }
 
         val body = conn.inputStream.bufferedReader().use { it.readText() }
         val json = JSONObject(body)
-        val tagName = json.optString("tag_name", "").removePrefix("v").trim()
+        val tagName = json.optString("tag_name", "").removePrefix("v").removePrefix("V").trim()
         val bodyText = json.optString("body", "Нет описания изменений")
 
         val assets = json.optJSONArray("assets")
@@ -91,20 +93,33 @@ object UpdateManager {
         onProgress: (Int) -> Unit
     ): Result<Unit> = withContext(Dispatchers.IO) {
         runCatching {
-            val url = URL(downloadUrl)
-            val conn = (url.openConnection() as HttpURLConnection).apply {
-                instanceFollowRedirects = true
-                connectTimeout = 15000
-                readTimeout = 15000
-            }
+            var currentUrl = downloadUrl
+            var redirects = 0
+            var actualConn: HttpURLConnection
 
-            var actualConn = conn
-            if (conn.responseCode in 301..303) {
-                val newUrl = conn.getHeaderField("Location")
-                actualConn = (URL(newUrl).openConnection() as HttpURLConnection).apply {
+            while (true) {
+                val conn = (URL(currentUrl).openConnection() as HttpURLConnection).apply {
+                    instanceFollowRedirects = false
+                    setRequestProperty("User-Agent", "Fermocontrol-Android-App")
                     connectTimeout = 15000
                     readTimeout = 15000
                 }
+                val code = conn.responseCode
+                if (code in listOf(301, 302, 303, 307, 308)) {
+                    val location = conn.getHeaderField("Location")
+                        ?: throw IllegalStateException("Пустой адрес перенаправления")
+                    conn.disconnect()
+                    currentUrl = location
+                    redirects++
+                    if (redirects > 5) throw IllegalStateException("Слишком много перенаправлений")
+                } else {
+                    actualConn = conn
+                    break
+                }
+            }
+
+            if (actualConn.responseCode != 200) {
+                throw IllegalStateException("Ошибка скачивания APK (HTTP ${actualConn.responseCode})")
             }
 
             val fileLength = actualConn.contentLength
