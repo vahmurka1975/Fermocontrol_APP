@@ -34,6 +34,29 @@ fun firstFreeNumber(products: List<Product>): Int {
     return number
 }
 
+fun nextActiveNumberForRestore(products: List<Product>, productId: String): Int {
+    val target = products.find { it.id == productId }
+        ?: throw IllegalArgumentException("Продукт не найден")
+    val others = products.filter { it.id != productId }
+    val activeNumbers = others.filter { it.archivedAt == null }.map { it.number }.toSet()
+    return if (target.number > 0 && target.number !in activeNumbers) {
+        target.number
+    } else {
+        firstFreeNumber(others)
+    }
+}
+
+fun restoreArchivedProduct(products: List<Product>, productId: String): List<Product> {
+    val target = products.find { it.id == productId }
+        ?: throw IllegalArgumentException("Продукт не найден")
+    if (target.archivedAt == null) return products
+    val assignedNumber = nextActiveNumberForRestore(products, productId)
+    val restored = target.copy(number = assignedNumber, archivedAt = null)
+    val updated = products.map { if (it.id == productId) restored else it }
+    validateProducts(updated)
+    return updated
+}
+
 fun parsePositiveNumber(text: String): Double? = text.trim().replace(',', '.')
     .toDoubleOrNull()?.takeIf { it.isFinite() && it > 0.0 }
 

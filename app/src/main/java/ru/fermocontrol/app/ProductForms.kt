@@ -7,6 +7,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -156,26 +157,123 @@ fun WeighProductDialog(product: Product, busy: Boolean, onDismiss: () -> Unit, o
 }
 
 @Composable
-fun ProductDetailsDialog(product: Product, onDismiss: () -> Unit) {
-    FormDialog("Журнал продукта", false, onDismiss) {
+fun ProductDetailsDialog(
+    product: Product,
+    nextActiveNumber: Int,
+    busy: Boolean,
+    onDeleteWeighing: (Int) -> Unit,
+    onUnarchive: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    var confirmDeleteIndex by remember { mutableStateOf<Int?>(null) }
+    var confirmUnarchive by remember { mutableStateOf(false) }
+
+    FormDialog("Журнал продукта", busy, onDismiss) {
         Text((if (product.archivedAt == null) "№${product.number}" else "Бывший №${product.number}") +
             " · ${product.name}", style = MaterialTheme.typography.titleLarge)
-        if (product.archivedAt != null) Text("Архив: номер освобождён ${dateTime(product.archivedAt)}")
+        if (product.archivedAt != null) {
+            Text("Архив: номер освобождён ${dateTime(product.archivedAt)}")
+            OutlinedButton(
+                enabled = !busy,
+                onClick = { confirmUnarchive = true },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Вернуть в работу (№$nextActiveNumber)")
+            }
+        }
         Text("Основа: ${product.basis}")
         Text("Специи: ${product.spices.joinToString()}")
         Text("Оболочка: ${product.casing}")
         Text("Добавлен: ${dateTime(product.startedAt)} · ${grams(product.initialWeight)} г")
+        Text("Текущий вес: ${grams(product.currentWeight)} г · потеря ${decimal(product.lossPercent)}%")
         Text("Цель: ${decimal(product.targetLoss)}% · ${grams(product.targetWeight)} г")
         HorizontalDivider()
         if (product.weighings.isEmpty()) Text("Взвешиваний пока нет")
-        product.weighings.asReversed().forEach { record ->
-            Text(dateTime(record.at), style = MaterialTheme.typography.titleSmall)
+        product.weighings.indices.reversed().forEach { idx ->
+            val record = product.weighings[idx]
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(dateTime(record.at), style = MaterialTheme.typography.titleSmall)
+                if (product.archivedAt == null) {
+                    TextButton(
+                        enabled = !busy,
+                        onClick = { confirmDeleteIndex = idx }
+                    ) {
+                        Text("Удалить", color = MaterialTheme.colorScheme.error)
+                    }
+                }
+            }
             Text("Вес: ${grams(record.weight)} г")
             record.observations.forEach { (key, value) -> Text("$key: $value") }
             if (record.note.isNotBlank()) Text("Заметка: ${record.note}")
             HorizontalDivider()
         }
         Text("Журнал не является заключением о безопасности продукта.", style = MaterialTheme.typography.bodySmall)
-        TextButton(onClick = onDismiss, modifier = Modifier.fillMaxWidth()) { Text("Закрыть") }
+        TextButton(enabled = !busy, onClick = onDismiss, modifier = Modifier.fillMaxWidth()) { Text("Закрыть") }
+    }
+
+    confirmDeleteIndex?.let { index ->
+        val rec = product.weighings.getOrNull(index)
+        if (rec != null) {
+            AlertDialog(
+                onDismissRequest = { if (!busy) confirmDeleteIndex = null },
+                title = { Text("Удалить запись взвешивания?") },
+                text = {
+                    Text("Запись от ${dateTime(rec.at)} (${grams(rec.weight)} г) будет удалена из журнала продукта «${product.name}».")
+                },
+                confirmButton = {
+                    TextButton(
+                        enabled = !busy,
+                        onClick = {
+                            confirmDeleteIndex = null
+                            onDeleteWeighing(index)
+                        }
+                    ) {
+                        Text("Удалить", color = MaterialTheme.colorScheme.error)
+                    }
+                },
+                dismissButton = {
+                    TextButton(enabled = !busy, onClick = { confirmDeleteIndex = null }) {
+                        Text("Отмена")
+                    }
+                }
+            )
+        }
+    }
+
+    if (confirmUnarchive) {
+        val sameNumber = nextActiveNumber == product.number
+        AlertDialog(
+            onDismissRequest = { if (!busy) confirmUnarchive = false },
+            title = { Text("Вернуть продукт в работу?") },
+            text = {
+                Text(
+                    if (sameNumber) {
+                        "Продукт «${product.name}» вернётся в список активных под прежним №$nextActiveNumber вместе со всем журналом взвешиваний."
+                    } else {
+                        "Прежний №${product.number} сейчас занят другим активным продуктом. «${product.name}» вернётся в работу под свободным №$nextActiveNumber со всем журналом."
+                    }
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = !busy,
+                    onClick = {
+                        confirmUnarchive = false
+                        onUnarchive()
+                    }
+                ) {
+                    Text("Вернуть в работу")
+                }
+            },
+            dismissButton = {
+                TextButton(enabled = !busy, onClick = { confirmUnarchive = false }) {
+                    Text("Отмена")
+                }
+            }
+        )
     }
 }

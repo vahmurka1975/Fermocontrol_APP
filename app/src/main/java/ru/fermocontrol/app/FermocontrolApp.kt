@@ -21,7 +21,7 @@ import kotlinx.coroutines.withContext
 @Composable
 fun FermocontrolApp() {
     val context = LocalContext.current.applicationContext
-    val store = remember(context) { ProductStore(context) }
+    val store = remember { ProductStore(context) }
     val scope = rememberCoroutineScope()
     var products by remember { mutableStateOf<List<Product>>(emptyList()) }
     var loading by remember { mutableStateOf(true) }
@@ -38,8 +38,9 @@ fun FermocontrolApp() {
     LaunchedEffect(attempt) {
         loading = true
         loadError = null
-        try { products = withContext(Dispatchers.IO) { store.load() } }
-        catch (error: Exception) {
+        try {
+            products = withContext(Dispatchers.IO) { store.load() }
+        } catch (error: Exception) {
             if (error is CancellationException) throw error
             loadError = "Не удалось прочитать данные. Они не будут перезаписаны. " +
                 (error.localizedMessage ?: "Ошибка чтения")
@@ -154,8 +155,27 @@ fun FermocontrolApp() {
                     it.copy(weighings = it.weighings + record) else it }
                 persist(next) { weighingId = null }
             })
-        val detail = products.find { it.id == detailsId }
-        if (detail != null) ProductDetailsDialog(detail, onDismiss = { detailsId = null })
+        products.find { it.id == detailsId }?.let { product ->
+            val nextNumber = nextActiveNumberForRestore(products, product.id)
+            ProductDetailsDialog(
+                product = product,
+                nextActiveNumber = nextNumber,
+                busy = busy,
+                onDeleteWeighing = { removeIndex ->
+                    val updated = product.copy(
+                        weighings = product.weighings.filterIndexed { idx, _ -> idx != removeIndex }
+                    )
+                    persist(products.map { if (it.id == product.id) updated else it }) {}
+                },
+                onUnarchive = {
+                    persist(restoreArchivedProduct(products, product.id)) {
+                        detailsId = null
+                        archived = false
+                    }
+                },
+                onDismiss = { if (!busy) detailsId = null }
+            )
+        }
         val archive = products.find { it.id == archiveId && it.archivedAt == null }
         if (archive != null) AlertDialog(
             onDismissRequest = { if (!busy) archiveId = null },
