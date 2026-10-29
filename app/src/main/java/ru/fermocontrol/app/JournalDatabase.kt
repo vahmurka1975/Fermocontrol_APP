@@ -7,10 +7,6 @@ import android.database.sqlite.SQLiteOpenHelper
 import org.json.JSONArray
 import org.json.JSONObject
 
-/**
- * Реляционное хранилище журнала ферментации в SQLite.
- * Все операции записи выполняются в транзакциях с проверкой целостности.
- */
 class JournalDatabase(context: Context) :
     SQLiteOpenHelper(context.applicationContext, DB_NAME, null, SCHEMA_VERSION) {
 
@@ -34,7 +30,10 @@ class JournalDatabase(context: Context) :
                 initial_weight REAL NOT NULL,
                 target_loss REAL NOT NULL,
                 started_at INTEGER NOT NULL,
-                archived_at INTEGER NULL
+                archived_at INTEGER NULL,
+                reminder_days INTEGER NOT NULL DEFAULT 3,
+                target_temp REAL NULL,
+                target_humidity REAL NULL
             )
             """.trimIndent()
         )
@@ -50,6 +49,8 @@ class JournalDatabase(context: Context) :
                 recorded_at INTEGER NOT NULL,
                 observations_json TEXT NOT NULL,
                 note TEXT NOT NULL,
+                temperature REAL NULL,
+                humidity REAL NULL,
                 FOREIGN KEY(product_id) REFERENCES products(id) ON DELETE CASCADE
             )
             """.trimIndent()
@@ -61,7 +62,13 @@ class JournalDatabase(context: Context) :
         var version = oldVersion
         while (version < newVersion) {
             when (version) {
-                // Пошаговые миграции для будущих версий схемы (1 -> 2 и т.д.)
+                1 -> {
+                    db.execSQL("ALTER TABLE products ADD COLUMN reminder_days INTEGER NOT NULL DEFAULT 3")
+                    db.execSQL("ALTER TABLE products ADD COLUMN target_temp REAL NULL")
+                    db.execSQL("ALTER TABLE products ADD COLUMN target_humidity REAL NULL")
+                    db.execSQL("ALTER TABLE weighings ADD COLUMN temperature REAL NULL")
+                    db.execSQL("ALTER TABLE weighings ADD COLUMN humidity REAL NULL")
+                }
                 else -> error("Неизвестная миграция схемы БД с версии $version до $newVersion")
             }
             version++
@@ -81,7 +88,7 @@ class JournalDatabase(context: Context) :
 
         db.rawQuery(
             """
-            SELECT product_id, weight, recorded_at, observations_json, note
+            SELECT product_id, weight, recorded_at, observations_json, note, temperature, humidity
             FROM weighings
             ORDER BY position ASC, id ASC
             """.trimIndent(),
@@ -99,12 +106,16 @@ class JournalDatabase(context: Context) :
                     observations[key] = obsObj.optString(key, "")
                 }
                 val note = cursor.getString(4) ?: ""
+                val temp = if (cursor.isNull(5)) null else cursor.getDouble(5)
+                val hum = if (cursor.isNull(6)) null else cursor.getDouble(6)
                 weighingsByProduct.getOrPut(productId) { mutableListOf() }.add(
                     Weighing(
                         weight = weight,
                         at = at,
                         observations = observations,
-                        note = note
+                        note = note,
+                        temperature = temp,
+                        humidity = hum
                     )
                 )
             }
@@ -114,7 +125,8 @@ class JournalDatabase(context: Context) :
         db.rawQuery(
             """
             SELECT id, number, name, basis, spices_json, casing,
-                   initial_weight, target_loss, started_at, archived_at
+                   initial_weight, target_loss, started_at, archived_at,
+                   reminder_days, target_temp, target_humidity
             FROM products
             ORDER BY position ASC
             """.trimIndent(),
@@ -125,13 +137,16 @@ class JournalDatabase(context: Context) :
                 val number = cursor.getInt(1)
                 val name = cursor.getString(2)
                 val basis = cursor.getString(3)
-                val spicesArray = JSONArray(cursor.getString(4))
-                val spices = List(spicesArray.length()) { i -> spicesArray.getString(i) }
+                val spicesArr = JSONArray(cursor.getString(4))
+                val spices = List(spicesArr.length()) { idx -> spicesArr.getString(idx) }
                 val casing = cursor.getString(5)
                 val initialWeight = cursor.getDouble(6)
                 val targetLoss = cursor.getDouble(7)
                 val startedAt = cursor.getLong(8)
                 val archivedAt = if (cursor.isNull(9)) null else cursor.getLong(9)
+                val reminderDays = if (cursor.isNull(10)) 3 else cursor.getInt(10).coerceIn(1, 60)
+                val targetTemp = if (cursor.isNull(11)) null else cursor.getDouble(11)
+                val targetHumidity = if (cursor.isNull(12)) null else cursor.getDouble(12)
 
                 products.add(
                     Product(
@@ -145,7 +160,10 @@ class JournalDatabase(context: Context) :
                         targetLoss = targetLoss,
                         startedAt = startedAt,
                         archivedAt = archivedAt,
-                        weighings = weighingsByProduct[id] ?: emptyList()
+                        weighings = weighingsByProduct[id]?.toList().orEmpty(),
+                        reminderIntervalDays = reminderDays,
+                        targetTemp = targetTemp,
+                        targetHumidity = targetHumidity
                     )
                 )
             }
@@ -180,9 +198,12 @@ class JournalDatabase(context: Context) :
                     } else {
                         putNull("archived_at")
                     }
+                    put("reminder_days", product.reminderIntervalDays)
+                    if (product.targetTemp != null) put("target_temp", product.targetTemp) else putNull("target_temp")
+                    if (product.targetHumidity != null) put("target_humidity", product.targetHumidity) else putNull("target_humidity")
                 }
-                val productRowId = db.insertOrThrow("products", null, productValues)
-                check(productRowId != -1L) { "Не удалось сохранить продукт ${product.id}" }
+                val rowId = db.insertOrThrow("products", null, productValues)
+                check(rowId != -1L) { "Не удалось сохранить продукт ${product.id}" }
 
                 product.weighings.forEachIndexed { weighingIndex, weighing ->
                     val weighingValues = ContentValues().apply {
@@ -192,6 +213,8 @@ class JournalDatabase(context: Context) :
                         put("recorded_at", weighing.at)
                         put("observations_json", JSONObject(weighing.observations).toString())
                         put("note", weighing.note)
+                        if (weighing.temperature != null) put("temperature", weighing.temperature) else putNull("temperature")
+                        if (weighing.humidity != null) put("humidity", weighing.humidity) else putNull("humidity")
                     }
                     val weighingRowId = db.insertOrThrow("weighings", null, weighingValues)
                     check(weighingRowId != -1L) { "Не удалось сохранить взвешивание продукта ${product.id}" }
@@ -205,6 +228,6 @@ class JournalDatabase(context: Context) :
 
     companion object {
         private const val DB_NAME = "fermocontrol-journal.db"
-        const val SCHEMA_VERSION = 1
+        const val SCHEMA_VERSION = 2
     }
 }

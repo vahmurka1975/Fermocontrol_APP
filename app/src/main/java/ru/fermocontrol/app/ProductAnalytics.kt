@@ -46,10 +46,13 @@ fun lastWeighingOrStartTime(product: Product): Long =
 fun daysSince(timestampMs: Long, nowMs: Long = System.currentTimeMillis()): Long =
     ((nowMs - timestampMs).coerceAtLeast(0L)) / DAY_MILLIS
 
+fun isTargetReached(product: Product): Boolean =
+    product.archivedAt == null && product.lossPercent >= product.targetLoss
+
 fun needsWeighing(
     product: Product,
     nowMs: Long = System.currentTimeMillis(),
-    thresholdMs: Long = WEIGHING_REMINDER_MILLIS
+    thresholdMs: Long = product.reminderIntervalDays.coerceIn(1, 60) * DAY_MILLIS
 ): Boolean {
     if (product.archivedAt != null) return false
     val referenceTime = lastWeighingOrStartTime(product)

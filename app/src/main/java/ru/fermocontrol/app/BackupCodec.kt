@@ -7,7 +7,6 @@ import java.io.InputStream
 import java.nio.ByteBuffer
 import java.nio.charset.CodingErrorAction
 
-/** Shared, versioned format for internal storage and portable backups. */
 object BackupCodec {
     const val MAX_BYTES = 20 * 1024 * 1024
     private const val MAX_PRODUCTS = 10000
@@ -35,7 +34,8 @@ object BackupCodec {
         val root = tokener.nextValue() as? JSONObject
             ?: throw IllegalArgumentException("Ожидается JSON-объект")
         require(tokener.nextClean() == '\u0000') { "Лишние данные после JSON" }
-        require(root.whole("schemaVersion") == 1L) { "Неподдерживаемая версия данных" }
+        val version = root.whole("schemaVersion")
+        require(version in 1L..2L) { "Неподдерживаемая версия данных" }
         val array = root.getJSONArray("products")
         require(array.length() <= MAX_PRODUCTS) { "Слишком много продуктов" }
         var total = 0L
@@ -47,13 +47,25 @@ object BackupCodec {
             val spices = p.getJSONArray("spices")
             val number = p.whole("number")
             require(number in 1..Int.MAX_VALUE.toLong()) { "Неверный номер продукта" }
+            val reminderDays = if (p.has("reminderIntervalDays") && !p.isNull("reminderIntervalDays")) {
+                p.whole("reminderIntervalDays").toInt()
+            } else 3
+            val targetTemp = p.optionalDecimal("targetTemp")
+            val targetHumidity = p.optionalDecimal("targetHumidity")
+
             Product(
-                id = p.text("id"), number = number.toInt(), name = p.text("name"),
-                basis = p.text("basis"), spices = List(spices.length()) {
-                    spices.get(it) as? String ?: throw IllegalArgumentException("Неверный список специй")
-                }, casing = p.text("casing"), initialWeight = p.decimal("initialWeight"),
-                targetLoss = p.decimal("targetLoss"), startedAt = p.timestamp("startedAt"),
-                archivedAt = if (p.has("archivedAt") && p.isNull("archivedAt")) null
+                id = p.text("id"),
+                number = number.toInt(),
+                name = p.text("name"),
+                basis = p.text("basis"),
+                spices = List(spices.length()) {
+                    spices.get(it) as? String ?: throw IllegalArgumentException("Неверная специя")
+                },
+                casing = p.text("casing"),
+                initialWeight = p.decimal("initialWeight"),
+                targetLoss = p.decimal("targetLoss"),
+                startedAt = p.timestamp("startedAt"),
+                archivedAt = if (!p.has("archivedAt") || p.isNull("archivedAt")) null
                     else p.timestamp("archivedAt"),
                 weighings = List(records.length()) { r ->
                     val w = records.getJSONObject(r)
@@ -64,9 +76,18 @@ object BackupCodec {
                         val key = keys.next()
                         observations[key] = o.text(key)
                     }
-                    Weighing(w.decimal("weight"), w.timestamp("at"), observations,
-                        if (w.has("note")) w.text("note") else "")
-                }
+                    Weighing(
+                        weight = w.decimal("weight"),
+                        at = w.timestamp("at"),
+                        observations = observations,
+                        note = if (w.has("note") && !w.isNull("note")) w.text("note") else "",
+                        temperature = w.optionalDecimal("temperature"),
+                        humidity = w.optionalDecimal("humidity")
+                    )
+                },
+                reminderIntervalDays = reminderDays,
+                targetTemp = targetTemp,
+                targetHumidity = targetHumidity
             )
         }.also(::validateProducts)
     }
@@ -81,18 +102,36 @@ object BackupCodec {
         products.forEach { p ->
             val weights = JSONArray()
             p.weighings.forEach { w ->
-                weights.put(JSONObject().put("weight", w.weight).put("at", w.at)
-                    .put("observations", JSONObject(w.observations)).put("note", w.note))
+                val wObj = JSONObject()
+                    .put("weight", w.weight)
+                    .put("at", w.at)
+                    .put("observations", JSONObject(w.observations))
+                    .put("note", w.note)
+                if (w.temperature != null) wObj.put("temperature", w.temperature)
+                if (w.humidity != null) wObj.put("humidity", w.humidity)
+                weights.put(wObj)
             }
-            array.put(JSONObject().put("id", p.id).put("number", p.number)
-                .put("name", p.name).put("basis", p.basis).put("spices", JSONArray(p.spices))
-                .put("casing", p.casing).put("initialWeight", p.initialWeight)
-                .put("targetLoss", p.targetLoss).put("startedAt", p.startedAt)
-                .put("archivedAt", p.archivedAt ?: JSONObject.NULL).put("weighings", weights))
+            val pObj = JSONObject()
+                .put("id", p.id)
+                .put("number", p.number)
+                .put("name", p.name)
+                .put("basis", p.basis)
+                .put("spices", JSONArray(p.spices))
+                .put("casing", p.casing)
+                .put("initialWeight", p.initialWeight)
+                .put("targetLoss", p.targetLoss)
+                .put("startedAt", p.startedAt)
+                .put("archivedAt", p.archivedAt ?: JSONObject.NULL)
+                .put("reminderIntervalDays", p.reminderIntervalDays)
+                .put("weighings", weights)
+            if (p.targetTemp != null) pObj.put("targetTemp", p.targetTemp)
+            if (p.targetHumidity != null) pObj.put("targetHumidity", p.targetHumidity)
+            array.put(pObj)
         }
         val bytes = JSONObject().put("schemaVersion", 1).put("products", array)
+        if (bytes.has("version")) { val v = bytes.optInt("version", -1); require(v in 1..1) { "Unsupported backup version: $v" } }
+        if (bytes.has("schemaVersion")) { val v = bytes.optInt("schemaVersion", -1); require(v in 1..1) { "Unsupported backup version: $v" } }
             .toString().toByteArray(Charsets.UTF_8)
-        // Round-trip validation prevents exporting a file that cannot be restored.
         decode(bytes)
         return bytes
     }
@@ -103,6 +142,11 @@ object BackupCodec {
     private fun JSONObject.decimal(key: String): Double {
         val n = get(key) as? Number ?: throw IllegalArgumentException("Неверное число: $key")
         return n.toDouble().also { require(it.isFinite()) { "Неверное число: $key" } }
+    }
+
+    private fun JSONObject.optionalDecimal(key: String): Double? {
+        if (!has(key) || isNull(key)) return null
+        return decimal(key)
     }
 
     private fun JSONObject.whole(key: String): Long {

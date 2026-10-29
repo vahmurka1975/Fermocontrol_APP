@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.net.Uri
+import android.Manifest
 import android.os.Build
 import android.view.ViewGroup
 import android.webkit.CookieManager
@@ -73,6 +74,20 @@ fun BackupPanel(
     var updateInfo by remember { mutableStateOf<UpdateInfo?>(null) }
     var downloading by remember { mutableStateOf(false) }
     var downloadProgress by remember { mutableIntStateOf(0) }
+
+    var remindersEnabled by remember { mutableStateOf(ReminderScheduler.areRemindersEnabled(context)) }
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) {
+            ReminderScheduler.setRemindersEnabled(context, true)
+            remindersEnabled = true
+            ReminderScheduler.checkAndNotifyIfNeeded(context, force = true)
+            message = "Уведомления о взвешивании включены."
+        } else {
+            message = "Разрешение на показ уведомлений не предоставлено в настройках Android."
+        }
+    }
 
     val latestProducts by rememberUpdatedState(products)
     val latestAvailable by rememberUpdatedState(available)

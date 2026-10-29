@@ -21,7 +21,10 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 @Composable
-fun FermocontrolApp() {
+fun FermocontrolApp(
+    openProductId: String? = null,
+    onConsumeOpenProductId: () -> Unit = {}
+) {
     val context = LocalContext.current.applicationContext
     val store = remember { ProductStore(context) }
     val scope = rememberCoroutineScope()
@@ -53,6 +56,19 @@ fun FermocontrolApp() {
         } finally { loading = false }
     }
 
+    LaunchedEffect(openProductId, loading, products) {
+        if (!loading && openProductId != null) {
+            val found = products.find { it.id == openProductId }
+            if (found != null) {
+                archived = found.archivedAt != null
+                onlyDueWeighing = false
+                detailsInitialTab = 0
+                detailsId = found.id
+            }
+            onConsumeOpenProductId()
+        }
+    }
+
     fun persist(next: List<Product>, onSuccess: () -> Unit) {
         if (busy || loading || loadError != null) return
         busy = true
@@ -60,6 +76,7 @@ fun FermocontrolApp() {
             try {
                 withContext(Dispatchers.IO) { store.save(next) }
                 products = next
+                ReminderScheduler.checkAndNotifyIfNeeded(context, force = false)
                 onSuccess()
             } catch (error: Exception) {
                 if (error is CancellationException) throw error
@@ -310,17 +327,32 @@ private fun ProductCard(
                     color = MaterialTheme.colorScheme.primary,
                     style = MaterialTheme.typography.labelLarge
                 )
-                if (due) {
-                    Surface(
-                        color = MaterialTheme.colorScheme.errorContainer,
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        Text(
-                            "Пора взвесить",
-                            color = MaterialTheme.colorScheme.onErrorContainer,
-                            style = MaterialTheme.typography.labelSmall,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                        )
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    if (isTargetReached(product)) {
+                        Surface(
+                            color = MaterialTheme.colorScheme.tertiaryContainer,
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Text(
+                                "Цель достигнута",
+                                color = MaterialTheme.colorScheme.onTertiaryContainer,
+                                style = MaterialTheme.typography.labelSmall,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                            )
+                        }
+                    }
+                    if (due) {
+                        Surface(
+                            color = MaterialTheme.colorScheme.errorContainer,
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Text(
+                                "Пора взвесить",
+                                color = MaterialTheme.colorScheme.onErrorContainer,
+                                style = MaterialTheme.typography.labelSmall,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                            )
+                        }
                     }
                 }
             }
