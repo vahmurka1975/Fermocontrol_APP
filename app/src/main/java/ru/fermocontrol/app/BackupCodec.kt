@@ -35,7 +35,7 @@ object BackupCodec {
             ?: throw IllegalArgumentException("Ожидается JSON-объект")
         require(tokener.nextClean() == '\u0000') { "Лишние данные после JSON" }
         val version = root.whole("schemaVersion")
-        require(version in 1L..2L) { "Неподдерживаемая версия данных" }
+        require(version == 1L) { "Неподдерживаемая версия данных: $version" }
         val array = root.getJSONArray("products")
         require(array.length() <= MAX_PRODUCTS) { "Слишком много продуктов" }
         var total = 0L
@@ -128,10 +128,11 @@ object BackupCodec {
             if (p.targetHumidity != null) pObj.put("targetHumidity", p.targetHumidity)
             array.put(pObj)
         }
-        val bytes = JSONObject().put("schemaVersion", 1).put("products", array)
-        if (bytes.has("version")) { val v = bytes.optInt("version", -1); require(v in 1..1) { "Unsupported backup version: $v" } }
-        if (bytes.has("schemaVersion")) { val v = bytes.optInt("schemaVersion", -1); require(v in 1..1) { "Unsupported backup version: $v" } }
-            .toString().toByteArray(Charsets.UTF_8)
+        val bytes = JSONObject()
+            .put("schemaVersion", 1)
+            .put("products", array)
+            .toString()
+            .toByteArray(Charsets.UTF_8)
         decode(bytes)
         return bytes
     }
