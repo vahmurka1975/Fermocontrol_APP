@@ -1,0 +1,30 @@
+# Настройки Android Studio и IntelliJ IDEA
+/.idea/
+*.iml
+
+# Локальные настройки Android SDK
+/local.properties
+
+# Кэш Gradle и Kotlin
+.gradle/
+.kotlin/
+
+# Результаты сборки во всех модулях
+**/build/
+
+# Файлы нативной сборки
+.externalNativeBuild/
+.cxx/
+
+# Снимки и профилирование Android Studio
+/captures/
+
+# Системные файлы
+.DS_Store
+Thumbs.db
+
+# Ключи подписи и локальные секреты
+*.jks
+*.keystore
+/keystore.properties
+/secrets.properties
