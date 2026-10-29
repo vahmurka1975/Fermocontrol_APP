@@ -1,8 +1,18 @@
 package ru.fermocontrol.app
 
+import android.annotation.SuppressLint
+import android.content.ClipboardManager
+import android.content.Context
 import android.content.pm.PackageManager
+import android.graphics.Bitmap
 import android.net.Uri
 import android.os.Build
+import android.view.ViewGroup
+import android.webkit.CookieManager
+import android.webkit.WebChromeClient
+import android.webkit.WebResourceRequest
+import android.webkit.WebView
+import android.webkit.WebViewClient
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
@@ -11,16 +21,21 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.IOException
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 
@@ -44,10 +59,13 @@ fun BackupPanel(
     var checkingRecovery by remember { mutableStateOf(true) }
 
     var yandexToken by rememberSaveable { mutableStateOf(CloudBackupManager.getYandexToken(context)) }
+    var autoSync by rememberSaveable { mutableStateOf(CloudBackupManager.getAutoSyncEnabled(context)) }
     var lastSyncTime by rememberSaveable { mutableStateOf(CloudBackupManager.getLastSyncTime(context)) }
     var tokenDialog by rememberSaveable { mutableStateOf(false) }
+    var webAuthDialog by rememberSaveable { mutableStateOf(false) }
     var tokenDraft by rememberSaveable { mutableStateOf("") }
     var showToken by rememberSaveable { mutableStateOf(false) }
+    var verifyingToken by remember { mutableStateOf(false) }
 
     var autoBackups by remember { mutableStateOf<List<AutoBackupItem>>(emptyList()) }
     var autoBackupChoices by remember { mutableStateOf<List<AutoBackupItem>?>(null) }
@@ -71,9 +89,9 @@ fun BackupPanel(
                 @Suppress("DEPRECATION")
                 context.packageManager.getPackageInfo(context.packageName, 0)
             }
-            pInfo.versionName ?: "1.0.5"
+            pInfo.versionName ?: "1.0.10"
         } catch (_: Exception) {
-            "1.0.5"
+            "1.0.10"
         }
     }
 
@@ -87,10 +105,24 @@ fun BackupPanel(
 
     LaunchedEffect(products, journalAvailable) {
         if (journalAvailable && products.isNotEmpty()) {
-            delay(500)
-            withContext(Dispatchers.IO) {
-                runCatching {
-                    CloudBackupManager.saveAutoBackup(context, BackupCodec.encode(products))
+            delay(800)
+            val bytes = withContext(Dispatchers.IO) {
+                runCatching { BackupCodec.encode(products) }.getOrNull()
+            }
+            if (bytes != null) {
+                val changed = runCatching {
+                    CloudBackupManager.saveAutoBackup(context, bytes)
+                }.getOrDefault(false)
+
+                if (changed &&
+                    CloudBackupManager.getAutoSyncEnabled(context) &&
+                    CloudBackupManager.getYandexToken(context).isNotBlank()
+                ) {
+                    runCatching {
+                        CloudBackupManager.uploadToYandexDisk(context, bytes)
+                    }.onSuccess { syncAt ->
+                        lastSyncTime = syncAt
+                    }
                 }
             }
         }
@@ -187,10 +219,10 @@ fun BackupPanel(
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Text(
-                        "Файловые и облачные копии",
+                        "Быстрая отправка в облако",
                         style = MaterialTheme.typography.titleSmall
                     )
-                    Text("JSON сохраняет все продукты и журналы. CSV предназначен для просмотра в Excel и не подходит для восстановления.")
+                    Text("Отправьте JSON-файл в установленное приложение Яндекс Диска, Google Диска или в Telegram.")
 
                     Button(
                         enabled = available && journalAvailable,
@@ -246,14 +278,15 @@ fun BackupPanel(
                     HorizontalDivider()
 
                     Text(
-                        "Яндекс Диск (в 1 клик по OAuth-токену)",
+                        "Яндекс Диск (прямая синхронизация)",
                         style = MaterialTheme.typography.titleSmall
                     )
                     Text(
                         if (yandexToken.isBlank()) {
-                            "Токен не указан. Укажите OAuth-токен для прямой выгрузки и восстановления одной кнопкой."
+                            "Токен не указан. Настройте OAuth-токен для выгрузки и восстановления в 1 клик."
                         } else {
-                            "Токен сохранён." + (lastSyncTime?.let { "\nПоследняя синхронизация: $it" } ?: "")
+                            "Токен: ${CloudBackupManager.maskToken(yandexToken)}" +
+                                (lastSyncTime?.let { "\nПоследняя синхронизация: $it" } ?: "")
                         }
                     )
 
@@ -302,15 +335,49 @@ fun BackupPanel(
                         ) { Text("Восстановить") }
                     }
 
+                    if (yandexToken.isNotBlank()) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(
+                                "Автовыгрузка при изменениях",
+                                modifier = Modifier.weight(1f)
+                            )
+                            Switch(
+                                checked = autoSync,
+                                enabled = available,
+                                onCheckedChange = { checked ->
+                                    autoSync = checked
+                                    CloudBackupManager.setAutoSyncEnabled(context, checked)
+                                    if (checked && latestJournal && latestProducts.isNotEmpty()) {
+                                        scope.launch {
+                                            runCatching {
+                                                val bytes = withContext(Dispatchers.IO) {
+                                                    BackupCodec.encode(latestProducts)
+                                                }
+                                                CloudBackupManager.uploadToYandexDisk(context, bytes)
+                                            }.onSuccess { syncAt ->
+                                                lastSyncTime = syncAt
+                                            }
+                                        }
+                                    }
+                                }
+                            )
+                        }
+                    }
+
                     TextButton(
                         enabled = available,
                         onClick = {
+                            yandexToken = CloudBackupManager.getYandexToken(context)
                             tokenDraft = yandexToken
                             showToken = false
                             tokenDialog = true
                         }
                     ) {
-                        Text(if (yandexToken.isBlank()) "Указать OAuth-токен Яндекс Диска" else "Изменить OAuth-токен")
+                        Text(if (yandexToken.isBlank()) "Подключить Яндекс Диск (OAuth)" else "Настроить OAuth-токен")
                     }
 
                     HorizontalDivider()
@@ -323,7 +390,7 @@ fun BackupPanel(
                         if (autoBackups.isEmpty()) {
                             "Автокопия создаётся автоматически при работе с журналом."
                         } else {
-                            "Последняя автокопия: ${autoBackups.first().updatedAt} (доступно снапшотов: ${autoBackups.size})."
+                            "Последняя автокопия: ${autoBackups.first().updatedAt} (снапшотов: ${autoBackups.size})."
                         }
                     )
 
@@ -349,8 +416,6 @@ fun BackupPanel(
                         },
                         modifier = Modifier.fillMaxWidth()
                     ) { Text("Восстановить из автокопии") }
-
-                    Text("Перед любой заменой журнал также сохраняется во внутреннюю страховочную копию.")
 
                     OutlinedButton(
                         enabled = available && recovery && !checkingRecovery,
@@ -395,8 +460,6 @@ fun BackupPanel(
                         },
                         modifier = Modifier.fillMaxWidth()
                     ) { Text("Проверить обновления") }
-
-                    Text("Файлы не зашифрованы. Храните облачную или внешнюю JSON-копию, чтобы защитить журнал при потере телефона.")
                 }
             },
             confirmButton = {
@@ -409,18 +472,27 @@ fun BackupPanel(
 
     if (tokenDialog) {
         AlertDialog(
-            onDismissRequest = { tokenDialog = false },
+            onDismissRequest = { if (!verifyingToken) tokenDialog = false },
             title = { Text("OAuth-токен Яндекс Диска") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(
-                        "Вставьте OAuth-токен Яндекс Диска с правами доступа к Диску. " +
-                            "Копия будет сохраняться в папку «Fermocontrol/fermocontrol_backup.json»."
+                        "Нажмите «Войти через Яндекс» и на открывшейся странице Полигона нажмите " +
+                            "кнопку «Получить OAuth-токен» — токен (начинается с y0_) проверится и сохранится автоматически."
                     )
+
+                    Button(
+                        enabled = !verifyingToken,
+                        onClick = { webAuthDialog = true },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Войти через Яндекс (автополучение)")
+                    }
+
                     OutlinedTextField(
                         value = tokenDraft,
                         onValueChange = { tokenDraft = it },
-                        label = { Text("OAuth-токен") },
+                        label = { Text("OAuth-токен (y0_...)") },
                         singleLine = true,
                         visualTransformation = if (showToken) {
                             VisualTransformation.None
@@ -429,37 +501,115 @@ fun BackupPanel(
                         },
                         modifier = Modifier.fillMaxWidth()
                     )
+
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        TextButton(onClick = { showToken = !showToken }) {
+                        TextButton(
+                            enabled = !verifyingToken,
+                            onClick = { showToken = !showToken }
+                        ) {
                             Text(if (showToken) "Скрыть" else "Показать")
                         }
-                        if (yandexToken.isNotBlank()) {
-                            TextButton(
-                                onClick = {
-                                    CloudBackupManager.clearYandexToken(context)
-                                    yandexToken = ""
-                                    tokenDraft = ""
-                                    tokenDialog = false
-                                    message = "Токен Яндекс Диска удалён с устройства."
+                        TextButton(
+                            enabled = !verifyingToken,
+                            onClick = {
+                                val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+                                val clipText = cm?.primaryClip
+                                    ?.takeIf { it.itemCount > 0 }
+                                    ?.getItemAt(0)
+                                    ?.coerceToText(context)
+                                    ?.toString()
+                                    .orEmpty()
+                                val cleaned = CloudBackupManager.normalizeToken(clipText)
+                                if (cleaned.isNotBlank()) {
+                                    tokenDraft = cleaned
+                                    showToken = true
+                                } else {
+                                    message = "Буфер обмена пуст."
                                 }
-                            ) { Text("Удалить токен") }
+                            }
+                        ) {
+                            Text("Вставить из буфера")
                         }
+                    }
+
+                    if (verifyingToken) {
+                        LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                        Text("Проверяем токен на сервере Яндекс Диска…")
+                    }
+
+                    if (yandexToken.isNotBlank() && !verifyingToken) {
+                        TextButton(
+                            onClick = {
+                                CloudBackupManager.clearYandexToken(context)
+                                yandexToken = ""
+                                autoSync = false
+                                tokenDraft = ""
+                                tokenDialog = false
+                                message = "Токен Яндекс Диска удалён с устройства."
+                            }
+                        ) { Text("Удалить токен") }
                     }
                 }
             },
             confirmButton = {
                 Button(
+                    enabled = !verifyingToken,
                     onClick = {
-                        CloudBackupManager.saveYandexToken(context, tokenDraft)
-                        yandexToken = CloudBackupManager.getYandexToken(context)
-                        tokenDialog = false
+                        val cleaned = CloudBackupManager.normalizeToken(tokenDraft)
+                        if (cleaned.isBlank()) {
+                            CloudBackupManager.clearYandexToken(context)
+                            yandexToken = ""
+                            autoSync = false
+                            tokenDialog = false
+                        } else {
+                            verifyingToken = true
+                            scope.launch {
+                                val checkResult = CloudBackupManager.verifyYandexToken(cleaned)
+                                verifyingToken = false
+                                checkResult.onSuccess { account ->
+                                    CloudBackupManager.saveYandexToken(context, cleaned)
+                                    yandexToken = CloudBackupManager.getYandexToken(context)
+                                    tokenDraft = yandexToken
+                                    tokenDialog = false
+                                    message = "Токен Яндекс Диска проверен и сохранён.\nАккаунт: $account"
+                                }.onFailure { err ->
+                                    if (err is IOException) {
+                                        CloudBackupManager.saveYandexToken(context, cleaned)
+                                        yandexToken = CloudBackupManager.getYandexToken(context)
+                                        tokenDialog = false
+                                        message = "Токен сохранён без онлайн-проверки (нет соединения с сетью)."
+                                    } else {
+                                        tokenDraft = cleaned
+                                        showToken = true
+                                        message = err.localizedMessage ?: "Токен отклонён Яндекс Диском."
+                                    }
+                                }
+                            }
+                        }
                     }
-                ) { Text("Сохранить") }
+                ) { Text("Сохранить и проверить") }
             },
             dismissButton = {
-                TextButton(onClick = { tokenDialog = false }) {
+                TextButton(
+                    enabled = !verifyingToken,
+                    onClick = { tokenDialog = false }
+                ) {
                     Text("Отмена")
                 }
+            }
+        )
+    }
+
+    if (webAuthDialog) {
+        YandexTokenWebDialog(
+            onDismiss = { webAuthDialog = false },
+            onTokenVerified = { verifiedToken, account ->
+                CloudBackupManager.saveYandexToken(context, verifiedToken)
+                yandexToken = CloudBackupManager.getYandexToken(context)
+                tokenDraft = yandexToken
+                webAuthDialog = false
+                tokenDialog = false
+                message = "Яндекс Диск успешно подключён!\nАккаунт: $account"
             }
         )
     }
@@ -595,5 +745,191 @@ fun BackupPanel(
                 }
             }
         )
+    }
+}
+
+@SuppressLint("SetJavaScriptEnabled")
+@Composable
+private fun YandexTokenWebDialog(
+    onDismiss: () -> Unit,
+    onTokenVerified: (token: String, account: String) -> Unit
+) {
+    val scope = rememberCoroutineScope()
+    var loading by remember { mutableStateOf(true) }
+    var statusText by remember {
+        mutableStateOf("Нажмите на странице кнопку «Получить OAuth-токен» и войдите в Яндекс")
+    }
+
+    val scanAndFixLinksJs = """
+        (function() {
+            try {
+                window.open = function(u) {
+                    if (u) window.location.href = u;
+                    return window;
+                };
+                var links = document.querySelectorAll('a[target="_blank"]');
+                for (var i = 0; i < links.length; i++) {
+                    links[i].removeAttribute('target');
+                }
+                var h = window.location.hash || '';
+                var m = h.match(/[#&?]access_token=([^&#\s"']+)/);
+                if (m && m[1]) return decodeURIComponent(m[1]);
+                var inputs = document.querySelectorAll('input');
+                for (var j = 0; j < inputs.length; j++) {
+                    var v = (inputs[j].value || '').trim();
+                    if (/^(y0_[A-Za-z0-9_-]{25,}|AQAAA[A-Za-z0-9_-]{20,})$/.test(v)) {
+                        return v;
+                    }
+                }
+            } catch (e) {}
+            return '';
+        })();
+    """.trimIndent()
+
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Surface(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(8.dp),
+            shape = MaterialTheme.shapes.medium,
+            tonalElevation = 4.dp
+        ) {
+            Column(modifier = Modifier.fillMaxSize()) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 8.dp)
+                ) {
+                    Text(
+                        text = statusText,
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.weight(1f)
+                    )
+                    TextButton(onClick = onDismiss) {
+                        Text("Закрыть")
+                    }
+                }
+
+                if (loading) {
+                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                }
+
+                AndroidView(
+                    modifier = Modifier.fillMaxSize(),
+                    factory = { ctx ->
+                        var delivered = false
+                        val rejectedTokens = mutableSetOf<String>()
+                        val testingTokens = mutableSetOf<String>()
+
+                        fun tryCandidate(rawCandidate: String?) {
+                            if (delivered) return
+                            val candidate = CloudBackupManager.normalizeToken(rawCandidate)
+                            if (!CloudBackupManager.looksLikeYandexToken(candidate)) return
+                            if (candidate in rejectedTokens || candidate in testingTokens) return
+
+                            testingTokens += candidate
+                            statusText = "Проверяем полученный токен…"
+                            scope.launch {
+                                val check = CloudBackupManager.verifyYandexToken(candidate)
+                                testingTokens -= candidate
+                                check.onSuccess { account ->
+                                    if (!delivered) {
+                                        delivered = true
+                                        onTokenVerified(candidate, account)
+                                    }
+                                }.onFailure {
+                                    rejectedTokens += candidate
+                                    statusText = "Старый токен истёк — нажмите «Получить OAuth-токен» на странице"
+                                }
+                            }
+                        }
+
+                        WebView(ctx).apply {
+                            layoutParams = ViewGroup.LayoutParams(
+                                ViewGroup.LayoutParams.MATCH_PARENT,
+                                ViewGroup.LayoutParams.MATCH_PARENT
+                            )
+
+                            CookieManager.getInstance().setAcceptCookie(true)
+                            CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
+
+                            settings.javaScriptEnabled = true
+                            settings.domStorageEnabled = true
+                            settings.javaScriptCanOpenWindowsAutomatically = true
+                            settings.setSupportMultipleWindows(false)
+                            settings.userAgentString = settings.userAgentString
+                                .replace("; wv", "")
+                                .replace("Version/4.0 ", "")
+
+                            webChromeClient = WebChromeClient()
+                            webViewClient = object : WebViewClient() {
+                                override fun shouldOverrideUrlLoading(
+                                    view: WebView?,
+                                    request: WebResourceRequest?
+                                ): Boolean {
+                                    val targetUrl = request?.url?.toString()
+                                    CloudBackupManager.extractTokenFromUrl(targetUrl)?.let {
+                                        tryCandidate(it)
+                                    }
+                                    return false
+                                }
+
+                                override fun onPageStarted(
+                                    view: WebView?,
+                                    url: String?,
+                                    favicon: Bitmap?
+                                ) {
+                                    loading = true
+                                    CloudBackupManager.extractTokenFromUrl(url)?.let {
+                                        tryCandidate(it)
+                                    }
+                                }
+
+                                override fun doUpdateVisitedHistory(
+                                    view: WebView?,
+                                    url: String?,
+                                    isReload: Boolean
+                                ) {
+                                    CloudBackupManager.extractTokenFromUrl(url)?.let {
+                                        tryCandidate(it)
+                                    }
+                                    view?.evaluateJavascript(scanAndFixLinksJs) { raw ->
+                                        tryCandidate(raw)
+                                    }
+                                }
+
+                                override fun onPageFinished(view: WebView?, url: String?) {
+                                    loading = false
+                                    CloudBackupManager.extractTokenFromUrl(url)?.let {
+                                        tryCandidate(it)
+                                    }
+                                    view?.evaluateJavascript(scanAndFixLinksJs) { raw ->
+                                        tryCandidate(raw)
+                                    }
+                                    view?.postDelayed({
+                                        if (!delivered) {
+                                            view.evaluateJavascript(scanAndFixLinksJs) { raw ->
+                                                tryCandidate(raw)
+                                            }
+                                        }
+                                    }, 1200)
+                                }
+                            }
+
+                            loadUrl(CloudBackupManager.YANDEX_POLIGON_URL)
+                        }
+                    },
+                    onRelease = { webView ->
+                        webView.stopLoading()
+                        webView.destroy()
+                    }
+                )
+            }
+        }
     }
 }

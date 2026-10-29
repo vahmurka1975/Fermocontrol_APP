@@ -8,9 +8,11 @@ import androidx.core.content.FileProvider
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
+import org.json.JSONTokener
 import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
+import java.net.URLDecoder
 import java.net.URLEncoder
 import java.time.Instant
 import java.time.LocalDateTime
@@ -27,27 +29,89 @@ data class AutoBackupItem(
 object CloudBackupManager {
     private const val PREFS_NAME = "fermocontrol_cloud_prefs"
     private const val KEY_YANDEX_TOKEN = "yandex_oauth_token"
+    private const val KEY_AUTO_SYNC = "yandex_auto_sync"
     private const val KEY_LAST_SYNC = "last_cloud_sync"
 
+    const val YANDEX_POLIGON_URL = "https://yandex.ru/dev/disk/poligon/"
+    private const val YANDEX_DISK_INFO_URL = "https://cloud-api.yandex.net/v1/disk"
     private const val YANDEX_API_BASE = "https://cloud-api.yandex.net/v1/disk/resources"
     private const val YANDEX_FOLDER = "disk:/Fermocontrol"
     private const val YANDEX_FILE_DISK = "disk:/Fermocontrol/fermocontrol_backup.json"
     private const val YANDEX_FILE_APP = "app:/fermocontrol_backup.json"
 
+    private val strictYandexTokenRegex =
+        Regex("^(y0_[A-Za-z0-9_-]{25,}|AQAAA[A-Za-z0-9_-]{20,})$")
+    private val urlAccessTokenRegex =
+        Regex("(?:[#?&])access_token=([^&#\\s\"']+)")
+
     private val timeFormat: DateTimeFormatter =
         DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm:ss")
 
-    fun getYandexToken(context: Context): String =
-        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    /** Очищает токен от кавычек WebView, пробелов, префиксов OAuth/Bearer и URL-обёрток */
+    fun normalizeToken(raw: String?): String {
+        if (raw.isNullOrBlank()) return ""
+        var s = raw.trim()
+
+        if ((s.startsWith("\"") && s.endsWith("\"")) || (s.startsWith("'") && s.endsWith("'"))) {
+            val parsed = runCatching {
+                val v = JSONTokener(s).nextValue()
+                if (v == null || v === JSONObject.NULL) "" else v.toString()
+            }.getOrNull()
+            s = parsed ?: s.substring(1, s.length - 1)
+        }
+
+        s = s.trim().trim('"', '\'', '«', '»')
+        if (s.equals("null", ignoreCase = true) || s.equals("undefined", ignoreCase = true)) {
+            return ""
+        }
+
+        extractTokenFromUrl(s)?.let { return it }
+
+        if (s.startsWith("{") && s.contains("access_token")) {
+            runCatching {
+                val jsonToken = JSONObject(s).optString("access_token", "")
+                if (jsonToken.isNotBlank()) return normalizeToken(jsonToken)
+            }
+        }
+
+        s = s.replace(Regex("(?i)^(oauth|bearer)\\s+"), "")
+        s = s.replace(Regex("\\s+"), "")
+        s = s.trim('"', '\'')
+        return s
+    }
+
+    fun extractTokenFromUrl(url: String?): String? {
+        if (url.isNullOrBlank()) return null
+        val match = urlAccessTokenRegex.find(url) ?: return null
+        val decoded = runCatching { URLDecoder.decode(match.groupValues[1], "UTF-8") }
+            .getOrDefault(match.groupValues[1])
+            .trim('"', '\'', ' ')
+        return decoded.takeIf { it.length >= 20 }
+    }
+
+    fun looksLikeYandexToken(token: String): Boolean =
+        strictYandexTokenRegex.matches(normalizeToken(token))
+
+    fun maskToken(token: String): String {
+        val clean = normalizeToken(token)
+        if (clean.isEmpty()) return "пусто"
+        if (clean.length <= 10) return "$clean (${clean.length} симв.)"
+        return "${clean.take(5)}…${clean.takeLast(4)} (${clean.length} симв.)"
+    }
+
+    fun getYandexToken(context: Context): String {
+        val raw = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             .getString(KEY_YANDEX_TOKEN, "")
-            ?.trim()
             .orEmpty()
+        val normalized = normalizeToken(raw)
+        if (normalized != raw && raw.isNotEmpty()) {
+            saveYandexToken(context, normalized)
+        }
+        return normalized
+    }
 
     fun saveYandexToken(context: Context, token: String) {
-        val cleaned = token.trim()
-            .removePrefix("OAuth ")
-            .removePrefix("Bearer ")
-            .trim()
+        val cleaned = normalizeToken(token)
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             .edit()
             .putString(KEY_YANDEX_TOKEN, cleaned)
@@ -58,6 +122,18 @@ object CloudBackupManager {
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             .edit()
             .remove(KEY_YANDEX_TOKEN)
+            .putBoolean(KEY_AUTO_SYNC, false)
+            .apply()
+    }
+
+    fun getAutoSyncEnabled(context: Context): Boolean =
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .getBoolean(KEY_AUTO_SYNC, false)
+
+    fun setAutoSyncEnabled(context: Context, enabled: Boolean) {
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .edit()
+            .putBoolean(KEY_AUTO_SYNC, enabled)
             .apply()
     }
 
@@ -72,16 +148,97 @@ object CloudBackupManager {
             .apply()
     }
 
-    /** Отправка JSON-копии через системное меню Android (Яндекс Диск, Google Диск, Telegram и др.) */
+    /** Проверяет действительность токена на сервере Яндекс Диска и возвращает имя аккаунта */
+    suspend fun verifyYandexToken(rawToken: String): Result<String> = withContext(Dispatchers.IO) {
+        runCatching {
+            val token = normalizeToken(rawToken)
+            check(token.isNotBlank()) { "Токен пуст." }
+
+            val conn = (URL(YANDEX_DISK_INFO_URL).openConnection() as HttpURLConnection).apply {
+                requestMethod = "GET"
+                connectTimeout = 10000
+                readTimeout = 10000
+                setRequestProperty("Authorization", "OAuth $token")
+                setRequestProperty("Accept", "application/json")
+            }
+
+            try {
+                when (val code = conn.responseCode) {
+                    in 200..299 -> {
+                        val body = conn.inputStream.bufferedReader().use { it.readText() }
+                        val userObj = JSONObject(body).optJSONObject("user")
+                        val login = userObj?.optString("login").orEmpty()
+                        val displayName = userObj?.optString("display_name").orEmpty()
+                        when {
+                            login.isNotBlank() -> login
+                            displayName.isNotBlank() -> displayName
+                            else -> "Яндекс Диск"
+                        }
+                    }
+                    403 -> {
+                        if (checkAppFolderAccess(token)) {
+                            "Яндекс Диск (папка приложения)"
+                        } else {
+                            throw IllegalStateException(
+                                "Токен принят, но у него нет прав доступа к Яндекс Диску (403)."
+                            )
+                        }
+                    }
+                    401 -> {
+                        val details = readApiErrorMessage(conn)
+                        throw IllegalStateException(
+                            "Яндекс отклонил токен (401: $details). Отправлено: ${maskToken(token)}. " +
+                                "Получите новый токен, начинающийся с y0_."
+                        )
+                    }
+                    else -> {
+                        val details = readApiErrorMessage(conn)
+                        throw IllegalStateException("Ошибка проверки токена (HTTP $code): $details")
+                    }
+                }
+            } finally {
+                conn.disconnect()
+            }
+        }
+    }
+
+    private fun checkAppFolderAccess(token: String): Boolean {
+        val encoded = URLEncoder.encode("app:/", "UTF-8")
+        val conn = (URL("$YANDEX_API_BASE?path=$encoded").openConnection() as HttpURLConnection).apply {
+            requestMethod = "GET"
+            connectTimeout = 10000
+            readTimeout = 10000
+            setRequestProperty("Authorization", "OAuth $token")
+            setRequestProperty("Accept", "application/json")
+        }
+        return try {
+            conn.responseCode in 200..299
+        } finally {
+            conn.disconnect()
+        }
+    }
+
+    private fun readApiErrorMessage(conn: HttpURLConnection): String {
+        val raw = runCatching {
+            conn.errorStream?.bufferedReader()?.use { it.readText() }.orEmpty()
+        }.getOrDefault("")
+        if (raw.isBlank()) return "нет описания"
+        return runCatching {
+            val json = JSONObject(raw)
+            json.optString("description").ifBlank { json.optString("message", raw) }
+        }.getOrDefault(raw).take(160)
+    }
+
+    /** Отправка JSON-копии через системное меню Android (Яндекс Диск, Google Диск, Telegram) */
     suspend fun shareBackupFile(context: Context, fileName: String, bytes: ByteArray) {
         val uri = withContext(Dispatchers.IO) {
-            val baseDir = context.externalCacheDir ?: context.cacheDir
-            baseDir.listFiles()?.forEach { f ->
+            val shareDir = File(context.cacheDir, "updates").apply { mkdirs() }
+            shareDir.listFiles()?.forEach { f ->
                 if (f.isFile && f.name.startsWith("Fermocontrol_") && f.name.endsWith(".json")) {
                     f.delete()
                 }
             }
-            val outFile = File(baseDir, fileName)
+            val outFile = File(shareDir, fileName)
             outFile.writeBytes(bytes)
             FileProvider.getUriForFile(
                 context,
@@ -128,7 +285,7 @@ object CloudBackupManager {
             val uploadHref = try {
                 val code = conn.responseCode
                 if (code !in 200..299) {
-                    val err = conn.errorStream?.bufferedReader()?.use { it.readText() }.orEmpty()
+                    val err = readApiErrorMessage(conn)
                     throw IllegalStateException("Не удалось получить ссылку загрузки (HTTP $code): $err")
                 }
                 val body = conn.inputStream.bufferedReader().use { it.readText() }
@@ -153,7 +310,7 @@ object CloudBackupManager {
                 }
                 val putCode = putConn.responseCode
                 if (putCode !in 200..299) {
-                    val err = putConn.errorStream?.bufferedReader()?.use { it.readText() }.orEmpty()
+                    val err = readApiErrorMessage(putConn)
                     throw IllegalStateException("Ошибка записи файла на Яндекс Диск (HTTP $putCode): $err")
                 }
             } finally {
@@ -194,10 +351,16 @@ object CloudBackupManager {
             when (val code = conn.responseCode) {
                 201, 409 -> YANDEX_FILE_DISK
                 403 -> YANDEX_FILE_APP
-                401 -> throw IllegalStateException("Неверный или недействительный OAuth-токен Яндекс Диска (401).")
+                401 -> {
+                    val details = readApiErrorMessage(conn)
+                    throw IllegalStateException(
+                        "Неверный или истёкший OAuth-токен Яндекс Диска (401: $details). " +
+                            "Отправлено: ${maskToken(token)}."
+                    )
+                }
                 else -> {
-                    val err = conn.errorStream?.bufferedReader()?.use { it.readText() }.orEmpty()
-                    throw IllegalStateException("Ошибка доступа к Яндекс Диску (HTTP $code): $err")
+                    val details = readApiErrorMessage(conn)
+                    throw IllegalStateException("Ошибка доступа к Яндекс Диску (HTTP $code): $details")
                 }
             }
         } finally {
@@ -221,10 +384,16 @@ object CloudBackupManager {
                     JSONObject(body).getString("href")
                 }
                 403, 404 -> null
-                401 -> throw IllegalStateException("Неверный или недействительный OAuth-токен Яндекс Диска (401).")
+                401 -> {
+                    val details = readApiErrorMessage(conn)
+                    throw IllegalStateException(
+                        "Неверный или истёкший OAuth-токен Яндекс Диска (401: $details). " +
+                            "Отправлено: ${maskToken(token)}."
+                    )
+                }
                 else -> {
-                    val err = conn.errorStream?.bufferedReader()?.use { it.readText() }.orEmpty()
-                    throw IllegalStateException("Ошибка чтения с Яндекс Диска (HTTP $code): $err")
+                    val details = readApiErrorMessage(conn)
+                    throw IllegalStateException("Ошибка чтения с Яндекс Диска (HTTP $code): $details")
                 }
             }
         } finally {
@@ -266,8 +435,7 @@ object CloudBackupManager {
         }
     }
 
-    /** Автоматическое сохранение двух последних различающихся локальных снапшотов */
-    suspend fun saveAutoBackup(context: Context, bytes: ByteArray) = withContext(Dispatchers.IO) {
+    suspend fun saveAutoBackup(context: Context, bytes: ByteArray): Boolean = withContext(Dispatchers.IO) {
         val dir = File(context.filesDir, "autobackup")
         if (!dir.exists()) dir.mkdirs()
 
@@ -278,7 +446,7 @@ object CloudBackupManager {
         if (latestFile.exists()) {
             val existing = runCatching { latestFile.readBytes() }.getOrNull()
             if (existing != null && existing.contentEquals(bytes)) {
-                return@withContext
+                return@withContext false
             }
             val oldModified = latestFile.lastModified()
             latestFile.copyTo(prevFile, overwrite = true)
@@ -288,6 +456,7 @@ object CloudBackupManager {
         tmpFile.writeBytes(bytes)
         tmpFile.copyTo(latestFile, overwrite = true)
         tmpFile.delete()
+        true
     }
 
     suspend fun listAutoBackups(context: Context): List<AutoBackupItem> = withContext(Dispatchers.IO) {
