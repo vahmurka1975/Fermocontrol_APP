@@ -1,0 +1,12 @@
+JVM Kotlin compilation
+
+JVM JUnit tests
+JUnit version 4.13.2
+.................................
+Time: 0.097
+
+OK (33 tests)
+
+
+Scope: pure JVM files Product.kt, BackupCodec.kt, CsvExporter.kt; existing and new JUnit tests.
+Android/Compose source and AtomicFile integration were not compiled or executed.

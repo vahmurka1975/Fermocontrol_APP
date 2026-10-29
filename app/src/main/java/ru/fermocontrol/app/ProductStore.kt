@@ -2,69 +2,49 @@ package ru.fermocontrol.app
 
 import android.content.Context
 import android.util.AtomicFile
-import org.json.JSONArray
-import org.json.JSONObject
 import java.io.File
 import java.io.FileNotFoundException
 
-/** Internal app storage. No network or storage permissions are needed. */
+/** All writes are atomic. The data file name and schema from step 1 are retained. */
 class ProductStore(context: Context) {
     private val file = AtomicFile(File(context.filesDir, "fermocontrol-products-v1.json"))
+    private val beforeRestore = AtomicFile(File(context.filesDir, "fermocontrol-before-restore.json"))
 
-    fun load(): List<Product> {
-        val input = try { file.openRead() } catch (error: FileNotFoundException) {
-            if (File(file.baseFile.path + ".bak").exists() || file.baseFile.exists()) throw error
-            return emptyList()
-        }
-        val root = input.bufferedReader(Charsets.UTF_8).use { JSONObject(it.readText()) }
-        require(root.getInt("schemaVersion") == 1) { "Неподдерживаемая версия данных" }
-        val array = root.getJSONArray("products")
-        return List(array.length()) { index ->
-            val p = array.getJSONObject(index)
-            val records = p.getJSONArray("weighings")
-            val spices = p.getJSONArray("spices")
-            Product(
-                id = p.getString("id"), number = p.getInt("number"),
-                name = p.getString("name"), basis = p.getString("basis"),
-                spices = List(spices.length()) { spices.getString(it) },
-                casing = p.getString("casing"), initialWeight = p.getDouble("initialWeight"),
-                targetLoss = p.getDouble("targetLoss"), startedAt = p.getLong("startedAt"),
-                archivedAt = if (p.isNull("archivedAt")) null else p.getLong("archivedAt"),
-                weighings = List(records.length()) { r ->
-                    val w = records.getJSONObject(r)
-                    val o = w.getJSONObject("observations")
-                    val observations = mutableMapOf<String, String>()
-                    val keys = o.keys()
-                    while (keys.hasNext()) { val key = keys.next(); observations[key] = o.getString(key) }
-                    Weighing(w.getDouble("weight"), w.getLong("at"), observations, w.optString("note", ""))
-                }
-            )
-        }.also(::validateProducts)
+    @Synchronized fun load(): List<Product> = readExisting(file)?.let(BackupCodec::decode) ?: emptyList()
+
+    @Synchronized fun save(products: List<Product>) {
+        atomicWrite(file, BackupCodec.encode(products))
     }
 
-    fun save(products: List<Product>) {
-        validateProducts(products)
-        val array = JSONArray()
-        products.forEach { p ->
-            val weights = JSONArray()
-            p.weighings.forEach { w ->
-                weights.put(JSONObject().put("weight", w.weight).put("at", w.at)
-                    .put("observations", JSONObject(w.observations)).put("note", w.note))
-            }
-            array.put(JSONObject().put("id", p.id).put("number", p.number)
-                .put("name", p.name).put("basis", p.basis).put("spices", JSONArray(p.spices))
-                .put("casing", p.casing).put("initialWeight", p.initialWeight)
-                .put("targetLoss", p.targetLoss).put("startedAt", p.startedAt)
-                .put("archivedAt", p.archivedAt ?: JSONObject.NULL).put("weighings", weights))
+    /** Preserve the original bytes even if the current journal is corrupt. */
+    @Synchronized fun restore(products: List<Product>) {
+        val next = BackupCodec.encode(products)
+        val previous = readExisting(file) ?: BackupCodec.encode(emptyList())
+        atomicWrite(beforeRestore, previous)
+        atomicWrite(file, next)
+    }
+
+    @Synchronized fun recoveryBytes(): ByteArray = readExisting(beforeRestore)
+        ?: throw IllegalStateException("Локальной копии перед восстановлением пока нет")
+
+    @Synchronized fun hasRecoveryCopy(): Boolean = beforeRestore.baseFile.exists() ||
+        File(beforeRestore.baseFile.path + ".bak").exists()
+
+    private fun readExisting(source: AtomicFile): ByteArray? {
+        val input = try { source.openRead() } catch (error: FileNotFoundException) {
+            if (source.baseFile.exists() || File(source.baseFile.path + ".bak").exists()) throw error
+            return null
         }
-        val bytes = JSONObject().put("schemaVersion", 1).put("products", array)
-            .toString().toByteArray(Charsets.UTF_8)
-        val output = file.startWrite()
+        return input.use(BackupCodec::read)
+    }
+
+    private fun atomicWrite(target: AtomicFile, bytes: ByteArray) {
+        val output = target.startWrite()
         try {
             output.write(bytes)
-            file.finishWrite(output)
+            target.finishWrite(output)
         } catch (error: Exception) {
-            file.failWrite(output)
+            target.failWrite(output)
             throw error
         }
     }

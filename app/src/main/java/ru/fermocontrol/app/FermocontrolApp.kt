@@ -78,7 +78,21 @@ fun FermocontrolApp() {
     ) { padding ->
         Column(Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp)) {
             Spacer(Modifier.height(20.dp))
-            Text("ФермоКонтроль", fontSize = 28.sp, fontWeight = FontWeight.Bold)
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically) {
+                Text("ФермоКонтроль", fontSize = 28.sp, fontWeight = FontWeight.Bold)
+                BackupPanel(products = products, store = store, available = !loading && !busy,
+                    journalAvailable = loadError == null,
+                    onBusy = { busy = it }, onRestored = { restored ->
+                        products = restored
+                        loadError = null
+                        writeError = null
+                        adding = false
+                        weighingId = null
+                        detailsId = null
+                        archiveId = null
+                    })
+            }
             Text("Дневник сыровяления", color = MaterialTheme.colorScheme.onSurfaceVariant)
             Spacer(Modifier.height(18.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
