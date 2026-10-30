@@ -33,7 +33,8 @@ class JournalDatabase(context: Context) :
                 archived_at INTEGER NULL,
                 reminder_days INTEGER NOT NULL DEFAULT 3,
                 target_temp REAL NULL,
-                target_humidity REAL NULL
+                target_humidity REAL NULL,
+                photo_path TEXT NULL
             )
             """.trimIndent()
         )
@@ -51,6 +52,7 @@ class JournalDatabase(context: Context) :
                 note TEXT NOT NULL,
                 temperature REAL NULL,
                 humidity REAL NULL,
+                photo_path TEXT NULL,
                 FOREIGN KEY(product_id) REFERENCES products(id) ON DELETE CASCADE
             )
             """.trimIndent()
@@ -68,6 +70,10 @@ class JournalDatabase(context: Context) :
                     db.execSQL("ALTER TABLE products ADD COLUMN target_humidity REAL NULL")
                     db.execSQL("ALTER TABLE weighings ADD COLUMN temperature REAL NULL")
                     db.execSQL("ALTER TABLE weighings ADD COLUMN humidity REAL NULL")
+                }
+                2 -> {
+                    db.execSQL("ALTER TABLE products ADD COLUMN photo_path TEXT NULL")
+                    db.execSQL("ALTER TABLE weighings ADD COLUMN photo_path TEXT NULL")
                 }
                 else -> error("Неизвестная миграция схемы БД с версии $version до $newVersion")
             }
@@ -88,7 +94,7 @@ class JournalDatabase(context: Context) :
 
         db.rawQuery(
             """
-            SELECT product_id, weight, recorded_at, observations_json, note, temperature, humidity
+            SELECT product_id, weight, recorded_at, observations_json, note, temperature, humidity, photo_path
             FROM weighings
             ORDER BY position ASC, id ASC
             """.trimIndent(),
@@ -108,6 +114,7 @@ class JournalDatabase(context: Context) :
                 val note = cursor.getString(4) ?: ""
                 val temp = if (cursor.isNull(5)) null else cursor.getDouble(5)
                 val hum = if (cursor.isNull(6)) null else cursor.getDouble(6)
+                val photoPath = if (cursor.isNull(7)) null else cursor.getString(7)?.takeIf { it.isNotBlank() }
                 weighingsByProduct.getOrPut(productId) { mutableListOf() }.add(
                     Weighing(
                         weight = weight,
@@ -115,7 +122,8 @@ class JournalDatabase(context: Context) :
                         observations = observations,
                         note = note,
                         temperature = temp,
-                        humidity = hum
+                        humidity = hum,
+                        photoPath = photoPath
                     )
                 )
             }
@@ -126,7 +134,7 @@ class JournalDatabase(context: Context) :
             """
             SELECT id, number, name, basis, spices_json, casing,
                    initial_weight, target_loss, started_at, archived_at,
-                   reminder_days, target_temp, target_humidity
+                   reminder_days, target_temp, target_humidity, photo_path
             FROM products
             ORDER BY position ASC
             """.trimIndent(),
@@ -147,6 +155,7 @@ class JournalDatabase(context: Context) :
                 val reminderDays = if (cursor.isNull(10)) 3 else cursor.getInt(10).coerceIn(1, 60)
                 val targetTemp = if (cursor.isNull(11)) null else cursor.getDouble(11)
                 val targetHumidity = if (cursor.isNull(12)) null else cursor.getDouble(12)
+                val photoPath = if (cursor.isNull(13)) null else cursor.getString(13)?.takeIf { it.isNotBlank() }
 
                 products.add(
                     Product(
@@ -163,7 +172,8 @@ class JournalDatabase(context: Context) :
                         weighings = weighingsByProduct[id]?.toList().orEmpty(),
                         reminderIntervalDays = reminderDays,
                         targetTemp = targetTemp,
-                        targetHumidity = targetHumidity
+                        targetHumidity = targetHumidity,
+                        photoPath = photoPath
                     )
                 )
             }
@@ -201,6 +211,7 @@ class JournalDatabase(context: Context) :
                     put("reminder_days", product.reminderIntervalDays)
                     if (product.targetTemp != null) put("target_temp", product.targetTemp) else putNull("target_temp")
                     if (product.targetHumidity != null) put("target_humidity", product.targetHumidity) else putNull("target_humidity")
+                    if (!product.photoPath.isNullOrBlank()) put("photo_path", product.photoPath) else putNull("photo_path")
                 }
                 val rowId = db.insertOrThrow("products", null, productValues)
                 check(rowId != -1L) { "Не удалось сохранить продукт ${product.id}" }
@@ -215,6 +226,7 @@ class JournalDatabase(context: Context) :
                         put("note", weighing.note)
                         if (weighing.temperature != null) put("temperature", weighing.temperature) else putNull("temperature")
                         if (weighing.humidity != null) put("humidity", weighing.humidity) else putNull("humidity")
+                        if (!weighing.photoPath.isNullOrBlank()) put("photo_path", weighing.photoPath) else putNull("photo_path")
                     }
                     val weighingRowId = db.insertOrThrow("weighings", null, weighingValues)
                     check(weighingRowId != -1L) { "Не удалось сохранить взвешивание продукта ${product.id}" }
@@ -228,6 +240,6 @@ class JournalDatabase(context: Context) :
 
     companion object {
         private const val DB_NAME = "fermocontrol-journal.db"
-        const val SCHEMA_VERSION = 2
+        const val SCHEMA_VERSION = 3
     }
 }

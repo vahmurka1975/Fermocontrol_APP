@@ -314,6 +314,7 @@ private fun ProductCard(
     onArchive: () -> Unit
 ) {
     val due = needsWeighing(product)
+    val latestPhoto = product.latestPhotoPath()
     ElevatedCard(shape = RoundedCornerShape(20.dp), modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(
@@ -356,9 +357,23 @@ private fun ProductCard(
                     }
                 }
             }
-            Text(product.name, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-            Text("${product.basis} · ${product.casing}", color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Text("${grams(product.currentWeight)} г", style = MaterialTheme.typography.headlineSmall)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                if (!latestPhoto.isNullOrBlank()) {
+                    ProductPhotoThumbnail(photoPath = latestPhoto)
+                }
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Text(product.name, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                    Text("${product.basis} · ${product.casing}", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("${grams(product.currentWeight)} г", style = MaterialTheme.typography.headlineSmall)
+                }
+            }
             Text("Потеря веса: ${decimal(product.lossPercent)}% · цель ${decimal(product.targetLoss)}%")
             LinearProgressIndicator(progress = {
                 (product.lossPercent / product.targetLoss).toFloat().coerceIn(0f, 1f)

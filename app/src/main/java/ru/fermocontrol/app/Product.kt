@@ -8,7 +8,8 @@ data class Weighing(
     val observations: Map<String, String> = emptyMap(),
     val note: String = "",
     val temperature: Double? = null,
-    val humidity: Double? = null
+    val humidity: Double? = null,
+    val photoPath: String? = null
 )
 
 data class Product(
@@ -25,7 +26,8 @@ data class Product(
     val weighings: List<Weighing> = emptyList(),
     val reminderIntervalDays: Int = 3,
     val targetTemp: Double? = null,
-    val targetHumidity: Double? = null
+    val targetHumidity: Double? = null,
+    val photoPath: String? = null
 ) {
     val currentWeight: Double get() = weighings.lastOrNull()?.weight ?: initialWeight
     val lossPercent: Double get() = (initialWeight - currentWeight) / initialWeight * 100.0

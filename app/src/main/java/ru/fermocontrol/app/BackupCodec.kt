@@ -52,6 +52,7 @@ object BackupCodec {
             } else 3
             val targetTemp = p.optionalDecimal("targetTemp")
             val targetHumidity = p.optionalDecimal("targetHumidity")
+            val productPhotoPath = p.optionalText("photoPath")
 
             Product(
                 id = p.text("id"),
@@ -66,7 +67,7 @@ object BackupCodec {
                 targetLoss = p.decimal("targetLoss"),
                 startedAt = p.timestamp("startedAt"),
                 archivedAt = if (!p.has("archivedAt") || p.isNull("archivedAt")) null
-                    else p.timestamp("archivedAt"),
+                else p.timestamp("archivedAt"),
                 weighings = List(records.length()) { r ->
                     val w = records.getJSONObject(r)
                     val o = w.getJSONObject("observations")
@@ -82,12 +83,14 @@ object BackupCodec {
                         observations = observations,
                         note = if (w.has("note") && !w.isNull("note")) w.text("note") else "",
                         temperature = w.optionalDecimal("temperature"),
-                        humidity = w.optionalDecimal("humidity")
+                        humidity = w.optionalDecimal("humidity"),
+                        photoPath = w.optionalText("photoPath")
                     )
                 },
                 reminderIntervalDays = reminderDays,
                 targetTemp = targetTemp,
-                targetHumidity = targetHumidity
+                targetHumidity = targetHumidity,
+                photoPath = productPhotoPath
             )
         }.also(::validateProducts)
     }
@@ -109,6 +112,7 @@ object BackupCodec {
                     .put("note", w.note)
                 if (w.temperature != null) wObj.put("temperature", w.temperature)
                 if (w.humidity != null) wObj.put("humidity", w.humidity)
+                if (!w.photoPath.isNullOrBlank()) wObj.put("photoPath", w.photoPath)
                 weights.put(wObj)
             }
             val pObj = JSONObject()
@@ -126,6 +130,7 @@ object BackupCodec {
                 .put("weighings", weights)
             if (p.targetTemp != null) pObj.put("targetTemp", p.targetTemp)
             if (p.targetHumidity != null) pObj.put("targetHumidity", p.targetHumidity)
+            if (!p.photoPath.isNullOrBlank()) pObj.put("photoPath", p.photoPath)
             array.put(pObj)
         }
         val bytes = JSONObject()
@@ -139,6 +144,13 @@ object BackupCodec {
 
     private fun JSONObject.text(key: String): String = get(key) as? String
         ?: throw IllegalArgumentException("Неверное текстовое поле: $key")
+
+    private fun JSONObject.optionalText(key: String): String? {
+        if (!has(key) || isNull(key)) return null
+        val value = get(key) as? String
+            ?: throw IllegalArgumentException("Неверное текстовое поле: $key")
+        return value.takeIf { it.isNotBlank() && it != "null" }
+    }
 
     private fun JSONObject.decimal(key: String): Double {
         val n = get(key) as? Number ?: throw IllegalArgumentException("Неверное число: $key")

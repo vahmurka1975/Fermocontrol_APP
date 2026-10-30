@@ -76,6 +76,7 @@ fun AddProductDialog(number: Int, busy: Boolean, onDismiss: () -> Unit, onSave: 
     var reminderDays by rememberSaveable { mutableStateOf("3") }
     var targetTemp by rememberSaveable { mutableStateOf("") }
     var targetHumidity by rememberSaveable { mutableStateOf("") }
+    var photoPath by rememberSaveable { mutableStateOf<String?>(null) }
     var spiceOpen by remember { mutableStateOf(false) }
     var submitted by rememberSaveable { mutableStateOf(false) }
 
@@ -152,6 +153,11 @@ fun AddProductDialog(number: Int, busy: Boolean, onDismiss: () -> Unit, onSave: 
                 singleLine = true, enabled = !busy, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                 isError = submitted && humidityError, modifier = Modifier.weight(1f))
         }
+        PhotoPickerField(
+            photoPath = photoPath,
+            onPhotoPathChange = { photoPath = it },
+            label = "Исходное фото продукта (необязательно)"
+        )
         if (submitted && !valid) Text(
             "Заполните обязательные поля: вес > 0, цель 1–99%, интервал 1–60 дн.",
             color = MaterialTheme.colorScheme.error
@@ -168,7 +174,8 @@ fun AddProductDialog(number: Int, busy: Boolean, onDismiss: () -> Unit, onSave: 
                 targetLoss = parsedTarget!!,
                 reminderIntervalDays = parsedReminder!!,
                 targetTemp = parsedTemp,
-                targetHumidity = parsedHumidity
+                targetHumidity = parsedHumidity,
+                photoPath = photoPath
             ))
         }) { Text(if (busy) "Сохранение…" else "Сохранить продукт") }
         TextButton(enabled = !busy, onClick = onDismiss, modifier = Modifier.fillMaxWidth()) { Text("Отмена") }
@@ -186,6 +193,7 @@ fun EditProductDialog(product: Product, busy: Boolean, onDismiss: () -> Unit, on
     var reminderDays by rememberSaveable(product.id) { mutableStateOf(product.reminderIntervalDays.toString()) }
     var targetTemp by rememberSaveable(product.id) { mutableStateOf(product.targetTemp?.let { decimal(it) } ?: "") }
     var targetHumidity by rememberSaveable(product.id) { mutableStateOf(product.targetHumidity?.let { decimal(it) } ?: "") }
+    var photoPath by rememberSaveable(product.id) { mutableStateOf(product.photoPath) }
     var spiceOpen by remember { mutableStateOf(false) }
     var submitted by rememberSaveable(product.id) { mutableStateOf(false) }
 
@@ -242,6 +250,11 @@ fun EditProductDialog(product: Product, busy: Boolean, onDismiss: () -> Unit, on
                 singleLine = true, enabled = !busy, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                 isError = submitted && humidityError, modifier = Modifier.weight(1f))
         }
+        PhotoPickerField(
+            photoPath = photoPath,
+            onPhotoPathChange = { photoPath = it },
+            label = "Исходное фото продукта"
+        )
         if (submitted && !valid) Text(
             "Заполните обязательные поля: вес > 0, цель 1–99%, интервал 1–60 дн.",
             color = MaterialTheme.colorScheme.error
@@ -259,7 +272,8 @@ fun EditProductDialog(product: Product, busy: Boolean, onDismiss: () -> Unit, on
                         targetLoss = parsedTarget!!,
                         reminderIntervalDays = parsedReminder!!,
                         targetTemp = parsedTemp,
-                        targetHumidity = parsedHumidity
+                        targetHumidity = parsedHumidity,
+                        photoPath = photoPath
                     )
                 )
             }
@@ -278,6 +292,7 @@ fun WeighProductDialog(product: Product, busy: Boolean, onDismiss: () -> Unit, o
     var tempText by rememberSaveable(product.id) { mutableStateOf(product.targetTemp?.let { decimal(it) } ?: "") }
     var humidityText by rememberSaveable(product.id) { mutableStateOf(product.targetHumidity?.let { decimal(it) } ?: "") }
     var note by rememberSaveable(product.id) { mutableStateOf("") }
+    var photoPath by rememberSaveable(product.id) { mutableStateOf<String?>(null) }
     var submitted by rememberSaveable(product.id) { mutableStateOf(false) }
 
     val parsed = parsePositiveNumber(weight)
@@ -310,6 +325,11 @@ fun WeighProductDialog(product: Product, busy: Boolean, onDismiss: () -> Unit, o
         }
         OutlinedTextField(value = note, onValueChange = { note = it }, label = { Text("Заметка, необязательно") },
             enabled = !busy, minLines = 2, modifier = Modifier.fillMaxWidth())
+        PhotoPickerField(
+            photoPath = photoPath,
+            onPhotoPathChange = { photoPath = it },
+            label = "Фото при взвешивании (необязательно)"
+        )
         if (parsed != null && parsed > product.currentWeight) Text(
             "Вес больше предыдущего. Проверьте значение; при необходимости его можно сохранить.",
             color = MaterialTheme.colorScheme.error)
@@ -324,7 +344,8 @@ fun WeighProductDialog(product: Product, busy: Boolean, onDismiss: () -> Unit, o
                 observations = linkedMapOf("Запах" to smell, "Поверхность" to surface, "Цвет" to color, "Плотность" to texture),
                 note = note.trim(),
                 temperature = parsedTemp,
-                humidity = parsedHumidity
+                humidity = parsedHumidity,
+                photoPath = photoPath
             ))
         }) { Text(if (busy) "Сохранение…" else "Сохранить взвешивание") }
         TextButton(enabled = !busy, onClick = onDismiss, modifier = Modifier.fillMaxWidth()) { Text("Отмена") }
@@ -382,6 +403,11 @@ fun ProductDetailsDialog(
             }
         }
 
+        PhotoDiarySection(
+            product = product,
+            initialWeight = product.initialWeight
+        )
+
         HorizontalDivider()
 
         TabRow(selectedTabIndex = selectedTab) {
@@ -415,14 +441,28 @@ fun ProductDetailsDialog(
                         Text("Удалить", color = MaterialTheme.colorScheme.error)
                     }
                 }
-                Text("Вес: ${grams(record.weight)} г")
-                if (record.temperature != null || record.humidity != null) {
-                    val tStr = record.temperature?.let { "${decimal(it)} °C" } ?: "—"
-                    val hStr = record.humidity?.let { "${decimal(it)}%" } ?: "—"
-                    Text("Условия камеры: $tStr · влажность $hStr")
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.Top
+                ) {
+                    if (!record.photoPath.isNullOrBlank()) {
+                        ProductPhotoThumbnail(photoPath = record.photoPath)
+                    }
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(2.dp)
+                    ) {
+                        Text("Вес: ${grams(record.weight)} г")
+                        if (record.temperature != null || record.humidity != null) {
+                            val tStr = record.temperature?.let { "${decimal(it)} °C" } ?: "—"
+                            val hStr = record.humidity?.let { "${decimal(it)}%" } ?: "—"
+                            Text("Условия камеры: $tStr · влажность $hStr")
+                        }
+                        record.observations.forEach { (key, value) -> Text("$key: $value") }
+                        if (record.note.isNotBlank()) Text("Заметка: ${record.note}")
+                    }
                 }
-                record.observations.forEach { (key, value) -> Text("$key: $value") }
-                if (record.note.isNotBlank()) Text("Заметка: ${record.note}")
                 HorizontalDivider()
             }
         } else {
