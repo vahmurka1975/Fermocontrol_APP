@@ -1,4 +1,4 @@
-package com.example.fermocontrol
+package ru.fermocontrol.app
 
 import android.content.Context
 import android.graphics.Bitmap
@@ -528,3 +528,8 @@ private fun PhotoDiaryCard(
         }
     }
 }
+
+private fun Long.take(n: Int): String =
+    java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.getDefault())
+        .format(java.util.Date(this))
+        .take(n)
