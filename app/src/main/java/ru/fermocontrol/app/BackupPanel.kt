@@ -1,12 +1,12 @@
 package ru.fermocontrol.app
 
+import android.Manifest
 import android.annotation.SuppressLint
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.net.Uri
-import android.Manifest
 import android.os.Build
 import android.view.ViewGroup
 import android.webkit.CookieManager
@@ -16,21 +16,32 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.core.content.ContextCompat
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -39,6 +50,8 @@ import kotlinx.coroutines.withContext
 import java.io.IOException
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
+import kotlin.math.cos
+import kotlin.math.sin
 
 @Composable
 fun BackupPanel(
@@ -104,9 +117,9 @@ fun BackupPanel(
                 @Suppress("DEPRECATION")
                 context.packageManager.getPackageInfo(context.packageName, 0)
             }
-            pInfo.versionName ?: "1.0.10"
+            pInfo.versionName ?: "1.4.0"
         } catch (_: Exception) {
-            "1.0.10"
+            "1.4.0"
         }
     }
 
@@ -220,280 +233,504 @@ fun BackupPanel(
         }
     }
 
-    TextButton(enabled = available, onClick = { menu = true }) {
-        Text("Данные")
+    // Вход в панель через иконку шестерёнки
+    FilledTonalIconButton(
+        enabled = available,
+        onClick = { menu = true },
+        modifier = Modifier.semantics { contentDescription = "Настройки и резервные копии" }
+    ) {
+        SettingsGearIcon(
+            tint = MaterialTheme.colorScheme.onSecondaryContainer,
+            modifier = Modifier.size(22.dp)
+        )
     }
 
     if (menu) {
-        AlertDialog(
+        Dialog(
             onDismissRequest = { if (available) menu = false },
-            title = { Text("Резервные копии и обновления") },
-            text = {
+            properties = DialogProperties(usePlatformDefaultWidth = false)
+        ) {
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth(0.95f)
+                    .heightIn(max = 760.dp),
+                shape = RoundedCornerShape(24.dp),
+                color = MaterialTheme.colorScheme.surface,
+                tonalElevation = 6.dp
+            ) {
                 Column(
-                    modifier = Modifier.verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 18.dp, vertical = 16.dp)
                 ) {
-                    Text(
-                        "Быстрая отправка в облако",
-                        style = MaterialTheme.typography.titleSmall
-                    )
-                    Text("Отправьте JSON-файл в установленное приложение Яндекс Диска, Google Диска или в Telegram.")
-
-                    Button(
-                        enabled = available && journalAvailable,
-                        onClick = {
-                            work {
-                                check(latestJournal) { "Журнал не прочитан. Сначала восстановите данные." }
-                                val snapshot = latestProducts
-                                val name = filename("json")
-                                val bytes = withContext(Dispatchers.IO) { BackupCodec.encode(snapshot) }
-                                menu = false
-                                CloudBackupManager.shareBackupFile(activityContext, name, bytes)
-                            }
-                        },
-                        modifier = Modifier.fillMaxWidth()
-                    ) { Text("Отправить копию в облако (Яндекс / Google Диск)") }
-
-                    OutlinedButton(
-                        enabled = available && journalAvailable,
-                        onClick = {
-                            try {
-                                saveJson.launch(filename("json"))
-                            } catch (e: Exception) {
-                                message = e.localizedMessage ?: "Недоступен выбор файла"
-                            }
-                        },
-                        modifier = Modifier.fillMaxWidth()
-                    ) { Text("Сохранить JSON-копию в телефон") }
-
-                    OutlinedButton(
-                        enabled = available && journalAvailable,
-                        onClick = {
-                            try {
-                                saveCsv.launch(filename("csv"))
-                            } catch (e: Exception) {
-                                message = e.localizedMessage ?: "Недоступен выбор файла"
-                            }
-                        },
-                        modifier = Modifier.fillMaxWidth()
-                    ) { Text("Экспорт журнала CSV") }
-
-                    OutlinedButton(
-                        enabled = available,
-                        onClick = {
-                            try {
-                                openJson.launch(arrayOf("application/json", "text/*", "application/octet-stream"))
-                            } catch (e: Exception) {
-                                message = e.localizedMessage ?: "Недоступен выбор файла"
-                            }
-                        },
-                        modifier = Modifier.fillMaxWidth()
-                    ) { Text("Восстановить из JSON-файла") }
-
-                    HorizontalDivider()
-
-                    Text(
-                        "Яндекс Диск (прямая синхронизация)",
-                        style = MaterialTheme.typography.titleSmall
-                    )
-                    Text(
-                        if (yandexToken.isBlank()) {
-                            "Токен не указан. Настройте OAuth-токен для выгрузки и восстановления в 1 клик."
-                        } else {
-                            "Токен: ${CloudBackupManager.maskToken(yandexToken)}" +
-                                (lastSyncTime?.let { "\nПоследняя синхронизация: $it" } ?: "")
-                        }
-                    )
-
+                    // Заголовок окна
                     Row(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Button(
-                            enabled = available && journalAvailable,
-                            onClick = {
-                                if (yandexToken.isBlank()) {
-                                    tokenDraft = ""
-                                    tokenDialog = true
+                        Text(
+                            text = "Настройки и данные",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold
+                        )
+                        TextButton(
+                            enabled = available,
+                            onClick = { menu = false }
+                        ) {
+                            Text("Закрыть")
+                        }
+                    }
+
+                    Spacer(Modifier.height(8.dp))
+
+                    Column(
+                        modifier = Modifier
+                            .weight(1f, fill = false)
+                            .verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(14.dp)
+                    ) {
+                        // =====================================================================
+                        // РАЗДЕЛ 1. РЕЗЕРВНОЕ КОПИРОВАНИЕ В ОБЛАКО
+                        // =====================================================================
+                        SectionCard(title = "Резервное копирование в облако") {
+                            val isTokenConnected = yandexToken.isNotBlank()
+
+                            Surface(
+                                shape = RoundedCornerShape(12.dp),
+                                color = if (isTokenConnected) {
+                                    MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f)
                                 } else {
+                                    MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
+                                },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Column(
+                                    modifier = Modifier.padding(12.dp),
+                                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    Text(
+                                        text = "Яндекс Диск",
+                                        style = MaterialTheme.typography.labelLarge,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                    Text(
+                                        text = if (isTokenConnected) {
+                                            "Статус токена: подключён ✅"
+                                        } else {
+                                            "Статус токена: не подключён"
+                                        },
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = if (isTokenConnected) {
+                                            MaterialTheme.colorScheme.primary
+                                        } else {
+                                            MaterialTheme.colorScheme.onSurfaceVariant
+                                        },
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                    if (isTokenConnected && !lastSyncTime.isNullOrBlank()) {
+                                        Text(
+                                            text = "Последняя синхронизация: $lastSyncTime",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                }
+                            }
+
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Button(
+                                    enabled = available && journalAvailable,
+                                    onClick = {
+                                        if (yandexToken.isBlank()) {
+                                            tokenDraft = ""
+                                            tokenDialog = true
+                                        } else {
+                                            work {
+                                                check(latestJournal) { "Журнал не прочитан. Сначала восстановите данные." }
+                                                val snapshot = latestProducts
+                                                val bytes = withContext(Dispatchers.IO) { BackupCodec.encode(snapshot) }
+                                                val syncAt = CloudBackupManager.uploadToYandexDisk(context, bytes)
+                                                lastSyncTime = syncAt
+                                                menu = false
+                                                message = "Копия выгружена на Яндекс Диск (${snapshot.size} продуктов).\nСинхронизация: $syncAt"
+                                            }
+                                        }
+                                    },
+                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 10.dp),
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Text(
+                                        text = "Выгрузить",
+                                        maxLines = 1,
+                                        softWrap = false,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+
+                                OutlinedButton(
+                                    enabled = available,
+                                    onClick = {
+                                        if (yandexToken.isBlank()) {
+                                            tokenDraft = ""
+                                            tokenDialog = true
+                                        } else {
+                                            work {
+                                                val bytes = CloudBackupManager.downloadFromYandexDisk(context)
+                                                val decoded = withContext(Dispatchers.IO) { BackupCodec.decode(bytes) }
+                                                lastSyncTime = CloudBackupManager.getLastSyncTime(context)
+                                                preview = decoded
+                                                menu = false
+                                            }
+                                        }
+                                    },
+                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 10.dp),
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Text(
+                                        text = "Восстановить",
+                                        maxLines = 1,
+                                        softWrap = false,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                            }
+
+                            if (isTokenConnected) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Text(
+                                        text = "Автовыгрузка при изменениях",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .padding(end = 8.dp)
+                                    )
+                                    Switch(
+                                        checked = autoSync,
+                                        enabled = available,
+                                        onCheckedChange = { checked ->
+                                            autoSync = checked
+                                            CloudBackupManager.setAutoSyncEnabled(context, checked)
+                                            if (checked && latestJournal && latestProducts.isNotEmpty()) {
+                                                scope.launch {
+                                                    runCatching {
+                                                        val bytes = withContext(Dispatchers.IO) {
+                                                            BackupCodec.encode(latestProducts)
+                                                        }
+                                                        CloudBackupManager.uploadToYandexDisk(context, bytes)
+                                                    }.onSuccess { syncAt ->
+                                                        lastSyncTime = syncAt
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    )
+                                }
+                            }
+
+                            OutlinedButton(
+                                enabled = available,
+                                onClick = {
+                                    yandexToken = CloudBackupManager.getYandexToken(context)
+                                    tokenDraft = yandexToken
+                                    showToken = false
+                                    tokenDialog = true
+                                },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text(
+                                    if (yandexToken.isBlank()) {
+                                        "Подключить Яндекс Диск"
+                                    } else {
+                                        "Настроить подключение к Яндекс Диску"
+                                    }
+                                )
+                            }
+
+                            HorizontalDivider(modifier = Modifier.padding(vertical = 2.dp))
+
+                            Text(
+                                text = "Отправка файла через другое приложение (Яндекс Диск, Google Диск, Telegram):",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+
+                            OutlinedButton(
+                                enabled = available && journalAvailable,
+                                onClick = {
                                     work {
                                         check(latestJournal) { "Журнал не прочитан. Сначала восстановите данные." }
                                         val snapshot = latestProducts
+                                        val name = filename("json")
                                         val bytes = withContext(Dispatchers.IO) { BackupCodec.encode(snapshot) }
-                                        val syncAt = CloudBackupManager.uploadToYandexDisk(context, bytes)
-                                        lastSyncTime = syncAt
                                         menu = false
-                                        message = "Копия выгружена на Яндекс Диск (${snapshot.size} продуктов).\nСинхронизация: $syncAt"
+                                        CloudBackupManager.shareBackupFile(activityContext, name, bytes)
                                     }
-                                }
-                            },
-                            modifier = Modifier.weight(1f)
-                        ) { Text("Выгрузить") }
+                                },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text("Поделиться копией в облако")
+                            }
+                        }
 
-                        OutlinedButton(
-                            enabled = available,
-                            onClick = {
-                                if (yandexToken.isBlank()) {
-                                    tokenDraft = ""
-                                    tokenDialog = true
-                                } else {
-                                    work {
-                                        val bytes = CloudBackupManager.downloadFromYandexDisk(context)
-                                        val decoded = withContext(Dispatchers.IO) { BackupCodec.decode(bytes) }
-                                        lastSyncTime = CloudBackupManager.getLastSyncTime(context)
-                                        preview = decoded
-                                        menu = false
-                                    }
-                                }
-                            },
-                            modifier = Modifier.weight(1f)
-                        ) { Text("Восстановить") }
-                    }
-
-                    if (yandexToken.isNotBlank()) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
+                        // =====================================================================
+                        // РАЗДЕЛ 2. ЛОКАЛЬНОЕ РЕЗЕРВНОЕ КОПИРОВАНИЕ
+                        // =====================================================================
+                        SectionCard(title = "Локальное резервное копирование") {
                             Text(
-                                "Автовыгрузка при изменениях",
-                                modifier = Modifier.weight(1f)
+                                text = "Файлы на устройстве",
+                                style = MaterialTheme.typography.labelLarge,
+                                fontWeight = FontWeight.SemiBold
                             )
-                            Switch(
-                                checked = autoSync,
-                                enabled = available,
-                                onCheckedChange = { checked ->
-                                    autoSync = checked
-                                    CloudBackupManager.setAutoSyncEnabled(context, checked)
-                                    if (checked && latestJournal && latestProducts.isNotEmpty()) {
-                                        scope.launch {
-                                            runCatching {
-                                                val bytes = withContext(Dispatchers.IO) {
-                                                    BackupCodec.encode(latestProducts)
-                                                }
-                                                CloudBackupManager.uploadToYandexDisk(context, bytes)
-                                            }.onSuccess { syncAt ->
-                                                lastSyncTime = syncAt
+
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Button(
+                                    enabled = available && journalAvailable,
+                                    onClick = {
+                                        try {
+                                            saveJson.launch(filename("json"))
+                                        } catch (e: Exception) {
+                                            message = e.localizedMessage ?: "Недоступен выбор файла"
+                                        }
+                                    },
+                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 10.dp),
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Text(
+                                        text = "Сохранить JSON",
+                                        maxLines = 1,
+                                        softWrap = false,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+
+                                OutlinedButton(
+                                    enabled = available,
+                                    onClick = {
+                                        try {
+                                            openJson.launch(
+                                                arrayOf(
+                                                    "application/json",
+                                                    "text/*",
+                                                    "application/octet-stream"
+                                                )
+                                            )
+                                        } catch (e: Exception) {
+                                            message = e.localizedMessage ?: "Недоступен выбор файла"
+                                        }
+                                    },
+                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 10.dp),
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Text(
+                                        text = "Загрузить JSON",
+                                        maxLines = 1,
+                                        softWrap = false,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                            }
+
+                            OutlinedButton(
+                                enabled = available && journalAvailable,
+                                onClick = {
+                                    try {
+                                        saveCsv.launch(filename("csv"))
+                                    } catch (e: Exception) {
+                                        message = e.localizedMessage ?: "Недоступен выбор файла"
+                                    }
+                                },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text("Экспорт таблицы в CSV (Excel)")
+                            }
+
+                            HorizontalDivider(modifier = Modifier.padding(vertical = 2.dp))
+
+                            Text(
+                                text = "Автоматическая страховка",
+                                style = MaterialTheme.typography.labelLarge,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Text(
+                                text = if (autoBackups.isEmpty()) {
+                                    "Автокопия создаётся автоматически при работе с журналом."
+                                } else {
+                                    "Последняя автокопия: ${autoBackups.first().updatedAt} (доступно: ${autoBackups.size})"
+                                },
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+
+                            OutlinedButton(
+                                enabled = available && autoBackups.isNotEmpty(),
+                                onClick = {
+                                    work {
+                                        val items = CloudBackupManager.listAutoBackups(context)
+                                        autoBackups = items
+                                        when {
+                                            items.isEmpty() -> message = "Локальные автокопии пока отсутствуют."
+                                            items.size == 1 -> {
+                                                val bytes = CloudBackupManager.readAutoBackup(items.first())
+                                                preview = withContext(Dispatchers.IO) { BackupCodec.decode(bytes) }
+                                                menu = false
+                                            }
+                                            else -> {
+                                                autoBackupChoices = items
+                                                menu = false
                                             }
                                         }
                                     }
+                                },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text("Восстановить из автокопии")
+                            }
+
+                            if (recovery && !checkingRecovery) {
+                                OutlinedButton(
+                                    enabled = available,
+                                    onClick = {
+                                        work {
+                                            preview = withContext(Dispatchers.IO) {
+                                                BackupCodec.decode(store.recoveryBytes())
+                                            }
+                                            menu = false
+                                        }
+                                    },
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Text("Откатить последнее восстановление")
                                 }
-                            )
+
+                                TextButton(
+                                    enabled = available,
+                                    onClick = {
+                                        try {
+                                            saveRecovery.launch("Fermocontrol_before_restore.json")
+                                        } catch (e: Exception) {
+                                            message = e.localizedMessage ?: "Недоступен выбор файла"
+                                        }
+                                    },
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Text("Сохранить страховочную копию в файл")
+                                }
+                            }
+                        }
+
+                        // =====================================================================
+                        // РАЗДЕЛ 3. ОБНОВЛЕНИЕ И УВЕДОМЛЕНИЯ
+                        // =====================================================================
+                        SectionCard(title = "Обновление и уведомления") {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "Версия приложения",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Text(
+                                    text = currentVersion,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            }
+
+                            OutlinedButton(
+                                enabled = available && !downloading,
+                                onClick = {
+                                    work {
+                                        val info: UpdateInfo = UpdateManager.checkUpdate(currentVersion)
+                                        menu = false
+                                        if (info.hasUpdate) {
+                                            updateInfo = info
+                                        } else {
+                                            message = "У вас установлена актуальная версия ($currentVersion).\n${info.releaseNotes}"
+                                        }
+                                    }
+                                },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text("Проверить обновления")
+                            }
+
+                            HorizontalDivider(modifier = Modifier.padding(vertical = 2.dp))
+
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Column(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .padding(end = 8.dp)
+                                ) {
+                                    Text(
+                                        text = "Напоминания о взвешивании",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                    Text(
+                                        text = "Уведомлять, если продукт не взвешивался более 3 дней",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                                Switch(
+                                    checked = remindersEnabled,
+                                    enabled = available,
+                                    onCheckedChange = { checked ->
+                                        if (checked) {
+                                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                                                ContextCompat.checkSelfPermission(
+                                                    context,
+                                                    Manifest.permission.POST_NOTIFICATIONS
+                                                ) != PackageManager.PERMISSION_GRANTED
+                                            ) {
+                                                notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                                            } else {
+                                                ReminderScheduler.setRemindersEnabled(context, true)
+                                                remindersEnabled = true
+                                                ReminderScheduler.checkAndNotifyIfNeeded(context, force = true)
+                                            }
+                                        } else {
+                                            ReminderScheduler.setRemindersEnabled(context, false)
+                                            remindersEnabled = false
+                                        }
+                                    }
+                                )
+                            }
                         }
                     }
-
-                    TextButton(
-                        enabled = available,
-                        onClick = {
-                            yandexToken = CloudBackupManager.getYandexToken(context)
-                            tokenDraft = yandexToken
-                            showToken = false
-                            tokenDialog = true
-                        }
-                    ) {
-                        Text(if (yandexToken.isBlank()) "Подключить Яндекс Диск (OAuth)" else "Настроить OAuth-токен")
-                    }
-
-                    HorizontalDivider()
-
-                    Text(
-                        "Локальная автозащита",
-                        style = MaterialTheme.typography.titleSmall
-                    )
-                    Text(
-                        if (autoBackups.isEmpty()) {
-                            "Автокопия создаётся автоматически при работе с журналом."
-                        } else {
-                            "Последняя автокопия: ${autoBackups.first().updatedAt} (снапшотов: ${autoBackups.size})."
-                        }
-                    )
-
-                    OutlinedButton(
-                        enabled = available && autoBackups.isNotEmpty(),
-                        onClick = {
-                            work {
-                                val items = CloudBackupManager.listAutoBackups(context)
-                                autoBackups = items
-                                when {
-                                    items.isEmpty() -> message = "Локальные автокопии пока отсутствуют."
-                                    items.size == 1 -> {
-                                        val bytes = CloudBackupManager.readAutoBackup(items.first())
-                                        preview = withContext(Dispatchers.IO) { BackupCodec.decode(bytes) }
-                                        menu = false
-                                    }
-                                    else -> {
-                                        autoBackupChoices = items
-                                        menu = false
-                                    }
-                                }
-                            }
-                        },
-                        modifier = Modifier.fillMaxWidth()
-                    ) { Text("Восстановить из автокопии") }
-
-                    OutlinedButton(
-                        enabled = available && recovery && !checkingRecovery,
-                        onClick = {
-                            work {
-                                preview = withContext(Dispatchers.IO) {
-                                    BackupCodec.decode(store.recoveryBytes())
-                                }
-                                menu = false
-                            }
-                        },
-                        modifier = Modifier.fillMaxWidth()
-                    ) { Text("Вернуть копию до последнего восстановления") }
-
-                    TextButton(
-                        enabled = available && recovery && !checkingRecovery,
-                        onClick = {
-                            try {
-                                saveRecovery.launch("Fermocontrol_before_restore.json")
-                            } catch (e: Exception) {
-                                message = e.localizedMessage ?: "Недоступен выбор файла"
-                            }
-                        }
-                    ) { Text("Сохранить эту копию в файл") }
-
-                    HorizontalDivider()
-
-                    Text("Текущая версия: $currentVersion")
-
-                    OutlinedButton(
-                        enabled = available && !downloading,
-                        onClick = {
-                            work {
-                                val info: UpdateInfo = UpdateManager.checkUpdate(currentVersion)
-                                menu = false
-                                if (info.hasUpdate) {
-                                    updateInfo = info
-                                } else {
-                                    message = "У вас установлена актуальная версия ($currentVersion).\n${info.releaseNotes}"
-                                }
-                            }
-                        },
-                        modifier = Modifier.fillMaxWidth()
-                    ) { Text("Проверить обновления") }
-                }
-            },
-            confirmButton = {
-                TextButton(enabled = available, onClick = { menu = false }) {
-                    Text("Закрыть")
                 }
             }
-        )
+        }
     }
 
     if (tokenDialog) {
         AlertDialog(
             onDismissRequest = { if (!verifyingToken) tokenDialog = false },
-            title = { Text("OAuth-токен Яндекс Диска") },
+            title = { Text("Подключение Яндекс Диска") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(
                         "Нажмите «Войти через Яндекс» и на открывшейся странице Полигона нажмите " +
-                            "кнопку «Получить OAuth-токен» — токен (начинается с y0_) проверится и сохранится автоматически."
+                            "кнопку «Получить OAuth-токен» — токен проверится и сохранится автоматически."
                     )
 
                     Button(
@@ -507,7 +744,7 @@ fun BackupPanel(
                     OutlinedTextField(
                         value = tokenDraft,
                         onValueChange = { tokenDraft = it },
-                        label = { Text("OAuth-токен (y0_...)") },
+                        label = { Text("Или вставьте OAuth-токен вручную") },
                         singleLine = true,
                         visualTransformation = if (showToken) {
                             VisualTransformation.None
@@ -560,9 +797,9 @@ fun BackupPanel(
                                 autoSync = false
                                 tokenDraft = ""
                                 tokenDialog = false
-                                message = "Токен Яндекс Диска удалён с устройства."
+                                message = "Яндекс Диск отключён, токен удалён с устройства."
                             }
-                        ) { Text("Удалить токен") }
+                        ) { Text("Отключить Яндекс Диск") }
                     }
                 }
             },
@@ -586,7 +823,7 @@ fun BackupPanel(
                                     yandexToken = CloudBackupManager.getYandexToken(context)
                                     tokenDraft = yandexToken
                                     tokenDialog = false
-                                    message = "Токен Яндекс Диска проверен и сохранён.\nАккаунт: $account"
+                                    message = "Яндекс Диск подключён.\nАккаунт: $account"
                                 }.onFailure { err ->
                                     if (err is IOException) {
                                         CloudBackupManager.saveYandexToken(context, cleaned)
@@ -736,7 +973,7 @@ fun BackupPanel(
                             recovery = true
                             preview = null
                             menu = false
-                            message = "Данные восстановлены. Предыдущий журнал доступен через «Данные → Вернуть копию до последнего восстановления»."
+                            message = "Данные восстановлены. Предыдущий журнал доступен через «Откатить последнее восстановление»."
                         }
                     }
                 ) { Text("Заменить данные") }
@@ -752,13 +989,84 @@ fun BackupPanel(
     message?.let { text ->
         AlertDialog(
             onDismissRequest = { message = null },
-            title = { Text("Работа с данными") },
+            title = { Text("Настройки и данные") },
             text = { Text(text) },
             confirmButton = {
                 TextButton(onClick = { message = null }) {
                     Text("Понятно")
                 }
             }
+        )
+    }
+}
+
+@Composable
+private fun SectionCard(
+    title: String,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    ElevatedCard(
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.elevatedCardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+        ),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary
+            )
+            content()
+        }
+    }
+}
+
+@Composable
+private fun SettingsGearIcon(
+    tint: Color,
+    modifier: Modifier = Modifier
+) {
+    Canvas(modifier = modifier) {
+        val cx = size.width / 2f
+        val cy = size.height / 2f
+        val rOuter = size.minDimension * 0.44f
+        val rBody = size.minDimension * 0.30f
+        val rInner = size.minDimension * 0.13f
+        val strokeW = size.minDimension * 0.10f
+
+        for (i in 0 until 8) {
+            val angle = Math.toRadians((i * 45).toDouble())
+            val cosA = cos(angle).toFloat()
+            val sinA = sin(angle).toFloat()
+            drawLine(
+                color = tint,
+                start = Offset(cx + rBody * 0.85f * cosA, cy + rBody * 0.85f * sinA),
+                end = Offset(cx + rOuter * cosA, cy + rOuter * sinA),
+                strokeWidth = strokeW * 1.15f,
+                cap = StrokeCap.Round
+            )
+        }
+
+        drawCircle(
+            color = tint,
+            radius = rBody,
+            center = Offset(cx, cy),
+            style = Stroke(width = strokeW)
+        )
+
+        drawCircle(
+            color = tint,
+            radius = rInner,
+            center = Offset(cx, cy),
+            style = Stroke(width = strokeW * 0.85f)
         )
     }
 }
