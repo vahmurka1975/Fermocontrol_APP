@@ -1,0 +1,2216 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#111815">
+<title>ФермоКонтроль · Макет 0.4.1</title>
+<style>
+:root {
+  --bg: #0f1416;
+  --bg-elev: #151c20;
+  --card: #182126;
+  --card-hover: #1d282e;
+  --line: #26333a;
+  --ink: #eef4f2;
+  --muted: #8b9d99;
+  --emerald: #10b981;
+  --emerald-soft: rgba(16, 185, 129, 0.14);
+  --emerald-line: rgba(16, 185, 129, 0.32);
+  --amber: #f59e0b;
+  --amber-soft: rgba(245, 158, 11, 0.15);
+  --amber-line: rgba(245, 158, 11, 0.38);
+  --red: #ef4444;
+  --red-soft: rgba(239, 68, 68, 0.14);
+  --shadow: 0 12px 32px rgba(0, 0, 0, 0.42);
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+button, input, select, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; border: 0; background: none; }
+.num-font { font-variant-numeric: tabular-nums; }
+
+.app {
+  max-width: 760px;
+  margin: auto;
+  min-height: 100vh;
+  padding-bottom: 104px;
+}
+
+/* Header */
+.top {
+  background: linear-gradient(180deg, #162126 0%, #11181b 100%);
+  border-bottom: 1px solid var(--line);
+  padding: 20px 18px 18px;
+}
+.topline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.brand {
+  font-family: Georgia, "Times New Roman", serif;
+  font-weight: 700;
+  font-size: 23px;
+  letter-spacing: -0.2px;
+  color: var(--ink);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.brand-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--emerald);
+  box-shadow: 0 0 10px var(--emerald);
+}
+.subtitle {
+  color: var(--muted);
+  font-size: 12.5px;
+  margin-top: 3px;
+}
+.iconbtn {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  color: var(--ink);
+  font-size: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.summary {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin-top: 16px;
+}
+.summary-box {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 11px 12px;
+}
+.summary-box.emerald { border-color: var(--emerald-line); }
+.summary-box.amber { border-color: var(--amber-line); }
+.summary-box b {
+  display: block;
+  font-size: 21px;
+  font-variant-numeric: tabular-nums;
+}
+.summary-box.emerald b { color: var(--emerald); }
+.summary-box.amber b { color: var(--amber); }
+.summary-box span {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.content { padding: 18px; }
+.sectionhead {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin: 0 0 14px;
+  gap: 12px;
+}
+.sectionhead h2 {
+  font-size: 17px;
+  font-weight: 700;
+  margin: 0;
+  letter-spacing: -0.2px;
+}
+.filter-pills {
+  display: flex;
+  gap: 6px;
+}
+.pill-btn {
+  padding: 6px 12px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 700;
+  background: var(--card);
+  color: var(--muted);
+  border: 1px solid var(--line);
+}
+.pill-btn.active {
+  background: var(--emerald-soft);
+  color: var(--emerald);
+  border-color: var(--emerald-line);
+}
+.pill-btn.amber.active {
+  background: var(--amber-soft);
+  color: var(--amber);
+  border-color: var(--amber-line);
+}
+
+/* 3-Zone Compact Product Card */
+.cards { display: grid; gap: 11px; }
+.card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  padding: 14px 15px;
+  box-shadow: var(--shadow);
+  transition: transform 0.12s ease, border-color 0.15s ease, background 0.15s ease;
+  cursor: pointer;
+}
+.card:hover {
+  background: var(--card-hover);
+}
+.card.attention-card {
+  border-color: var(--amber-line);
+}
+.card-3zone {
+  display: grid;
+  grid-template-columns: 54px 1fr 66px;
+  align-items: center;
+  gap: 13px;
+}
+
+/* Zone 1: Left Badge + Product Type Icon */
+.zone-left {
+  width: 54px;
+  height: 54px;
+  border-radius: 16px;
+  background: var(--bg-elev);
+  border: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  position: relative;
+}
+.zone-left.emerald {
+  border-color: var(--emerald-line);
+  background: linear-gradient(160deg, rgba(16,185,129,0.14), rgba(21,28,32,0.9));
+}
+.zone-left.amber {
+  border-color: var(--amber-line);
+  background: linear-gradient(160deg, rgba(245,158,11,0.16), rgba(21,28,32,0.9));
+}
+.zone-icon {
+  font-size: 19px;
+  line-height: 1;
+}
+.zone-num {
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--ink);
+  letter-spacing: 0.2px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Zone 2: Strict 3-line Hierarchy */
+.zone-center {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.line-title {
+  font-family: Georgia, "Times New Roman", serif;
+  font-weight: 700;
+  font-size: 16.5px;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.line-meta {
+  font-size: 12.5px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.line-action {
+  font-size: 12.5px;
+  font-weight: 750;
+  font-variant-numeric: tabular-nums;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 1px;
+}
+.line-action.emerald { color: var(--emerald); }
+.line-action.amber { color: var(--amber); }
+.line-action.muted { color: var(--muted); }
+
+/* Quick Weigh Strip inside Card */
+.card-quickbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 11px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255,255,255,0.05);
+  gap: 8px;
+}
+.card-subinfo {
+  font-size: 11.5px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.btn-weigh-inline {
+  padding: 6px 12px;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 750;
+  background: var(--emerald-soft);
+  color: var(--emerald);
+  border: 1px solid var(--emerald-line);
+}
+.btn-weigh-inline.amber {
+  background: var(--amber);
+  color: #101416;
+  border-color: var(--amber);
+}
+
+/* Zone 3: SVG Progress Ring */
+.zone-right {
+  width: 66px;
+  height: 66px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+.ring-svg {
+  width: 64px;
+  height: 64px;
+  transform: rotate(-90deg);
+}
+.ring-bg {
+  fill: none;
+  stroke: #253238;
+  stroke-width: 5.5;
+}
+.ring-fg {
+  fill: none;
+  stroke-width: 5.5;
+  stroke-linecap: round;
+  transition: stroke-dashoffset 0.35s ease, stroke 0.25s ease;
+}
+.ring-label {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.05;
+}
+.ring-pct {
+  font-size: 13px;
+  font-weight: 800;
+}
+.ring-sub {
+  font-size: 9px;
+  color: var(--muted);
+  margin-top: 1px;
+}
+
+/* Floating Action Button & Bottom Nav */
+.fab {
+  position: fixed;
+  bottom: 76px;
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: 720px;
+  width: calc(100% - 36px);
+  background: var(--amber);
+  color: #111618;
+  padding: 14px 18px;
+  border-radius: 15px;
+  font-weight: 800;
+  font-size: 15px;
+  box-shadow: 0 10px 26px rgba(245, 158, 11, 0.28);
+  z-index: 3;
+}
+.tabbar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: #12191c;
+  border-top: 1px solid var(--line);
+  height: 62px;
+  display: flex;
+  justify-content: center;
+  z-index: 3;
+}
+.tabs {
+  width: 760px;
+  display: flex;
+  justify-content: space-around;
+}
+.tab {
+  color: var(--muted);
+  font-size: 11px;
+  padding: 8px 20px;
+}
+.tab.activeTab {
+  color: var(--emerald);
+  font-weight: 800;
+}
+.tab span {
+  display: block;
+  font-size: 18px;
+  line-height: 20px;
+  margin-bottom: 2px;
+}
+
+/* Modals */
+.modal {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(5, 8, 10, 0.72);
+  backdrop-filter: blur(4px);
+  z-index: 10;
+  align-items: flex-end;
+}
+.modal.show { display: flex; }
+.sheet {
+  background: var(--bg-elev);
+  border-top: 1px solid var(--line);
+  width: 100%;
+  max-width: 760px;
+  margin: auto;
+  border-radius: 24px 24px 0 0;
+  padding: 20px 18px 26px;
+  max-height: 92vh;
+  overflow: auto;
+}
+.sheettop {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  gap: 12px;
+}
+.sheet h2 {
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 20px;
+  margin: 0;
+}
+.close {
+  background: var(--card);
+  border: 1px solid var(--line);
+  color: var(--ink);
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  font-size: 18px;
+}
+
+/* Forms */
+.formgrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.field { margin-bottom: 12px; }
+.field.full { grid-column: 1 / -1; }
+.field label {
+  display: block;
+  font-size: 12px;
+  color: var(--muted);
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+.field input, .field select, .field textarea {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 11px 12px;
+  background: var(--card);
+  color: var(--ink);
+  outline: 0;
+}
+.field input:focus, .field select:focus, .field textarea:focus {
+  border-color: var(--emerald);
+  box-shadow: 0 0 0 3px var(--emerald-soft);
+}
+.field textarea { min-height: 68px; resize: vertical; }
+.readonly { opacity: 0.65; }
+
+/* Live Preview in Weighing Modal */
+.live-preview {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 13px;
+  margin: 6px 0 16px;
+}
+.live-preview-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 10px;
+}
+.live-preview-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+.live-cell {
+  background: var(--bg-elev);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 10px 9px;
+}
+.live-cell small {
+  display: block;
+  font-size: 10.5px;
+  color: var(--muted);
+  margin-bottom: 4px;
+}
+.live-cell strong {
+  display: block;
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+}
+.live-cell span {
+  display: block;
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 2px;
+  font-variant-numeric: tabular-nums;
+}
+.live-cell.emerald { border-color: var(--emerald-line); }
+.live-cell.emerald strong { color: var(--emerald); }
+.live-cell.amber { border-color: var(--amber-line); }
+.live-cell.amber strong { color: var(--amber); }
+
+.live-alert {
+  margin-top: 10px;
+  padding: 9px 11px;
+  border-radius: 10px;
+  font-size: 12px;
+  line-height: 1.35;
+  display: none;
+}
+.live-alert.show { display: block; }
+.live-alert.amber {
+  background: var(--amber-soft);
+  color: #fbbf24;
+  border: 1px solid var(--amber-line);
+}
+.live-alert.emerald {
+  background: var(--emerald-soft);
+  color: #34d399;
+  border: 1px solid var(--emerald-line);
+}
+
+/* Detail Screen: Hero Block + SVG Trajectory Chart */
+.hero-stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.hero-card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 14px;
+}
+.hero-card.emerald { border-color: var(--emerald-line); }
+.hero-card.amber { border-color: var(--amber-line); }
+.hero-label {
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--muted);
+}
+.hero-big {
+  font-size: 27px;
+  font-weight: 800;
+  margin: 4px 0 3px;
+  font-variant-numeric: tabular-nums;
+}
+.hero-card.emerald .hero-big { color: var(--emerald); }
+.hero-card.amber .hero-big { color: var(--amber); }
+.hero-sub {
+  font-size: 12px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.chart-card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  padding: 14px;
+  margin-bottom: 14px;
+}
+.chart-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 10px;
+  gap: 8px;
+}
+.chart-title {
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--muted);
+}
+.chart-eta {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--emerald);
+}
+.chart-eta.amber { color: var(--amber); }
+.chart-svg {
+  width: 100%;
+  height: 190px;
+  display: block;
+  overflow: visible;
+}
+.chart-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-top: 8px;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+.legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.legend-line {
+  width: 16px;
+  height: 2.5px;
+  background: var(--emerald);
+  display: inline-block;
+}
+.legend-line.dashed {
+  background: repeating-linear-gradient(90deg, var(--amber) 0 4px, transparent 4px 8px);
+}
+.legend-line.target {
+  background: rgba(16, 185, 129, 0.45);
+}
+
+.detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.detail-cell {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 10px 12px;
+}
+.detail-cell span {
+  display: block;
+  font-size: 11px;
+  color: var(--muted);
+}
+.detail-cell b {
+  display: block;
+  font-size: 13.5px;
+  margin-top: 2px;
+}
+
+.log h3 {
+  font-size: 15px;
+  margin: 14px 0 8px;
+}
+.logentry {
+  padding: 12px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  margin-top: 8px;
+  font-size: 13px;
+}
+.logentry-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+  font-variant-numeric: tabular-nums;
+}
+.logentry-head b { font-size: 14px; }
+.logentry-delta {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--emerald);
+}
+.logentry-delta.amber { color: var(--amber); }
+.logentry small {
+  display: block;
+  color: var(--muted);
+  margin-bottom: 3px;
+}
+
+.submit {
+  width: 100%;
+  padding: 13px;
+  border-radius: 13px;
+  background: var(--amber);
+  color: #101416;
+  font-weight: 800;
+  margin-top: 4px;
+}
+.actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 16px;
+}
+.actions button { flex: 1; }
+.primary {
+  background: var(--amber);
+  color: #101416;
+  padding: 12px 14px;
+  border-radius: 12px;
+  font-weight: 800;
+}
+.secondary {
+  background: var(--card);
+  border: 1px solid var(--line);
+  color: var(--ink);
+  padding: 11px 12px;
+  border-radius: 12px;
+  font-weight: 700;
+}
+.danger {
+  background: var(--red-soft);
+  border: 1px solid rgba(239,68,68,0.3);
+  color: #f87171;
+  padding: 11px 12px;
+  border-radius: 12px;
+  font-weight: 700;
+}
+.notice {
+  padding: 11px 12px;
+  border-radius: 12px;
+  background: var(--amber-soft);
+  border: 1px solid var(--amber-line);
+  color: #fcd34d;
+  font-size: 12px;
+  line-height: 1.4;
+  margin: 4px 0 14px;
+}
+.empty {
+  text-align: center;
+  padding: 30px 16px;
+  color: var(--muted);
+  background: var(--card);
+  border: 1px dashed var(--line);
+  border-radius: 18px;
+}
+.empty strong {
+  display: block;
+  color: var(--ink);
+  margin-bottom: 5px;
+}
+.pilltitle {
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin: 14px 0 8px;
+  color: var(--emerald);
+}
+
+@media (min-width: 600px) {
+  .modal { align-items: center; }
+  .sheet { border-radius: 24px; max-width: 600px; border: 1px solid var(--line); }
+  .fab { bottom: 76px; max-width: 360px; }
+}
+/* Design 04 — спокойный первый экран, детали по нажатию */
+:root{color-scheme:dark;--bg:#111815;--bg-elev:#151e19;--card:#1a241e;--card-hover:#1e2a23;--line:#303e34;--ink:#f0f2e9;--muted:#a1ada2;--emerald:#b5d9ab;--emerald-soft:rgba(181,217,171,.09);--emerald-line:rgba(181,217,171,.25);--amber:#edbc77;--amber-soft:rgba(237,188,119,.08);--amber-line:rgba(237,188,119,.28);--shadow:none}
+body{background:radial-gradient(ellipse at 50% 0,rgba(76,107,73,.1),transparent 650px),var(--bg);line-height:1.45}
+button,input,select,textarea{-webkit-tap-highlight-color:transparent}button{touch-action:manipulation}button:focus-visible,a:focus-visible,summary:focus-visible{outline:2px solid var(--emerald);outline-offset:4px}button:disabled{cursor:not-allowed;opacity:.5}button svg{flex-shrink:0}.ico{width:20px;height:20px;display:inline-block;vertical-align:middle;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+.app{max-width:700px;padding-bottom:max(36px,env(safe-area-inset-bottom))}.top{background:none;border:none;padding:30px 24px 0}.topline{gap:12px}.brand{font-family:inherit;font-size:19px;font-weight:650;letter-spacing:-.6px;gap:11px}.brand-mark{display:grid;place-items:center;width:37px;height:41px;border:1px solid #53664c;border-radius:13px 13px 16px 16px;color:var(--emerald);background:#213021}.brand-mark .ico{width:23px;height:23px}.brand-sub{display:block;font-size:9px;letter-spacing:1.9px;text-transform:uppercase;font-weight:500;color:var(--muted);margin-top:2px}.header-tools{display:flex;align-items:center;gap:13px}.prototype{font-size:10px;letter-spacing:1.3px;color:#7f917e}.iconbtn{width:42px;height:42px;background:transparent;border:1px solid var(--line);border-radius:14px}.page-heading{display:flex;justify-content:space-between;gap:12px;align-items:flex-end;margin-top:36px}.page-heading h1{font-size:29px;font-weight:600;line-height:1.2;letter-spacing:-1px;margin:0 0 7px}.page-heading p{margin:0;color:var(--muted);font-size:13px}.date-mark{text-align:right;font-size:11px;color:var(--muted);padding-bottom:2px;white-space:nowrap}.content{padding:24px 24px 0}.attention-summary{width:100%;display:flex;align-items:center;gap:12px;text-align:left;padding:13px 14px;background:var(--amber-soft);border:1px solid var(--amber-line);border-radius:15px;margin-bottom:20px;color:var(--amber)}.attention-symbol{width:33px;height:35px;border-radius:10px;display:grid;place-items:center;background:rgba(237,188,119,.09);flex-shrink:0}.attention-copy{flex:1;min-width:0}.attention-copy strong{display:block;font-size:13px;font-weight:600;color:#eed5b0}.attention-copy small{display:block;font-size:11.5px;color:#bbad94;margin-top:3px}.attention-summary>.ico{width:17px}.searchbox{position:relative;display:flex;align-items:center;gap:9px;background:#172019;border:1px solid var(--line);border-radius:13px;padding:0 13px;margin-bottom:14px;height:47px;color:#7d917e}.searchbox:focus-within{border-color:#88a87b;box-shadow:0 0 0 3px var(--emerald-soft)}.searchbox input{border:0;outline:0;background:none;min-width:0;width:100%;font-size:14px;height:100%;color:var(--ink)}.searchbox input::placeholder{color:#8f9d8e}.searchbox .ico{width:18px}.searchbox button{width:28px;height:32px;padding:0;color:var(--muted)}
+.sectionhead{display:block;margin:0 0 23px}.filter-pills{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px;padding:4px;background:#172019;border:1px solid #29382d;border-radius:14px}.pill-btn{display:flex;justify-content:center;align-items:center;gap:7px;white-space:nowrap;min-width:0;padding:10px 7px;border:0;border-radius:10px;background:transparent;font-size:12px;font-weight:550;color:var(--muted);min-height:40px}.pill-btn.active,.pill-btn.amber.active{color:#e4ecdc;background:#303f30;border-color:transparent;box-shadow:0 2px 6px #0002}.tab-count{font-size:10px;font-variant-numeric:tabular-nums;padding:1px 5px;border-radius:5px;background:#29362c;color:#a5b09e;line-height:17px}.pill-btn.active .tab-count{background:#46573f;color:#d5e4c8}.pill-btn.amber.active .tab-count{color:#f1d8b2}.list-heading{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px}.list-heading h2{font-size:12px;font-weight:550;color:var(--muted);margin:0}.list-heading select{background:transparent;border:0;outline:0;color:var(--muted);font-size:11px;max-width:160px;padding:6px 0 6px 8px}.list-heading option{background:var(--card)}.cards{gap:13px}.product-card{background:linear-gradient(125deg,#1c2820,#19221d);border:1px solid #303e33;border-radius:20px;overflow:hidden;transition:border-color .15s,transform .15s}.product-card:hover{border-color:#52604e;transform:translateY(-1px)}.product-card.warn{border-color:#5b4d34}.card-open{display:block;width:100%;padding:18px 18px 15px;text-align:left}.product-top{display:flex;align-items:center;gap:12px}.batch-number{width:40px;height:42px;border-radius:12px;background:#26352a;border:1px solid #3a4b3b;display:grid;place-items:center;font-size:13px;color:#d0dbca;font-weight:600;flex-shrink:0;font-variant-numeric:tabular-nums}.product-names{flex:1;min-width:0}.product-names h3{font-size:16px;font-weight:600;line-height:1.35;letter-spacing:-.25px;margin:0 0 3px;overflow-wrap:anywhere}.product-names p{font-size:11.5px;color:var(--muted);margin:0}.product-chevron{color:#758873;width:17px}.weight-row{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin-top:19px}.weight-value{font-size:30px;font-weight:500;line-height:1.15;letter-spacing:-.9px;font-variant-numeric:tabular-nums}.weight-value small{font-size:15px;letter-spacing:0;color:#bcc5b8;margin-left:3px}.loss-block{text-align:right}.loss-value{color:#b6d4ab;font-size:18px;font-weight:500;font-variant-numeric:tabular-nums;letter-spacing:-.2px}.loss-label{display:block;font-size:10px;color:#93a18f;margin-top:2px}.weight-label{display:block;font-size:10px;color:#93a18f;margin-top:5px}.progress-track{height:4px;background:#303e32;border-radius:8px;margin-top:14px;overflow:hidden}.progress-fill{height:100%;background:#a5c995;border-radius:8px;transition:width .35s}.warn .progress-fill{background:#c9b080}.product-footer{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:11px 18px;border-top:1px solid #2b382d;min-height:59px}.next-action{font-size:11.5px;color:#a4b19e;display:flex;align-items:center;gap:7px;min-width:0;line-height:1.4}.next-action .ico{width:15px;height:15px}.next-action.amber{color:#e2bb81}.status-dot{width:5px;height:5px;background:#a1bf90;border-radius:50%;flex-shrink:0}.next-action.amber .status-dot{background:var(--amber)}.weigh-button{display:flex;align-items:center;justify-content:center;gap:6px;white-space:nowrap;min-height:37px;padding:7px 12px;border-radius:10px;border:1px solid #52684a;background:#a9cf960c;font-weight:550;font-size:12px;color:#c7debb;flex-shrink:0}.weigh-button .ico{width:16px;height:16px}.weigh-button.due{background:#dfbf8b;color:#25271c;border-color:#dfbf8b}.weigh-button.ghost{background:transparent;border-color:var(--line);color:var(--muted)}.list-footnote{color:#74856f;text-align:center;font-size:10.5px;margin:20px 0 0}.fab{display:flex;align-items:center;justify-content:center;gap:9px;left:0;bottom:0;transform:none;width:100%;max-width:none;border-radius:0;background:linear-gradient(0deg,var(--bg) 75%,transparent);padding:27px 24px max(22px,env(safe-area-inset-bottom));box-shadow:none;pointer-events:none}.fab-inner{max-width:652px;width:100%;display:flex;align-items:center;justify-content:center;gap:9px;background:#bddcaf;color:#1a2b18;padding:15px;border:1px solid #d1e6c8;border-radius:14px;box-shadow:0 8px 25px #0003;font-size:14px;font-weight:650;pointer-events:auto;min-height:52px}.fab-inner:hover{background:#cde6c1}.fab .ico{width:19px}.prototype-note{text-align:center;color:#697b65;font-size:10px;margin-top:18px;letter-spacing:.2px}
+.modal{background:rgba(5,12,7,.72);backdrop-filter:blur(7px);z-index:20;align-items:flex-end}.modal.front{z-index:30}.sheet{background:#162019;border:1px solid #354532;border-bottom:0;max-width:700px;margin:0 auto;max-height:92vh;max-height:92dvh;padding:21px 20px 26px;border-radius:25px 25px 0 0;box-shadow:0 20px 80px #0006;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:#43533d transparent}.sheet:before{content:'';display:block;width:33px;height:4px;border-radius:5px;background:#43513d;margin:-9px auto 19px}.sheettop{align-items:flex-start;margin-bottom:22px}.sheet h2{font-family:inherit;font-size:22px;font-weight:550;line-height:1.25;letter-spacing:-.6px;overflow-wrap:anywhere}.sheet-subtitle{font-size:12px;color:var(--muted);margin:6px 0 0;line-height:1.5}.close{min-width:36px;width:36px;height:36px;border-radius:12px;display:grid;place-items:center;background:transparent;font-size:22px}.field label{font-size:12px;font-weight:500;color:#c1cbb9}.field input,.field select,.field textarea{padding:13px 12px;background:#1c291f;border-color:#3c4a37;font-size:14px;color:#f0f2e9;min-height:46px}.field input::placeholder,.field textarea::placeholder{color:#7e9076}.field input:focus,.field select:focus,.field textarea:focus{border-color:#a8ca98}.field select option{background:#1c291f;color:#f0f2e9}.field small{display:block;color:#97a88d;font-size:11px;margin:6px 0 0}.formgrid{gap:0 12px}.submit,.primary{background:#bddcaf;color:#192a16;border:1px solid #cce3c0;font-weight:650;min-height:47px;font-size:14px}.secondary{background:#223022;color:#d5dfcd;border-color:#42523b;font-weight:500;min-height:44px;font-size:13px;display:inline-flex;align-items:center;justify-content:center;gap:7px}.secondary .ico{width:17px}.additional-fields{margin:3px 0 19px;border:1px solid var(--line);border-radius:13px;overflow:hidden}.additional-fields>summary{padding:14px;color:#bdcbb5;font-size:12px;cursor:pointer}.additional-fields>.formgrid{padding:2px 13px 0}.notice{font-size:12px;line-height:1.6;color:#e3c9a1;border-radius:13px;background:var(--amber-soft);border-color:var(--amber-line)}.helper-text{font-size:11.5px;color:var(--muted);line-height:1.65}.upload-field{border:1px dashed #4d6045;border-radius:13px;padding:13px;display:flex;align-items:center;gap:11px;margin:1px 0 16px}.upload-field>span{flex:1;font-size:12px;color:#a9bba0}.upload-field input{display:none}.upload-field label{cursor:pointer;font-size:12px;padding:8px 11px;border-radius:9px;background:#2d3e28;border:1px solid #4c6043;color:#d2e2c7;white-space:nowrap}.upload-field .ico{color:#9ab68a}.upload-preview{width:44px;height:44px;border-radius:9px;object-fit:cover;display:none}.live-preview{background:#1b271e;border-color:#3b4d35;padding:13px;box-shadow:none}.live-preview-head{font-size:9px;letter-spacing:.6px;align-items:flex-start;gap:8px}.live-preview-head>span:last-child{font-size:9px;text-align:right;max-width:60%;letter-spacing:0;text-transform:none;font-weight:400}.live-cell{background:#172219;border-color:#34442f;padding:10px 8px}.live-cell small{font-size:10px;line-height:1.4;min-height:27px}.live-cell strong{font-size:16px;font-weight:550}.live-cell span{font-size:10px}.live-alert{font-size:11px;line-height:1.6}.live-alert.emerald{color:#bfd9b1}.live-alert.amber{color:#e4c28f}.pilltitle{font-size:10px;color:#b2c5a5;letter-spacing:1px}.detail-kicker{font-size:10px;letter-spacing:1.3px;text-transform:uppercase;color:#9fb390;margin:0 0 8px}.detail-intro{display:flex;justify-content:space-between;align-items:center;gap:10px;margin:-4px 0 20px}.status-pill{border:1px solid #4c6143;border-radius:20px;padding:4px 9px;font-size:10px;color:#c1d9b1}.status-pill.warning{border-color:var(--amber-line);color:var(--amber)}.detail-intro>span:last-child{font-size:11px;color:var(--muted)}.metrics-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:24px}.metric-btn{position:relative;display:flex;flex-direction:column;align-items:flex-start;text-align:left;min-height:110px;border:1px solid #3a4b34;border-radius:15px;padding:13px;background:#202d22;transition:background .15s}.metric-btn:hover{background:#293929}.metric-btn>.ico{position:absolute;right:11px;top:12px;color:#7d9273;width:14px;height:14px}.metric-btn.warning{border-color:var(--amber-line);background:#2a2c20}.metric-label{font-size:10.5px;color:#b1c0a7;padding-right:14px}.metric-value{font-size:26px;font-weight:500;letter-spacing:-.6px;color:#d8e8cf;margin:5px 0 3px;font-variant-numeric:tabular-nums;line-height:1.2}.metric-btn.warning .metric-value{color:var(--amber)}.metric-value.passport{font-size:16px;letter-spacing:0;margin-top:11px}.metric-sub{font-size:10px;color:#92a586;line-height:1.5}.section-title{display:flex;justify-content:space-between;align-items:center;gap:8px;margin:23px 0 10px}.section-title h3{font-size:14px;font-weight:550;margin:0;color:#e0e6d9}.section-title span{font-size:10px;color:#8fa180}.photo-empty{display:flex;align-items:center;gap:14px;background:linear-gradient(110deg,#253222,#19251b);border:1px dashed #465a3a;border-radius:15px;padding:18px 15px}.photo-empty>.ico{width:31px;height:31px;color:#89a777}.photo-empty strong{font-size:12px;font-weight:500;display:block;color:#c4d3b8}.photo-empty p{font-size:11px;line-height:1.5;color:#92a484;margin:5px 0 10px}.photo-empty button{font-size:11px;color:#d0e4bf;padding:0;text-decoration:underline;text-underline-offset:4px}.photo-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.photo-tile{padding:0;overflow:hidden;border:1px solid #3a4b34;border-radius:13px;text-align:left;background:#202c20}.photo-tile img{display:block;width:100%;height:155px;object-fit:cover}.photo-tile small{display:block;padding:9px;font-size:10px;color:#b3c4a7}.photo-add{width:100%;margin-top:8px}.recommendation{background:#2a291e;border:1px solid #6a5734;border-radius:15px;padding:15px;margin:12px 0 22px;color:#e3cfab}.recommendation-head{display:flex;align-items:center;gap:9px;color:#efc78e;font-size:13px;font-weight:550}.recommendation p{font-size:12px;line-height:1.65;margin:9px 0 0;color:#c9bb9f}.recommendation small{display:block;font-size:10px;color:#a99a7e;margin-top:10px;line-height:1.55}.recommendation .text-button{color:#edcb99;margin-top:11px;font-size:11px}.text-button{padding:0;color:#bfd5af;font-size:12px;min-height:28px}.logentry{background:#1b271d;border-color:#33472e;border-radius:13px;padding:13px;font-size:12px;margin:0 0 9px;line-height:1.6}.logentry-head{gap:9px;margin-bottom:2px}.logentry-head b{font-size:15px;font-weight:550}.logentry-head time{font-size:10px;color:#9faf94}.logentry small{font-size:11px;color:#a0b192}.logentry-delta{font-size:11px;font-weight:400;color:#b6d4a5}.logentry-delta.amber{color:#e0b67d}.detail-actions{position:sticky;bottom:-26px;background:linear-gradient(0deg,#162019 86%,transparent);padding:18px 0 4px;display:flex;gap:9px;margin-top:14px}.detail-actions>*{flex:1}.detail-actions .primary{border-radius:12px;display:flex;justify-content:center;align-items:center;gap:8px}.detail-actions .secondary{flex:0 0 auto}.detail-safety{font-size:10px;line-height:1.6;color:#84977a;margin:13px 0 0}.empty{background:#1c271e;border-color:#405238;padding:30px 15px;color:#a8b99c;font-size:12px}.empty>.ico{display:block;margin:0 auto 12px;width:28px;height:28px;color:#89a577}.empty strong{font-size:14px;color:#e0e9d9;font-weight:550}.definition{margin:0}.definition>div{display:flex;justify-content:space-between;gap:18px;border-bottom:1px solid #31432c;padding:12px 0;font-size:12px;line-height:1.6}.definition dt{color:#a1b396;flex:1}.definition dd{margin:0;text-align:right;color:#e0e9d8;flex:1;overflow-wrap:anywhere}.big-reading{font-size:44px;letter-spacing:-1.8px;font-weight:450;color:#d4e7c7;line-height:1.2;margin:4px 0 18px}.big-reading small{font-size:20px;letter-spacing:0}.info-copy{font-size:12px;color:#a6ba9a;line-height:1.75;margin:16px 0}.info-photo{width:100%;max-height:65vh;object-fit:contain;display:block;border-radius:12px}.chart-card{background:#1c281f;border-color:#3c5034;margin-top:20px}.chart-title{font-size:10px;letter-spacing:.3px}.chart-legend{font-size:10px;gap:10px}.chart-header{flex-wrap:wrap}.chart-svg{height:auto;aspect-ratio:540/185}.settings-section{background:#1c281e;border:1px solid #35492f;border-radius:16px;padding:15px;margin:0 0 13px}.settings-section h3{font-size:14px;font-weight:550;margin:0 0 7px}.settings-section p{font-size:11px;line-height:1.65;color:#a7b89d;margin:5px 0 13px}.cloud-options{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:13px 0}.cloud-choice{position:relative;border:1px solid #3c5035;border-radius:12px;padding:12px 10px;display:flex;align-items:center;gap:8px;font-size:11.5px;cursor:pointer;color:#b5c5aa}.cloud-choice:has(input:checked){border-color:#99b988;background:#2c3b27;color:#e3eddc}.cloud-choice input{accent-color:#b5d9ab;width:14px;height:14px;margin:0}.cloud-choice .cloud-letter{font-size:14px;font-weight:650}.settings-status{display:flex;justify-content:space-between;gap:10px;font-size:11px;color:#a5b899;padding:3px 0 11px}.settings-status strong{font-weight:450;color:#c6d5bc}.settings-section>.secondary{width:100%;font-size:12px}.button-pair{display:grid;grid-template-columns:1fr 1fr;gap:8px}.button-pair button{white-space:nowrap;min-width:0;font-size:12px;padding:11px 9px}.setting-row{display:flex;align-items:center;gap:15px;margin-top:13px;font-size:11px;color:#afc0a3}.setting-row span{flex:1}.setting-row input{width:72px;min-height:36px;border-radius:9px;padding:7px 9px;background:#142014;border:1px solid #506545;outline:none;text-align:right;font-variant-numeric:tabular-nums}.setting-row small{display:block;font-size:10px;color:#899f7d;margin-top:2px}.settings-footer{display:flex;justify-content:space-between;gap:10px;margin:14px 0 0}.settings-footer button{font-size:11px}.settings-footer .danger-link{color:#c59a84}.version-tag{font-size:10px;color:#acc39d;border:1px solid #4b6340;border-radius:5px;padding:2px 6px}.attention-item{padding:15px;background:#212d22;border:1px solid #4b5739;border-radius:14px;margin-bottom:10px}.attention-item h3{margin:0 0 7px;font-size:14px;font-weight:550}.attention-item p{font-size:12px;color:#bcbaa0;line-height:1.6;margin:6px 0 12px}.attention-item .button-pair{margin-top:11px}.toast{position:fixed;bottom:103px;left:50%;transform:translate(-50%,15px);width:max-content;max-width:calc(100% - 36px);padding:12px 17px;border:1px solid #6e865e;background:#30442c;color:#eff6e9;font-size:12px;border-radius:12px;box-shadow:0 8px 30px #0005;opacity:0;pointer-events:none;z-index:80;transition:opacity .2s,transform .2s;line-height:1.5}.toast.visible{opacity:1;transform:translate(-50%,0)}
+@media(min-width:640px){.top{padding-top:40px}.content{padding-top:26px}.page-heading{margin-top:41px}.page-heading h1{font-size:33px}.product-names h3{font-size:17px}.card-open{padding:19px 21px 17px}.product-footer{padding:11px 21px}.modal{align-items:center;padding:24px}.sheet{margin:auto;border-radius:23px;border:1px solid #354532;padding:25px 25px 28px;max-width:620px}.sheet.detail{max-width:680px}.sheet:before{display:none}.fab{padding-bottom:25px}.metrics-grid{gap:11px}.metric-btn{min-height:118px;padding:15px}.metric-label{font-size:12px}.metric-sub{font-size:11px}.metric-value{font-size:29px}.detail-actions{bottom:-28px}.photo-tile img{height:190px}}
+@media(max-width:380px){.top{padding:23px 16px 0}.content{padding:21px 16px 0}.page-heading h1{font-size:25px}.date-mark{display:none}.prototype{display:none}.brand{font-size:18px}.pill-btn{font-size:11px;gap:5px}.card-open{padding:15px}.product-footer{padding:10px 13px;gap:8px}.product-names h3{font-size:15px}.weight-value{font-size:28px}.next-action{font-size:10px}.weigh-button{font-size:11px;padding:7px 9px}.sheet{padding:20px 15px 25px}.metric-label{font-size:10px}.metric-btn{padding:11px}.metric-value{font-size:24px}.fab{padding-left:16px;padding-right:16px}.settings-footer{flex-direction:column;align-items:flex-start}.cloud-choice{font-size:10.5px;padding:12px 8px}}
+/* Подсказки по усушке и подписи графика вне области данных */
+.recommendation--drying{margin:0 0 18px;padding:16px}.recommendation--drying .recommendation-head{margin:0;align-items:flex-start;font-size:14px;line-height:1.45}.recommendation-head>.ico{flex-shrink:0;width:19px;height:19px;margin-top:1px}.drying-facts{display:flex;flex-wrap:wrap;gap:7px 16px;margin-top:12px;font-size:11px;color:#c9bb9f}.drying-facts b{color:#f1d0a1;font-weight:600;font-variant-numeric:tabular-nums}.recommendation-steps{margin:12px 0 0;padding-left:19px;color:#c9bb9f;font-size:12px;line-height:1.65}.recommendation-steps li{padding-left:3px;margin:0 0 9px}.recommendation-steps li:last-child{margin-bottom:0}.recommendation-steps strong{font-weight:600;color:#e5d5b9}.recommendation--drying .drying-stale{border-left:2px solid var(--amber);padding-left:10px}.recommendation--drying small{padding-top:10px;border-top:1px solid #574a32}.chart-card .chart-svg{height:auto;aspect-ratio:auto;overflow:hidden}.chart-header>*{min-width:0;overflow-wrap:anywhere}.chart-eta{font-size:11px;line-height:1.6}.chart-target-strip{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:5px 12px;border:1px solid var(--emerald-line);border-radius:10px;padding:9px 11px;margin:4px 0 12px;color:#b4c5a9;font-size:11px}.chart-target-strip strong{font-weight:550;color:var(--emerald);font-variant-numeric:tabular-nums;overflow-wrap:anywhere}.chart-units{display:flex;justify-content:space-between;gap:12px;margin:0 0 5px;font-size:10px;color:var(--muted)}.chart-milestones{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:10px}.chart-milestone{min-width:0;padding:11px;border:1px solid var(--line);border-radius:11px;background:#17221a;overflow-wrap:anywhere}.chart-milestone>*{display:block}.chart-milestone>span{font-size:10px;color:var(--muted)}.chart-milestone>strong{font-size:16px;font-weight:550;color:#e0ead8;margin-top:4px;font-variant-numeric:tabular-nums;line-height:1.4}.chart-milestone>small{font-size:10px;line-height:1.6;color:#9aaa90;margin-top:4px}.chart-milestone.forecast>strong{color:var(--amber)}.chart-card .chart-legend{margin-top:13px;gap:8px 14px;line-height:1.5}.chart-card .legend-line{background:var(--emerald)}.chart-card .legend-line.dashed{background:repeating-linear-gradient(90deg,var(--amber) 0 4px,transparent 4px 8px)}.chart-card .legend-line.target{background:repeating-linear-gradient(90deg,var(--emerald) 0 2px,transparent 2px 5px);opacity:.7}.chart-card .legend-line.today{background:repeating-linear-gradient(90deg,var(--muted) 0 2px,transparent 2px 5px)}.chart-footnote{font-size:10px;line-height:1.6;color:#91a287;margin:11px 0 0}
+@media(max-width:400px){.chart-milestones{grid-template-columns:1fr}.chart-header{display:block}.chart-header>*{display:block}.chart-eta{margin-top:5px}.chart-target-strip{align-items:flex-start}.recommendation--drying{padding:13px}}
+/* Добавление продукта — компактное действие в шапке, без нижней панели. */
+.header-tools{gap:8px;flex-shrink:0}.header-tools .iconbtn{width:44px;height:44px;flex:0 0 44px;border-radius:50%;padding:0}.header-tools .iconbtn .ico{width:21px;height:21px}.header-tools .add-product-btn{color:var(--emerald);background:rgba(181,217,171,.08);border-color:#536b47}.header-tools .add-product-btn:hover{background:rgba(181,217,171,.16);border-color:#8eae7d}.header-tools .add-product-btn:active{background:rgba(181,217,171,.23)}.header-tools #settingsBtn:hover{background:rgba(181,217,171,.05);border-color:#52604e}.empty .empty-add{margin-top:17px;min-height:44px;gap:7px}.empty .empty-add .ico{width:17px;height:17px}.toast{bottom:max(24px,env(safe-area-inset-bottom))}
+@media(max-width:380px){.brand{font-size:16px;gap:8px;letter-spacing:-.5px}.brand-mark{width:32px;height:36px;flex-shrink:0}.brand-sub{font-size:8px;letter-spacing:1.3px}.header-tools{gap:7px}.topline{gap:8px}}
+/* Главный экран: неподвижная панель до заголовка списка включительно.
+   Прокручивается только отдельная область со списком партий. */
+html,body{height:100%;overflow:hidden;overscroll-behavior-y:none}
+.app{display:flex;flex-direction:column;height:100vh;height:100dvh;min-height:0;padding:0;overflow:hidden}
+.top{position:relative;z-index:2;flex:0 0 auto;padding:max(20px,env(safe-area-inset-top)) 24px 0;background:linear-gradient(180deg,#162019 0%,var(--bg) 100%);border-bottom:1px solid var(--line)}
+.dashboard-controls{padding-top:18px}
+.dashboard-controls .attention-summary{margin-bottom:14px}
+.dashboard-controls .sectionhead{margin-bottom:12px}
+.dashboard-controls .list-heading{margin-bottom:0;padding-bottom:12px}
+.dashboard-controls [hidden]{display:none!important}
+.content{flex:1 1 0;min-height:0;padding:14px 24px max(24px,env(safe-area-inset-bottom));overflow-y:auto;overflow-x:hidden;overscroll-behavior-y:contain;-webkit-overflow-scrolling:touch;scrollbar-width:thin;scrollbar-color:#43533d transparent}
+.content:focus-visible{outline:2px solid var(--emerald-line);outline-offset:-2px}
+@media(min-width:640px){.top{padding-top:max(28px,env(safe-area-inset-top))}}
+@media(max-width:380px){.top{padding-left:16px;padding-right:16px}.content{padding-left:16px;padding-right:16px}}
+@media(max-height:600px){.top{padding-top:max(10px,env(safe-area-inset-top))}.dashboard-controls{padding-top:12px}.dashboard-controls .attention-summary{padding:10px 12px;margin-bottom:10px}.dashboard-controls .searchbox{height:42px;margin-bottom:10px}.dashboard-controls .sectionhead{margin-bottom:8px}.dashboard-controls .pill-btn{min-height:36px;padding-top:8px;padding-bottom:8px}.dashboard-controls .list-heading{padding-bottom:10px}}
+/* Единый ряд круглых действий и BackupPanel в стиле карточек продукта. */
+.header-tools .attention-btn{position:relative;color:#96a88b;background:rgba(181,217,171,.025);border-color:#41523a}
+.header-tools .attention-btn>span:first-child{display:grid;place-items:center}
+.header-tools .attention-btn.has-attention{color:#edc58c;border-color:#6d5738;background:#edbc770b}
+.header-tools .attention-btn:hover{background:#edbc7714;border-color:#a78754}
+.header-tools .attention-btn.is-active{color:#1c2519;border-color:#edc58c;background:#edc58c;box-shadow:0 0 0 3px #edbc7710}
+.attention-badge{position:absolute;right:-3px;top:-4px;min-width:18px;height:18px;padding:0 4px;display:grid;place-items:center;border:2px solid #142018;border-radius:12px;background:#354330;color:#cad6c1;font-size:9px;line-height:1;font-weight:700;font-variant-numeric:tabular-nums}
+.has-attention .attention-badge{background:#edc58c;color:#202719}.is-active .attention-badge{background:#243120;color:#f2d8b1;border-color:#edc58c}
+.header-tools .settings-btn{background:#b5d9ab04;color:#b8c6ae;border-color:#3f5039}.list-heading h2.is-filtered{color:var(--amber)}
+.backup-sheet{padding-bottom:25px}.backup-sheet .sheettop{align-items:center;margin-bottom:22px}.backup-sheet .sheet-subtitle{font-size:12px}.backup-panel{display:grid;gap:13px}.backup-card{padding:17px;border:1px solid #354631;border-radius:19px;background:linear-gradient(120deg,#1e2b20,#19241c);min-width:0}.backup-card-head{display:flex;align-items:center;gap:12px;margin-bottom:17px}.backup-section-icon{display:grid;place-items:center;flex:0 0 38px;width:38px;height:38px;border-radius:12px;border:1px solid #43553a;background:#2a3a27;color:#bdd4ad}.backup-section-icon .ico{width:20px;height:20px}.backup-card-head>div{min-width:0;flex:1}.backup-kicker{display:block;font-size:9px;font-weight:500;letter-spacing:1.2px;text-transform:uppercase;color:#91a386;margin-bottom:3px}.backup-card h3{font-size:15px;line-height:1.4;letter-spacing:-.2px;font-weight:550;color:#e0e9d8;margin:0}.backup-card p{font-size:11.5px;line-height:1.65;color:#9fb293;margin:11px 0 0}.backup-card .backup-muted{font-size:10.5px;color:#8d9f83;line-height:1.6}.backup-status-row{display:flex;align-items:center;justify-content:space-between;gap:12px;font-size:11px;padding:0 0 14px;color:#b0bfa5}.backup-status-row strong{font-weight:500;font-size:11px;color:#d3dfc9;overflow-wrap:anywhere;text-align:right}.connection-pill{display:inline-flex;align-items:center;gap:6px;font-size:10px;border:1px solid #45533d;border-radius:20px;padding:4px 8px;white-space:nowrap;color:#b3c1a9;background:#17221a}.connection-pill i{width:5px;height:5px;border-radius:50%;background:#8b9a80}.backup-card .backup-button{display:flex;align-items:center;justify-content:center;gap:7px;width:100%;min-height:44px;padding:11px 12px;border-radius:12px;font-size:12px;line-height:1.3;font-weight:550;white-space:nowrap;background:#283b26;border:1px solid #4c6441;color:#d1e2c4}.backup-card .backup-button:hover:not(:disabled){background:#354b2e;border-color:#7e9c6d}.backup-card .backup-button.main{background:#b7d5a8;color:#1a2a16;border-color:#c4dfb6}.backup-card .backup-button.main:hover:not(:disabled){background:#c7e3b8}.backup-card .backup-button:disabled{opacity:.38}.backup-card .backup-button .ico{width:16px;height:16px}.backup-actions{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px;margin-top:11px}.backup-actions .backup-button{padding:11px 7px;font-size:12px;min-width:0}.backup-divider{height:1px;background:#34452e;margin:15px 0}.backup-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;margin-bottom:15px}.backup-stat{padding:10px 9px;border:1px solid #34472d;border-radius:11px;background:#17231a;min-width:0}.backup-stat b{display:block;font-size:19px;font-weight:500;line-height:1.3;color:#d4e5c9;font-variant-numeric:tabular-nums}.backup-stat span{display:block;margin-top:2px;font-size:9px;color:#9fb192}.backup-secondary-actions{display:flex;flex-wrap:wrap;justify-content:space-between;gap:6px 15px;margin-top:10px}.backup-secondary-actions .text-button{font-size:11px;display:inline-flex;align-items:center;gap:6px;min-height:34px}.backup-secondary-actions .ico{width:15px;height:15px}.backup-history{margin-top:12px;border-top:1px solid #34452e;padding-top:12px}.backup-history>summary{display:flex;align-items:center;gap:7px;font-size:11px;color:#bdccaf;cursor:pointer;list-style:none;min-height:32px}.backup-history>summary::-webkit-details-marker{display:none}.backup-history>summary>.ico{width:15px;height:15px;transition:transform .15s}.backup-history[open]>summary>.ico{transform:rotate(90deg)}.backup-history-body{padding-top:10px}.backup-copy{display:flex;align-items:center;gap:10px;padding:11px 0;border-top:1px solid #31432b}.backup-copy:first-child{border-top:0}.backup-copy>div{min-width:0;flex:1}.backup-copy strong,.backup-copy small{display:block}.backup-copy strong{font-size:11px;font-weight:500;color:#c7d7bb}.backup-copy small{font-size:10px;color:#8fa381;margin-top:3px}.backup-copy>button{flex-shrink:0;display:grid;place-items:center;width:38px;height:38px;border:1px solid #465d3a;border-radius:11px;color:#c2d5b3;background:#283723}.backup-copy>button:hover{background:#36492e}.backup-copy>button .ico{width:17px;height:17px}.backup-empty{font-size:11px;line-height:1.6;color:#95a98a;padding:2px 0 5px}.backup-history .backup-button{margin-top:10px}.backup-control{margin-top:14px;border-top:1px solid #34452e;padding-top:13px}.backup-control>summary{font-size:11.5px;color:#b4c6a5;cursor:pointer;min-height:28px}.backup-control .setting-row{gap:12px}.backup-footer-note{font-size:10px;line-height:1.6;color:#879b7c;text-align:center;margin:18px 12px 0}.backup-restore-source{font-size:11px;line-height:1.6;color:#a8ba9c;margin:-5px 0 16px}.backup-restore-warning{font-size:12px;line-height:1.7;color:#dfc59e;border:1px solid #635337;border-radius:14px;background:#edbc7708;padding:13px;margin:15px 0}.backup-confirm-actions{display:grid;grid-template-columns:1fr 1fr;gap:9px}.backup-confirm-actions>button{white-space:nowrap;min-width:0;border-radius:12px;min-height:45px;font-size:12px}.backup-card [hidden]{display:none!important}
+@media(max-width:460px){.top{padding-left:16px;padding-right:16px}.brand{font-size:16px;gap:8px;letter-spacing:-.5px}.brand-mark{width:32px;height:36px;flex-shrink:0}.brand-sub{font-size:8px;letter-spacing:1.2px}.header-tools{gap:6px}.topline{gap:8px}.backup-card{padding:15px}.backup-sheet{padding-left:16px;padding-right:16px}.backup-card h3{font-size:14px}.backup-actions .backup-button{gap:5px;font-size:11px;padding-left:6px;padding-right:6px}.backup-actions .backup-button .ico{width:15px;height:15px}}
+@media(max-width:355px){.brand-mark{display:none}.brand{font-size:15px}.brand-sub{font-size:7.5px}.backup-actions{grid-template-columns:1fr}.backup-confirm-actions{grid-template-columns:1fr}}
+/* Сохранение и фотодневник: состояния видны, действия доступны с клавиатуры. */
+[hidden]{display:none!important}.storage-banner{display:block;width:100%;text-align:left;padding:10px 12px;margin:12px 0 0;border-radius:11px;border:1px solid var(--amber-line);background:var(--amber-soft);color:var(--amber);font-size:11px;line-height:1.5}.photo-remove{display:grid;place-items:center;flex:0 0 36px;width:36px;height:36px;border:1px solid #65513c;border-radius:10px;color:#e0bd96;background:#352c20;font-size:20px}.upload-field{flex-wrap:wrap}.upload-field>span[id]{min-width:70px;overflow-wrap:anywhere}.upload-field label{display:inline-flex;align-items:center;justify-content:center;min-height:44px}.upload-field input[type=file]{display:block;position:absolute;width:1px;height:1px;padding:0;opacity:0;overflow:hidden;clip-path:inset(50%)}.upload-field:focus-within{outline:2px solid var(--emerald-line);outline-offset:3px}.upload-preview{flex:0 0 44px}.photo-tile small{line-height:1.6}.photo-tile img{background:#142017}.photo-tools{display:flex;flex-wrap:wrap;gap:8px;margin-top:13px}.photo-tools>*{flex:1}.photo-tools .danger{min-height:44px;font-size:12px}.photo-source{font-size:11px;line-height:1.65;color:var(--muted);margin:12px 0}.inspection-choice{display:flex;align-items:flex-start;gap:10px;border:1px solid #5d5036;border-radius:12px;background:#edbc7707;padding:12px;margin:0 0 14px;font-size:12px;line-height:1.6;color:#d9c7aa}.inspection-choice input{width:19px;height:19px;margin:1px 0 0;accent-color:var(--amber);flex-shrink:0}.review-panel{border:1px solid #665437;border-radius:15px;background:#edbc7708;padding:14px;margin:0 0 18px}.review-panel h3{font-size:14px;font-weight:550;color:var(--amber);margin:0 0 8px}.review-panel p{font-size:12px;line-height:1.65;color:#d0bfa2;margin:8px 0}.review-panel .secondary{font-size:11px;margin-top:8px}.review-tag{display:inline-block;border:1px solid #705e40;border-radius:6px;padding:2px 6px;font-size:10px;line-height:1.5;color:#e7c797;margin:5px 0}.log-photo{display:inline-flex;align-items:center;gap:6px;margin-top:9px;min-height:40px;padding:8px 10px;border:1px solid #485d3e;border-radius:9px;color:#cadcbe;font-size:11px}.log-photo .ico{width:15px;height:15px}.detail-disclaimer{font-size:11px;line-height:1.7;color:#94a68a;margin:15px 0}.hero-stats>*{min-width:0;overflow-wrap:anywhere}.hero-sub{line-height:1.6}.logentry-head{flex-wrap:wrap;align-items:flex-start}.detail-grid{margin-top:16px}.definition dd{white-space:pre-wrap}.backup-card .backup-button{white-space:normal;overflow-wrap:anywhere}.cloud-options{margin-top:0}.cloud-choice{min-height:48px}.cloud-choice input{width:18px;height:18px;flex-shrink:0}.backup-confirm-actions>button{white-space:normal}.header-tools .iconbtn{width:48px;height:48px;flex-basis:48px}.close{width:44px;min-width:44px;height:44px}.weigh-button{min-height:44px}.searchbox button{width:40px;height:40px}.filter-pills .pill-btn{min-height:44px}.brand{min-width:0}.brand>div{overflow-wrap:anywhere}.top{max-height:60%;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin}.list-heading h2{overflow-wrap:anywhere}.content{min-height:70px}.modal{align-items:flex-end}.sheet{max-height:92vh;max-height:92dvh}.formgrid>.field{min-width:0}.formgrid input,.formgrid select{min-width:0}.backup-stat span{overflow-wrap:anywhere}.upload-field label[aria-disabled=true]{opacity:.5;pointer-events:none}.backup-copy small{overflow-wrap:anywhere}
+@media(min-width:640px){.modal{align-items:center}}
+@media(max-width:390px){.brand-mark{display:none}.brand{font-size:15px}.header-tools{gap:5px}.live-preview-grid{grid-template-columns:1fr}.live-cell small{min-height:0}.live-cell{padding:9px 11px}.live-cell strong,.live-cell span{display:inline-block;margin-right:7px}.hero-stats{grid-template-columns:1fr}.formgrid{grid-template-columns:1fr}.cloud-options{grid-template-columns:1fr}}
+@media(max-height:440px){.top{padding-top:8px;max-height:58%}.brand-sub{display:none}.dashboard-controls{padding-top:8px}.dashboard-controls .searchbox{margin-bottom:7px}.dashboard-controls .sectionhead{margin-bottom:6px}.dashboard-controls .list-heading{padding-bottom:7px}.modal{padding:0}.sheet{max-height:97dvh}}
+@media(prefers-reduced-motion:reduce){*{transition:none!important;scroll-behavior:auto!important}}
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="top">
+    <div class="topline">
+      <div class="brand"><span class="brand-mark" data-icon="jar"></span><div>ФермоКонтроль<span class="brand-sub">Журнал созревания</span></div></div>
+      <div class="header-tools">
+        <button type="button" class="iconbtn attention-btn" id="attentionBtn" aria-label="Внимание: показать продукты, требующие действия" title="Требуют внимания" aria-pressed="false" aria-controls="batchList"><span data-icon="alert"></span><span class="attention-badge" id="attentionBadge" aria-hidden="true">0</span></button>
+        <button type="button" class="iconbtn add-product-btn" id="addBtn" aria-label="Добавить продукт" title="Новый продукт" data-icon="plus"></button>
+        <button type="button" class="iconbtn settings-btn" id="settingsBtn" aria-label="Настройки и резервные копии" title="Настройки и резервные копии" data-icon="settings"></button>
+      </div>
+    </div>
+    <button type="button" class="storage-banner" id="storageBanner" hidden aria-label="Открыть подробности сохранения"></button>
+    <div class="dashboard-controls">
+      <label class="searchbox"><span data-icon="search"></span><span class="sr-only">Поиск по названию, номеру или сырью</span><input id="searchInput" type="search" placeholder="Поиск..." autocomplete="off"><button type="button" id="clearSearch" aria-label="Очистить поиск" hidden data-icon="x"></button></label>
+      <div class="sectionhead"><div class="filter-pills" role="tablist" aria-label="Список партий">
+        <button class="pill-btn active" id="tabActiveBtn" role="tab" aria-selected="true">Продукты <span class="tab-count" id="activeCount">3</span></button>
+        <button class="pill-btn amber" id="tabDueBtn" role="tab" aria-selected="false">Взвесить <span class="tab-count" id="attentionCount">1</span></button>
+        <button class="pill-btn" id="tabArchiveBtn" role="tab" aria-selected="false">Архив <span class="tab-count" id="doneCount">1</span></button>
+      </div></div>
+      <div class="list-heading"><h2 id="listTitle" aria-live="polite">Активные продукты</h2><select id="sortSelect" aria-label="Сортировка партий"><option value="number">По номеру</option><option value="attention">Сначала внимание</option><option value="recent">Сначала новые</option></select></div>
+    </div>
+  </header>
+  <main class="content" id="batchScroll" aria-labelledby="listTitle" tabindex="0">
+    <div class="cards" id="batchList"></div>
+    <p class="list-footnote">Нажмите на продукт, чтобы открыть подробности</p>
+    <p class="prototype-note" id="storageFootnote" role="status">Интерактивный макет · v0.4.1 · проверка хранилища</p>
+  </main>
+</div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<!-- Modal: Add Product -->
+<div class="modal" id="modal">
+  <section class="sheet">
+    <div class="sheettop">
+      <h2 id="modalTitle">Новый продукт</h2>
+      <button class="close" id="closeBtn">×</button>
+    </div>
+    <p class="sheet-subtitle" style="margin:-12px 0 22px">Начните с веса. Остальные параметры можно заполнить сразу.</p>
+    <form id="batchForm">
+      <div class="field"><label for="name">Название продукта</label><input id="name" required maxlength="100" placeholder="Например, Брезаола Резерв"></div>
+      <div class="formgrid"><div class="field"><label for="weight">Начальный вес, г</label><input id="weight" type="number" min="1" max="1000000" step="0.1" required placeholder="1600" inputmode="decimal"></div><div class="field"><label for="target">Целевая усушка, %</label><input id="target" type="number" min="1" max="80" step="0.1" value="35" required inputmode="decimal"></div></div>
+      <div class="upload-field"><span data-icon="camera"></span><img class="upload-preview" id="newPhotoPreview" alt="Выбранное фото партии"><span id="newPhotoLabel" role="status">Исходное фото · по желанию</span><button type="button" class="photo-remove" id="newPhotoRemove" aria-label="Убрать выбранное фото" hidden>×</button><label for="newPhotoInput" id="newPhotoChoose">Добавить</label><input type="file" id="newPhotoInput" accept="image/*"></div>
+      <details class="additional-fields"><summary>Паспорт партии и климат</summary><div class="formgrid">
+        <div class="field"><label for="type">Категория</label><select id="type"><option>Сыровяление</option><option>Ферментация овощей</option><option>Сыроделие</option><option>Другое</option></select></div>
+        <div class="field"><label for="basis">Сырьё</label><select id="basis"><option>Говядина</option><option>Свинина</option><option>Птица</option><option>Рыба</option><option>Сыр</option><option>Овощи</option></select></div>
+        <div class="field"><label for="spices">Посол и специи</label><input id="spices" maxlength="300" placeholder="По вашему рецепту"></div>
+        <div class="field"><label for="casing">Оболочка</label><select id="casing"><option>Айцел Премиум</option><option>Коллагеновая</option><option>Натуральная</option><option>Чудо-рукав</option><option>Без оболочки</option></select></div>
+        <div class="field"><label for="temp">Температура, °C</label><input id="temp" type="number" step="0.1" min="-30" max="80" placeholder="Не указана"></div>
+        <div class="field"><label for="humidity">Влажность, % RH</label><input id="humidity" type="number" min="0" max="100" step="0.1" placeholder="Не указана"></div>
+        <div class="field full"><label for="note">Заметка по технологии</label><textarea id="note" maxlength="5000" placeholder="Рецепт, особенности сырья, этапы…"></textarea></div>
+      </div></details>
+      <p class="helper-text" id="newBatchHint">Номер продукта назначится автоматически.</p>
+      <button class="submit" type="submit">Добавить продукт</button>
+    </form>
+  </section>
+</div>
+
+<!-- Modal: Weighing with Live Preview -->
+<div class="modal" id="weighModal">
+  <section class="sheet">
+    <div class="sheettop">
+      <h2 id="weighModalTitle">Взвешивание партии</h2>
+      <button class="close" id="weighClose">×</button>
+    </div>
+    <form id="weighForm">
+      <div class="field">
+        <label id="weighInputLabel" for="currentWeight">Текущий вес на весах, г</label>
+        <input id="currentWeight" type="number" min="0.1" max="1000000" step="0.1" required placeholder="1168" autocomplete="off" inputmode="decimal">
+      </div>
+
+      <!-- 2. Live Preview Block -->
+      <div class="live-preview">
+        <div class="live-preview-head">
+          <span>Живой расчёт прогресса</span>
+          <span id="livePrevInfo">—</span>
+        </div>
+        <div class="live-preview-grid">
+          <div class="live-cell" id="liveCellLoss">
+            <small>Потеря веса</small>
+            <strong id="liveLossPct">—</strong>
+            <span id="liveTargetSub">цель —</span>
+          </div>
+          <div class="live-cell" id="liveCellRemain">
+            <small>До цели</small>
+            <strong id="liveRemainG">—</strong>
+            <span id="liveTargetWeightSub">финиш —</span>
+          </div>
+          <div class="live-cell" id="liveCellDelta">
+            <small>С прошлого замера</small>
+            <strong id="liveDeltaG">—</strong>
+            <span id="livePaceSub">темп —</span>
+          </div>
+        </div>
+        <div class="live-alert" id="liveAlert"></div>
+      </div>
+
+      <div class="upload-field"><span data-icon="camera"></span><img class="upload-preview" id="weighPhotoPreview" alt="Фото взвешивания"><span id="weighPhotoLabel" role="status">Фото этого взвешивания</span><button type="button" class="photo-remove" id="weighPhotoRemove" aria-label="Убрать выбранное фото" hidden>×</button><label for="weighPhotoInput" id="weighPhotoChoose">Добавить</label><input id="weighPhotoInput" type="file" accept="image/*"></div>
+      <div class="pilltitle">Осмотр и заметки · по желанию</div>
+      <div class="formgrid">
+        <div class="field">
+          <label>Запах</label>
+          <select id="smell">
+            <option value="">Не указан</option>
+            <option>Чистый вяленый аромат</option>
+            <option>Пряный, ореховый</option>
+            <option>Кисловатый</option>
+            <option>Резкий, подозрительный</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Поверхность</label>
+          <select id="surface">
+            <option value="">Не указана</option><option>Сухая, без изменений</option>
+            <option>Благородный белый налёт</option>
+            <option>Влажная, липкая</option>
+            <option>Уплотнение (риск закала)</option>
+          </select>
+        </div>
+        <div class="field full">
+          <label>Комментарий к замеру</label>
+          <textarea id="observation" placeholder="Например: перевернул кусок, проверил натяжение оболочки…"></textarea>
+        </div>
+      </div>
+      <label class="inspection-choice"><input type="checkbox" id="reviewFlag"><span>Требует проверки<small style="display:block;color:var(--muted)">Отдельная отметка в журнале, не заключение о безопасности.</small></span></label>
+      <button class="submit" type="submit">Сохранить запись</button>
+    </form>
+  </section>
+</div>
+
+<!-- Modal: Detail View with Hero Block & Trajectory Chart -->
+<div class="modal" id="detailModal">
+  <section class="sheet detail">
+    <div class="sheettop">
+      <h2 id="detailTitle">Партия</h2>
+      <button class="close" id="detailClose">×</button>
+    </div>
+    <div id="detailBody"></div>
+  </section>
+</div>
+
+<!-- Modal: Guide -->
+<div class="modal" id="guideModal">
+  <section class="sheet">
+    <div class="sheettop">
+      <h2>Как читать показатели</h2>
+      <button class="close" id="guideClose">×</button>
+    </div>
+    <div class="logentry">
+      <b>Спокойный зелёный — нет сработавших напоминаний</b><br>
+      Это статус журнала, а не заключение о безопасности продукта. Вес, внешний вид и условия нужно оценивать по технологии конкретной партии.
+    </div>
+    <div class="logentry">
+      <b>Янтарный — нужно действие</b><br>
+      Просрочено взвешивание или темп усушки выше заданного порога. Интервал и порог настраиваются через шестерёнку. Значение 1,5%/сут в демо — пример настройки, а не универсальная норма.
+    </div>
+    <div class="logentry">
+      <b>Расчёт, который можно проверить</b><br>
+      Потеря веса считается от начальной массы. Темп — разница двух последних замеров в процентах начальной массы за сутки. При интервале менее часа темп не оценивается. Предпросмотр и журнал используют одни и те же формулы.
+    </div>
+    <div class="notice" style="margin-top:14px">
+      Достижение целевой усушки не подтверждает безопасность продукта. Вес, фото и органолептический осмотр не заменяют предусмотренные технологией контроль режима, измерения и проверки.
+    </div>
+  </section>
+</div>
+
+<div class="modal front" id="infoModal" role="dialog" aria-modal="true" aria-labelledby="infoTitle"><section class="sheet"><div class="sheettop"><div><div class="detail-kicker" id="infoKicker">Подробности партии</div><h2 id="infoTitle">Подробности</h2></div><button class="close" id="infoClose" aria-label="Закрыть подробности">×</button></div><div id="infoBody"></div></section></div>
+<!-- BackupPanel: единая палитра, три самостоятельные капсулы -->
+<div class="modal" id="settingsModal" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+  <section class="sheet backup-sheet">
+    <div class="sheettop"><div><div class="detail-kicker">ФермоКонтроль</div><h2 id="settingsTitle">Настройки</h2><p class="sheet-subtitle">Резервные копии и обновление</p></div><button type="button" class="close" id="settingsClose" aria-label="Закрыть настройки">×</button></div>
+    <div class="backup-panel">
+      <section class="backup-card" aria-labelledby="cloudTitle">
+        <div class="backup-card-head"><span class="backup-section-icon" data-icon="cloud"></span><div><span class="backup-kicker">Облако</span><h3 id="cloudTitle">Резервное копирование в облако</h3></div></div>
+        <div class="cloud-options" role="group" aria-label="Сервис резервного копирования"><label class="cloud-choice"><input type="radio" name="cloudProvider" id="cloudYandex" value="yandex" checked><span>Яндекс Диск</span></label><label class="cloud-choice"><input type="radio" name="cloudProvider" id="cloudGoogle" value="google"><span>Google Диск</span></label></div>
+        <div class="backup-status-row"><span id="cloudProviderName">Яндекс Диск</span><span class="connection-pill"><i aria-hidden="true"></i>Не подключён</span></div>
+        <div class="backup-status-row"><span>Последняя подтверждённая копия</span><strong>Нет данных от сервиса</strong></div>
+        <button type="button" class="backup-button" id="connectCloud"><span data-icon="link"></span><span id="connectCloudLabel">О подключении Яндекс Диска</span></button>
+        <div class="backup-actions"><button type="button" class="backup-button" disabled title="Облачный сервис в автономном макете не подключён"><span data-icon="upload"></span>Выгрузить</button><button type="button" class="backup-button" disabled title="Облачный сервис в автономном макете не подключён"><span data-icon="download"></span>Восстановить</button></div>
+        <p class="backup-muted">Оба сервиса пока не подключены: вход, выгрузка и подтверждение сохранения не выполняются. Это резервное копирование, не синхронизация журналов.</p>
+      </section>
+      <section class="backup-card" aria-labelledby="localTitle">
+        <div class="backup-card-head"><span class="backup-section-icon" data-icon="device"></span><div><span class="backup-kicker">На устройстве</span><h3 id="localTitle">Локальное резервное копирование</h3></div></div>
+        <div class="backup-stats" aria-label="Содержимое журнала"><div class="backup-stat"><b id="backupActiveCount">0</b><span>В работе</span></div><div class="backup-stat"><b id="backupArchiveCount">0</b><span>В архиве</span></div><div class="backup-stat"><b id="backupLogCount">0</b><span>Взвешиваний</span></div></div>
+        <div class="backup-actions"><button type="button" class="backup-button main" id="exportBtn"><span data-icon="download"></span>Выгрузить</button><button type="button" class="backup-button" id="importBtn"><span data-icon="upload"></span>Восстановить</button></div>
+        <input id="importFile" type="file" accept=".json,application/json" hidden>
+        <p id="storageStatus" role="status">Проверка локального хранилища.</p>
+        <p id="backupStatus" role="status">Передача JSON на скачивание ещё не запускалась.</p>
+        <p class="backup-muted">Браузер не сообщает, сохранён ли файл на устройстве. Проверьте папку загрузок самостоятельно.</p>
+        <p class="backup-muted">JSON сохраняет продукты, архив, журнал и добавленные фотографии. Восстановление — только после проверки и подтверждения.</p>
+        <div class="backup-secondary-actions"><button type="button" class="text-button" id="shareBackupBtn"><span data-icon="share"></span>Поделиться копией</button><button type="button" class="text-button" id="csvBtn"><span data-icon="file"></span>Таблица CSV</button></div>
+        <details class="backup-history"><summary><span data-icon="arrow"></span>Автокопии и откат</summary><div class="backup-history-body"><div id="autoBackupList"></div><p class="backup-muted" id="autoBackupStatus"></p><button type="button" class="backup-button" id="rollbackBtn" hidden><span data-icon="undo"></span>Откатить восстановление</button><button type="button" class="text-button" id="saveRecoveryBtn" hidden style="margin-top:9px;font-size:11px">Сохранить страховочную копию</button><p class="backup-muted" id="recoveryStatus"></p><button type="button" class="text-button" id="clearAutoBackups" style="font-size:11px;min-height:40px">Удалить только автокопии</button><p class="backup-muted">Автокопии хранятся только в этом браузере и пропадут при очистке его данных. Журнал и страховочная копия при удалении автокопий не затрагиваются.</p></div></details>
+      </section>
+      <section class="backup-card" aria-labelledby="updatesTitle">
+        <div class="backup-card-head"><span class="backup-section-icon" data-icon="refresh"></span><div><span class="backup-kicker">Приложение</span><h3 id="updatesTitle">Обновление</h3></div><span class="version-tag" id="versionTag">v0.4.1</span></div>
+        <div class="backup-status-row"><span>Текущая версия</span><strong>Интерактивный макет</strong></div>
+        <button type="button" class="backup-button" id="updateBtn"><span data-icon="refresh"></span>Проверить обновления</button>
+        <p class="backup-muted" id="updateStatus" role="status">Сервер обновлений и установка Android-сборок в макете не подключены.</p>
+      </section>
+    </div>
+    <details class="backup-control"><summary>Параметры контроля продукта</summary><div class="setting-row"><span>Интервал взвешиваний<small>Через сколько суток показывать напоминание</small></span><input id="intervalSetting" aria-label="Интервал взвешивания в сутках" type="number" min="1" max="30" step="1"></div><div class="setting-row"><span>Порог внимания, %/сут<small>Зависит от продукта и технологии</small></span><input id="paceSetting" aria-label="Порог внимания в процентах за сутки" type="number" min="0.1" max="20" step="0.1"></div><p class="helper-text">Это напоминания внутри журнала, не фоновые уведомления. Показания датчиков не считываются.</p></details>
+    <div class="settings-footer"><button type="button" class="text-button" id="guideBtn">Как читать показатели</button><button type="button" class="text-button danger-link" id="resetDemoBtn">Восстановить демо-данные</button></div>
+    <p class="backup-footer-note">Локальные копии работают без облака. Формат файла предназначен для этого макета.</p>
+  </section>
+</div>
+<div class="modal front" id="backupRestoreModal" role="dialog" aria-modal="true" aria-labelledby="restoreTitle"><section class="sheet backup-sheet"><div class="sheettop"><div><div class="detail-kicker">Предварительная проверка</div><h2 id="restoreTitle">Восстановить данные?</h2></div><button type="button" class="close" id="restoreClose" aria-label="Отменить восстановление">×</button></div><p class="backup-restore-source" id="restoreSource"></p><div class="backup-stats"><div class="backup-stat"><b id="restoreActiveCount">0</b><span>В работе</span></div><div class="backup-stat"><b id="restoreArchiveCount">0</b><span>В архиве</span></div><div class="backup-stat"><b id="restoreLogCount">0</b><span>Взвешиваний</span></div></div><div class="backup-restore-warning" id="restoreWarning">Текущий журнал будет заменён, а не объединён с копией. Перед заменой сохраним страховочную копию для отката. Если сохранить её не получится, замена не будет выполнена.</div><div class="backup-confirm-actions"><button type="button" class="secondary" id="restoreCancel">Отмена</button><button type="button" class="primary" id="restoreConfirm">Заменить данные</button></div></section></div>
+<div class="modal front" id="confirmModal" role="dialog" aria-modal="true" aria-labelledby="confirmTitle"><section class="sheet"><div class="sheettop"><h2 id="confirmTitle">Подтвердить действие</h2><button type="button" class="close" id="confirmClose" aria-label="Отменить действие">×</button></div><p class="info-copy" id="confirmText"></p><div class="backup-confirm-actions"><button type="button" class="secondary" id="confirmCancel">Отмена</button><button type="button" class="primary" id="confirmAccept">Подтвердить</button></div></section></div>
+<div class="modal front" id="photoModal" role="dialog" aria-modal="true" aria-labelledby="photoModalTitle"><section class="sheet"><div class="sheettop"><div><div class="detail-kicker">Фотодневник</div><h2 id="photoModalTitle">Добавить фотографию</h2><p class="sheet-subtitle" id="photoModalSubtitle"></p></div><button type="button" class="close" id="photoClose" aria-label="Закрыть добавление фотографии">×</button></div><form id="diaryPhotoForm"><div class="upload-field"><span data-icon="camera"></span><img class="upload-preview" id="diaryPhotoPreview" alt="Выбранное фото дневника"><span id="diaryPhotoLabel" role="status">Выберите фотографию</span><button type="button" class="photo-remove" id="diaryPhotoRemove" aria-label="Убрать выбранное фото" hidden>×</button><label for="diaryPhotoInput" id="diaryPhotoChoose">Выбрать</label><input id="diaryPhotoInput" type="file" accept="image/*"></div><p class="helper-text">Фотография уменьшится для локального хранения. Дата добавления назначается автоматически; это не дата съёмки. Запись веса не создаётся.</p><button class="submit" type="submit" disabled>Сохранить фотографию</button></form></section></div>
+<script>
+const KEY = 'fermo-control-v4-design';
+const SETTINGS_KEY = 'fermo-control-v4-settings';
+const AUTO_BACKUP_KEY = 'fermo-control-v4-auto-backups';
+const RECOVERY_KEY = 'fermo-control-v4-before-restore';
+const VERSION = '0.4.1';
+let autoBackupProblem = '', pendingBackupRestore = null;
+const DAY_MS = 86400000;
+
+function daysAgoIso(d) {
+  return new Date(Date.now() - d * DAY_MS).toISOString();
+}
+
+const DEMO_BATCHES = [
+  {
+    id: 101,
+    number: 1,
+    name: 'Брезаола Резерв',
+    type: 'Сыровяление',
+    basis: 'Говядина',
+    spices: 'Можжевельник и розмарин',
+    casing: 'Айцел Премиум',
+    start: daysAgoIso(22),
+    weight: 1600,
+    target: 35,
+    temp: '12.1',
+    humidity: '76',
+    archived: false,
+    note: 'Глазной мускул, сухой посол 7 дней, затем в Айцел 65 мм.',
+    logs: [
+      { date: daysAgoIso(16), weight: 1465, text: 'Поверхность: Сухая, штатная · Осадка прошла ровно' },
+      { date: daysAgoIso(9), weight: 1310, text: 'Запах: Чистый вяленый аромат · Цвет ровный рубиновый' },
+      { date: daysAgoIso(2), weight: 1168, text: 'Поверхность: Сухая, штатная · Идёт плавно по графику' }
+    ]
+  },
+  {
+    id: 102,
+    number: 2,
+    name: 'Коппа Традиционная',
+    type: 'Сыровяление',
+    basis: 'Свинина',
+    spices: 'Перец и паприка',
+    casing: 'Коллагеновая',
+    start: daysAgoIso(14),
+    weight: 1450,
+    target: 32,
+    temp: '12.1',
+    humidity: '75',
+    archived: false,
+    note: 'Свиная шея, старты T-SPX, перевязка шпагатом.',
+    logs: [
+      { date: daysAgoIso(8), weight: 1320, text: 'Запах: Пряный, ореховый · Первичная усушка' }
+    ]
+  },
+  {
+    id: 103,
+    number: 3,
+    name: 'Утиная грудка Прошутто',
+    type: 'Сыровяление',
+    basis: 'Птица',
+    spices: 'Нитритная 2% + Перец',
+    casing: 'Без оболочки',
+    start: daysAgoIso(6),
+    weight: 420,
+    target: 30,
+    temp: '11.8',
+    humidity: '72',
+    archived: false,
+    note: 'Магре с кожей, подвес в марле.',
+    logs: [
+      { date: daysAgoIso(1), weight: 368, text: 'Поверхность: Уплотнение (риск закала) · Быстрая отдача влаги в первые дни' }
+    ]
+  },
+  {
+    id: 104,
+    number: null,
+    name: 'Ломо Иберико №1',
+    type: 'Сыровяление',
+    basis: 'Свинина',
+    spices: 'Паприка и пажитник',
+    casing: 'Айцел Премиум',
+    start: daysAgoIso(44),
+    archivedAt: daysAgoIso(3),
+    weight: 1200,
+    target: 34,
+    temp: '12.0',
+    humidity: '76',
+    archived: true,
+    note: 'Карбонад, плотный срез, отличное распределение влаги.',
+    logs: [
+      { date: daysAgoIso(32), weight: 1060, text: 'Штатный ход' },
+      { date: daysAgoIso(18), weight: 915, text: 'Аромат выраженный' },
+      { date: daysAgoIso(3), weight: 788, text: 'Достигнута плановая усушка 34.3%' }
+    ]
+  }
+];
+
+const $ = id => document.getElementById(id);
+const ICONS = {
+  jar:'<path d="M8 3h8M7 6h10l1 3v10a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V9l1-3Z"/><path d="M6 11h12M10 15c0 2 2 2 2 4m2-5-1 2"/>',
+  settings:'<path d="m9 3-.6 2-2 .9-2-.4-2 3.5L4 10.5v3L2.4 15l2 3.5 2-.4 2 .9.6 2h4l.6-2 2-.9 2 .4 2-3.5-1.6-1.5v-3L20.6 9l-2-3.5-2 .4-2-.9L14 3Z"/><circle cx="11.5" cy="12" r="3"/>',
+  search:'<circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4 4"/>',
+  arrow:'<path d="m9 5 7 7-7 7"/>',
+  alert:'<path d="m10.3 4-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.7-3l-8-14a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4m0 4h.01"/>',
+  plus:'<path d="M12 5v14M5 12h14"/>',
+  x:'<path d="m6 6 12 12M6 18 18 6"/>',
+  scale:'<path d="M7 4h10a3 3 0 0 1 3 3v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a3 3 0 0 1 3-3Z"/><path d="M8 9a5 5 0 0 1 8 0m-4 2 2-3M9 17h6"/>',
+  camera:'<path d="M8 5 6 8H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-9a2 2 0 0 0-2-2h-2l-2-3Z"/><circle cx="12" cy="14" r="4"/>',
+  expand:'<path d="M14 4h6v6M20 4l-7 7M10 20H4v-6m0 6 7-7"/>',
+  clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+  archive:'<path d="M4 8h16v13H4zM3 3h18v5H3zM9 12h6"/>',
+  download:'<path d="M12 3v12m-5-5 5 5 5-5M4 16v5h16v-5"/>',
+  upload:'<path d="M12 15V3m-5 5 5-5 5 5M4 16v5h16v-5"/>',
+  check:'<path d="m5 12 4 4L19 6"/>',
+  cloud:'<path d="M7 18H6a4 4 0 0 1-.6-8A7 7 0 0 1 19 8a5 5 0 0 1 0 10h-2M12 12v9m-3-3 3 3 3-3"/>',
+  device:'<rect x="5" y="2" width="14" height="20" rx="3"/><path d="M10 18h4M9 6h6"/>',
+  link:'<path d="m10 13 4-4M8 16l-1 1a4.2 4.2 0 0 1-6-6l4-4a4.2 4.2 0 0 1 6 0m2 1 1-1a4.2 4.2 0 0 1 6 6l-4 4a4.2 4.2 0 0 1-6 0" transform="translate(1 0)"/>',
+  refresh:'<path d="M20 7v5h-5M4 17v-5h5"/><path d="M6.1 6a7 7 0 0 1 11.5-1L20 8M4 16l2.4 3A7 7 0 0 0 17.9 18"/>',
+  file:'<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6Z"/><path d="M14 2v6h6M8 13h8M8 17h8"/>',
+  share:'<path d="M12 16V3m-4 4 4-4 4 4M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/>',
+  undo:'<path d="M4 4v6h6M4 10a8 8 0 1 1 0 5"/>'
+};
+function icon(name){return '<svg class="ico" viewBox="0 0 24 24" aria-hidden="true">'+(ICONS[name]||ICONS.jar)+'</svg>';}
+function hydrateIcons(root=document){root.querySelectorAll('[data-icon]').forEach(el=>{el.innerHTML=icon(el.dataset.icon);});}
+function readStored(key,fallback){try{const raw=localStorage.getItem(key);return raw===null?fallback:JSON.parse(raw);}catch{return fallback;}}
+function clone(value){return JSON.parse(JSON.stringify(value));}
+let preferences=Object.assign({interval:3,pace:1.5,cloud:'yandex',backupAt:null},readStored(SETTINGS_KEY,{}));
+preferences.interval=Math.round(Math.min(30,Math.max(1,Number(preferences.interval)||3)));
+preferences.pace=Math.min(20,Math.max(.1,Number(preferences.pace)||1.5));
+preferences.cloud=preferences.cloud==='google'?'google':'yandex';
+let journalLoadBlocked=false,startupRaw=null,startupSource=KEY,lastStoredRaw=null,needsInitialSave=false;
+let journalStorageProblem='',settingsProblem='',journalSavedAt=null;
+let batches=loadJournal();
+let filterMode='active',selectedId=null,searchQuery='',sortMode='number';
+const photoDrafts={new:{data:null,busy:false,token:0},weigh:{data:null,busy:false,token:0},diary:{data:null,busy:false,token:0}};
+let selectedPhotoBatchId=null;
+let pendingAction=null,activePhotoRef=null;
+let toastTimer,modalFocus=new Map();
+function loadJournal(){
+  try{
+    lastStoredRaw=localStorage.getItem(KEY);
+    startupRaw=lastStoredRaw;
+    if(startupRaw===null){startupSource='fermo-control-v3-craft';startupRaw=localStorage.getItem(startupSource);}
+    if(startupRaw===null){needsInitialSave=true;return normalizeBatches(clone(DEMO_BATCHES));}
+    const result=normalizeBatches(JSON.parse(startupRaw));
+    needsInitialSave=lastStoredRaw===null;
+    return result;
+  }catch(error){
+    journalLoadBlocked=true;
+    journalStorageProblem='Журнал не открыт: '+(error.message||'хранилище недоступно')+'. Исходная запись не заменена демо-данными.';
+    return [];
+  }
+}
+function toast(message){clearTimeout(toastTimer);$('toast').textContent=message;$('toast').classList.add('visible');toastTimer=setTimeout(()=>$('toast').classList.remove('visible'),6000);}
+function paintStorageState(){
+  const warning=journalLoadBlocked?'Журнал не открыт · восстановление':journalStorageProblem?'Изменение не сохранено · подробности':autoBackupProblem?'Журнал сохранён, но автокопия не обновлена':settingsProblem?'Настройки не сохранены · подробности':'';
+  $('storageBanner').hidden=!warning;$('storageBanner').textContent=warning;
+  $('storageFootnote').textContent='Интерактивный макет · v'+VERSION+' · '+(journalLoadBlocked?'ошибка чтения журнала':journalStorageProblem?'есть несохранённая операция':journalSavedAt?'сохранено в этом браузере':'журнал прочитан из этого браузера');
+  if($('storageStatus'))$('storageStatus').textContent=journalLoadBlocked?journalStorageProblem:journalStorageProblem?journalStorageProblem:journalSavedAt?'Журнал записан в хранилище браузера: '+fullBackupDate(journalSavedAt)+'.':'Текущий журнал прочитан из хранилища браузера.';
+}
+function storageDetails(){
+  showInfo('Сохранение данных','<p class="info-copy">'+esc(journalStorageProblem||autoBackupProblem||settingsProblem||'Журнал хранится локально в этом браузере. Это не облачная копия.')+'</p><p class="info-copy">При неудачном сохранении прежний журнал не заменяется. Форма остаётся открытой. Не закрывайте её до успешного повтора. Если журнал изменён в другой вкладке, сохраните открытый журнал в JSON и перезагрузите макет.</p><div class="actions"><button type="button" class="secondary" onclick="closeModal(\'infoModal\');openBackupPanel()">Открыть резервные копии</button></div>'+(startupRaw!==null?'<button type="button" class="secondary photo-add" onclick="exportSourceRecord()">Скачать исходную запись хранилища</button>':''),'Хранилище этого браузера');
+}
+function exportSourceRecord(){
+  if(startupRaw===null)return;
+  try{downloadLocalFile(startupRaw,'FermoControl_source_record.json','application/json;charset=utf-8');toast('Исходная запись передана браузеру без преобразований.');}catch{toast('Браузер не смог подготовить файл.');}
+}
+function save(next=batches){
+  if(journalLoadBlocked){toast('Сначала восстановите журнал из копии. Исходная запись защищена от перезаписи.');return false;}
+  try{
+    const checked=normalizeBatches(next),text=JSON.stringify(checked);
+    if(localStorage.getItem(KEY)!==lastStoredRaw)throw new Error('Журнал изменён в другой вкладке. Сохраните открытый журнал в JSON и перезагрузите макет');
+    localStorage.setItem(KEY,text);
+    lastStoredRaw=text;startupRaw=text;startupSource=KEY;batches=checked;
+    journalStorageProblem='';journalSavedAt=nowIso();
+    recordAutoBackup();paintStorageState();return true;
+  }catch(error){
+    journalStorageProblem='Операция не сохранена. Прежний журнал не изменён. '+(error.name==='QuotaExceededError'?'Хранилище заполнено: выгрузите JSON; при необходимости удалите автокопии в настройках.':error.message||'Хранилище недоступно.');
+    paintStorageState();toast(journalStorageProblem);return false;
+  }
+}
+function savePreferences(next=preferences){
+  try{localStorage.setItem(SETTINGS_KEY,JSON.stringify(next));preferences=next;settingsProblem='';paintStorageState();return true;}
+  catch{settingsProblem='Не удалось сохранить настройки в браузере. Прежние значения оставлены без изменений.';paintStorageState();toast(settingsProblem);return false;}
+}
+function fmt(value,digits=0){return Number(value).toLocaleString('ru-RU',{minimumFractionDigits:digits,maximumFractionDigits:digits});}
+function grams(value){return fmt(value,Number.isInteger(Number(value))?0:1);}
+function percentChange(loss){return (loss<0?'+':loss>0?'−':'')+fmt(Math.abs(loss),1)+'%';}
+function openModal(id){const el=$(id);if(!el.classList.contains('show')){modalFocus.set(id,document.activeElement);el.querySelector('.sheet').scrollTop=0;}el.classList.add('show');document.body.style.overflow='hidden';setTimeout(()=>{if(el.classList.contains('show'))el.querySelector('.close')?.focus({preventScroll:true});},20);}
+function closeModal(id){
+  $(id).classList.remove('show');
+  if(id==='modal')resetPhotoDraft('new');if(id==='weighModal')resetPhotoDraft('weigh');if(id==='photoModal'){resetPhotoDraft('diary');selectedPhotoBatchId=null;}
+  if(id==='backupRestoreModal')pendingBackupRestore=null;
+  if(id==='confirmModal')pendingAction=null;
+  if(!document.querySelector('.modal.show'))document.body.style.overflow='';
+  const focus=modalFocus.get(id);if(focus?.isConnected)focus.focus({preventScroll:true});
+}
+function showInfo(title,html,kicker='Подробности партии'){ $('infoTitle').textContent=title;$('infoKicker').textContent=kicker;$('infoBody').innerHTML=html;openModal('infoModal'); }
+function setFilter(mode){filterMode=mode;$('batchScroll').scrollTop=0;render();}
+function definition(rows){return '<dl class="definition">'+rows.map(([key,value])=>'<div><dt>'+esc(key)+'</dt><dd>'+esc(value)+'</dd></div>').join('')+'</dl>';}
+function safePhoto(raw){return typeof raw==='string'&&raw.length<1900000&&/^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(raw)?raw:null;}
+function normalizeBatches(input){
+  if(!Array.isArray(input)||input.length>500)throw new Error('Нужен список не более 500 партий.');
+  const ids=new Set(),numbers=new Set(),validDate=value=>typeof value==='string'&&Number.isFinite(Date.parse(value));
+  const text=(value,max,label)=>{if(value==null)return '';if(typeof value!=='string'||value.length>max)throw new Error('Некорректное поле «'+label+'».');return value;};
+  const numeric=(value,min,max,label)=>{if(!['number','string'].includes(typeof value)||String(value).trim()===''||!Number.isFinite(Number(value))||Number(value)<min||Number(value)>max)throw new Error('Некорректное поле «'+label+'».');return Number(value);};
+  const photo=value=>{if(value==null||value==='')return null;const result=safePhoto(value);if(!result)throw new Error('Фотография повреждена или имеет неподдерживаемый формат.');return result;};
+  const climate=(value,min,max,label)=>value==null||value===''?'':String(numeric(value,min,max,label));
+  return input.map(raw=>{
+    if(!raw||typeof raw!=='object'||Array.isArray(raw))throw new Error('Некорректная партия в журнале.');
+    const name=text(raw.name,100,'Название').trim();if(!name||!validDate(raw.start))throw new Error('В партии отсутствует название или корректная дата закладки.');
+    const id=numeric(raw.id,1,Number.MAX_SAFE_INTEGER,'Идентификатор');if(!Number.isSafeInteger(id)||ids.has(id))throw new Error('Повторяющийся или некорректный идентификатор партии.');ids.add(id);
+    if(raw.archived!=null&&typeof raw.archived!=='boolean')throw new Error('Некорректный статус архива.');
+    const archived=raw.archived===true;let number=null;
+    if(!archived){number=numeric(raw.number,1,99999,'Номер продукта');if(!Number.isSafeInteger(number)||numbers.has(number))throw new Error('Номера активных продуктов повторяются или некорректны. Автоматическая перенумерация не выполняется.');numbers.add(number);}
+    let originalNumber=raw.originalNumber==null?(archived?raw.number:number):raw.originalNumber;
+    if(originalNumber!=null){originalNumber=numeric(originalNumber,1,99999,'Исходный номер');if(!Number.isInteger(originalNumber))throw new Error('Некорректный исходный номер.');}
+    const weight=numeric(raw.weight,.000001,1000000,'Начальный вес'),target=numeric(raw.target,.000001,99.999999,'Целевая усушка');
+    if(raw.logs!=null&&!Array.isArray(raw.logs))throw new Error('Некорректный журнал взвешиваний.');
+    if((raw.logs||[]).length>2000)throw new Error('Слишком много записей в одной партии.');
+    const logs=(raw.logs||[]).map(log=>{
+      if(!log||!validDate(log.date)||Date.parse(log.date)<Date.parse(raw.start))throw new Error('Дата взвешивания некорректна или раньше закладки.');
+      if(log.requiresReview!=null&&typeof log.requiresReview!=='boolean')throw new Error('Некорректная отметка проверки.');
+      return {date:log.date,weight:numeric(log.weight,.000001,1000000,'Вес взвешивания'),text:text(log.text,5000,'Наблюдения'),photo:photo(log.photo),requiresReview:log.requiresReview===true};
+    }).sort((a,b)=>Date.parse(a.date)-Date.parse(b.date));
+    let archivedAt=null,archiveDateEstimated=raw.archiveDateEstimated===true;
+    if(archived){
+      if(raw.archivedAt==null||raw.archivedAt===''){archivedAt=logs.at(-1)?.date||raw.start;archiveDateEstimated=true;}
+      else if(!validDate(raw.archivedAt)||Date.parse(raw.archivedAt)<Date.parse(logs.at(-1)?.date||raw.start))throw new Error('Дата архива раньше последнего взвешивания.');
+      else archivedAt=raw.archivedAt;
+    }
+    if(raw.photos!=null&&!Array.isArray(raw.photos))throw new Error('Некорректный фотодневник.');
+    if((raw.photos||[]).length>100)throw new Error('В фотодневнике допускается не более 100 фотографий.');
+    const photos=(raw.photos||[]).map(p=>{if(!p||!validDate(p.date)||Date.parse(p.date)<Date.parse(raw.start))throw new Error('Некорректная дата фотографии.');const data=photo(p.data);if(!data)throw new Error('Пустая фотография в дневнике.');return {data,date:p.date};});
+    const reviewedThrough=raw.reviewedThrough==null?null:raw.reviewedThrough;
+    if(reviewedThrough!==null&&(!validDate(reviewedThrough)||Date.parse(reviewedThrough)<Date.parse(raw.start)))throw new Error('Некорректная дата отметки проверки.');
+    return {id,number,originalNumber:originalNumber??null,name,type:text(raw.type,100,'Категория'),basis:text(raw.basis,100,'Сырьё'),spices:text(raw.spices,300,'Специи'),casing:text(raw.casing,150,'Оболочка'),start:raw.start,weight,target,temp:climate(raw.temp,-30,80,'Температура'),humidity:climate(raw.humidity,0,100,'Влажность'),archived,archivedAt,archiveDateEstimated,reviewedThrough,note:text(raw.note,5000,'Заметка'),photo:photo(raw.photo),photos,logs};
+  });
+}
+
+function nowIso() { return new Date().toISOString(); }
+function esc(s) {
+  return String(s ?? '').replace(/[&<>"']/g, m => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#039;' }[m]));
+}
+function fmtDateShort(iso) {
+  const d = new Date(iso);
+  return d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short' });
+}
+function dateTime(iso) {
+  const d = new Date(iso);
+  return d.toLocaleDateString('ru-RU', { day: '2-digit', month: 'short' }) + ' · ' +
+         d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+}
+function basisIcon(basis) {
+  const map = {
+    'Говядина': '🥩',
+    'Свинина': '🥓',
+    'Птица': '🍗',
+    'Рыба': '🐟',
+    'Сыр': '🧀',
+    'Овощи': '🥬'
+  };
+  return map[basis] || '🏺';
+}
+function firstFree() {
+  const used = new Set(batches.filter(b => !b.archived && b.number).map(b => Number(b.number)));
+  let n = 1;
+  while (used.has(n)) n++;
+  return n;
+}
+
+function logReviewReasons(log){
+  const parts=String(log.text||'').split(' · '),reasons=[];
+  if(log.requiresReview)reasons.push('Отметка пользователя');
+  if(parts.includes('Запах: Резкий, подозрительный'))reasons.push('Подозрительный запах');
+  if(parts.includes('Поверхность: Влажная, липкая'))reasons.push('Влажная, липкая поверхность');
+  if(parts.includes('Поверхность: Уплотнение (риск закала)'))reasons.push('Уплотнение поверхности');
+  return reasons;
+}
+function reviewPanel(b,m){
+  if(!m.isInspectionDue)return '';
+  const latest=m.reviewLogs.at(-1),reasons=[...new Set(m.reviewLogs.flatMap(logReviewReasons))];
+  return '<section class="review-panel"><h3>'+icon('alert')+' Требует проверки</h3><p>'+esc(reasons.join(' · '))+'. Последняя такая запись: '+esc(dateTime(latest.date))+'.</p><p>Уточните наблюдения и сверяйтесь с технологией партии. При признаках порчи не пробуйте продукт. Отметка ниже только фиксирует просмотр записей — она не подтверждает безопасность.</p><button type="button" class="secondary" onclick="acknowledgeReview('+b.id+')">Отметить эти записи как просмотренные</button></section>';
+}
+function askConfirm(title,text,label,action){
+  $('confirmTitle').textContent=title;$('confirmText').textContent=text;$('confirmAccept').textContent=label;pendingAction=action;openModal('confirmModal');
+}
+function acknowledgeReview(id){
+  const b=batches.find(x=>x.id===id);if(!b)return;
+  const m=calcMetrics(b);if(!m.isInspectionDue)return;
+  const through=m.reviewLogs.at(-1).date;
+  askConfirm('Зафиксировать просмотр?','Наблюдения останутся в истории. Сигнал по этим записям будет снят, но следующая тревожная запись снова потребует проверки. Это не оценка безопасности продукта.','Записи просмотрены',()=>{
+    if(!save(batches.map(x=>x.id===id?{...x,reviewedThrough:through}:x)))return;
+    render();openDetail(id);toast('Просмотр записей отмечен. Наблюдения сохранены в истории.');
+  });
+}
+// Одни формулы для карточки, предпросмотра и сохранённой истории.
+function massMetrics(startWeight,targetPct,currentWeight){
+  const targetWeight=Math.round(startWeight*(1-targetPct/100)*10)/10;
+  const lostGrams=startWeight-currentWeight,lossPct=lostGrams/startWeight*100;
+  const remainGrams=Math.max(0,Math.round((currentWeight-targetWeight)*10)/10);
+  return {startWeight,targetPct,currentWeight,targetWeight,lostGrams,lossPct,remainGrams,progressRatio:Math.min(1,Math.max(0,lossPct/targetPct)),isTargetReached:currentWeight<=targetWeight};
+}
+function measurementInterval(startWeight,previous,point){
+  const deltaGrams=Number(point.weight)-Number(previous.weight);
+  const segmentDays=(Date.parse(point.date)-Date.parse(previous.date))/DAY_MS;
+  const pace=segmentDays>=1/24?(-deltaGrams/startWeight*100)/segmentDays:null;
+  return {deltaGrams,segmentDays,pace};
+}
+function calcMetrics(b,nowMs=Date.now()){
+  const startMs=Date.parse(b.start),endMs=b.archived?Date.parse(b.archivedAt||b.start):nowMs;
+  const totalDays=Math.max(0,Math.floor((endMs-startMs)/DAY_MS));
+  const logs=(b.logs||[]).slice().sort((a,c)=>Date.parse(a.date)-Date.parse(c.date));
+  const lastLog=logs.at(-1)||null,prevPoint=logs.at(-2)||{date:b.start,weight:Number(b.weight)};
+  const startWeight=Number(b.weight),currentWeight=lastLog?Number(lastLog.weight):startWeight;
+  const mass=massMetrics(startWeight,Number(b.target),currentWeight);
+  const lastMeasuredMs=Date.parse(lastLog?lastLog.date:b.start);
+  const segment=lastLog?measurementInterval(startWeight,prevPoint,lastLog):{segmentDays:0,pace:null};
+  const segmentDays=segment.segmentDays,recentPacePctDay=segment.pace;
+  const measuredDays=(lastMeasuredMs-startMs)/DAY_MS;
+  const pacePctDay=measuredDays>=1/24?mass.lossPct/measuredDays:null;
+  const isClockIssue=!b.archived&&lastMeasuredMs>nowMs;
+  const daysSinceWeigh=Math.max(0,Math.floor((nowMs-lastMeasuredMs)/DAY_MS));
+  const isDueWeigh=!b.archived&&!isClockIssue&&daysSinceWeigh>=preferences.interval;
+  const isFastPace=!b.archived&&recentPacePctDay!==null&&recentPacePctDay>preferences.pace;
+  const isWeightGain=!b.archived&&Boolean(lastLog&&currentWeight>Number(prevPoint.weight));
+  const reviewedMs=b.reviewedThrough?Date.parse(b.reviewedThrough):-Infinity;
+  const reviewLogs=logs.filter(log=>Date.parse(log.date)>reviewedMs&&logReviewReasons(log).length);
+  const isInspectionDue=!b.archived&&reviewLogs.length>0;
+  const needsAttention=!b.archived&&Boolean(isDueWeigh||isFastPace||mass.isTargetReached||isWeightGain||isClockIssue||isInspectionDue);
+  let etaDays=null,etaDateStr=null;
+  if(!b.archived&&!isDueWeigh&&!isFastPace&&!isClockIssue&&!isInspectionDue&&mass.remainGrams>0&&recentPacePctDay>0){
+    const projectedMs=lastMeasuredMs+(mass.remainGrams/(recentPacePctDay*startWeight/100))*DAY_MS;
+    const remainingDays=Math.ceil((projectedMs-nowMs)/DAY_MS);
+    if(remainingDays>0&&remainingDays<366){etaDays=remainingDays;etaDateStr=fmtDateShort(new Date(projectedMs).toISOString());}
+  }
+  return {...mass,totalDays,logs,lastLog,prevPoint,pacePctDay,recentPacePctDay,segmentDays,daysSinceWeigh,lastMeasuredMs,isDueWeigh,isFastPace,isWeightGain,isClockIssue,isInspectionDue,reviewLogs,needsAttention,etaDays,etaDateStr};
+}
+function nextAction(b,m){
+  if(b.archived)return (b.archiveDateEstimated?'Дата завершения приблизительная · ':'Завершено ')+fmtDateShort(b.archivedAt||b.start);
+  if(m.isClockIssue)return 'Дата замера в будущем · проверьте часы';
+  if(m.isInspectionDue)return 'Есть наблюдения · требует проверки';
+  if(m.isWeightGain)return 'Вес вырос · проверьте запись';
+  if(m.isFastPace)return 'Быстрая усушка · '+fmt(m.recentPacePctDay,2)+'%/сут';
+  if(m.isTargetReached)return 'Плановая усушка достигнута';
+  if(m.isDueWeigh)return 'Пора взвесить · '+m.daysSinceWeigh+' дн. без замера';
+  const days=Math.max(1,preferences.interval-m.daysSinceWeigh);
+  return days===1?'Следующий замер завтра':'Следующий замер через '+days+' дн.';
+}
+function render(){
+  paintStorageState();$('addBtn').disabled=journalLoadBlocked;
+  if(journalLoadBlocked){
+    for(const id of ['activeCount','attentionCount','doneCount','attentionBadge'])$(id).textContent='0';
+    $('listTitle').textContent='Журнал не открыт';
+    document.querySelector('.list-footnote').hidden=true;
+    $('batchList').innerHTML='<div class="empty">'+icon('alert')+'<strong>Не удалось открыть сохранённый журнал</strong><div>Исходная запись не заменена демо-данными. Откройте резервные копии для восстановления.</div><button type="button" class="secondary empty-add" onclick="openBackupPanel()">Открыть резервные копии</button></div>';
+    return;
+  }
+  const active=batches.filter(b=>!b.archived),arch=batches.filter(b=>b.archived),due=active.filter(b=>calcMetrics(b).isDueWeigh),attention=active.filter(b=>calcMetrics(b).needsAttention);
+  $('activeCount').textContent=active.length;$('attentionCount').textContent=due.length;$('doneCount').textContent=arch.length;
+  for(const [id,mode] of [['tabActiveBtn','active'],['tabDueBtn','due'],['tabArchiveBtn','archive']]){const selected=filterMode===mode||(mode==='active'&&filterMode==='attention');$(id).classList.toggle('active',selected);$(id).setAttribute('aria-selected',String(selected));}
+  const attentionOn=filterMode==='attention';
+  $('attentionBadge').textContent=attention.length>99?'99+':attention.length;
+  $('attentionBtn').classList.toggle('has-attention',attention.length>0);
+  $('attentionBtn').classList.toggle('is-active',attentionOn);
+  $('attentionBtn').setAttribute('aria-pressed',String(attentionOn));
+  const attentionDescription=attention.length?attention.length+' '+plural(attention.length,'продукт требует','продукта требуют','продуктов требуют')+' внимания':'Продуктов, требующих внимания, нет';
+  $('attentionBtn').setAttribute('aria-label',attentionDescription+'. '+(attentionOn?'Сбросить фильтр':'Показать только эти продукты'));
+  $('attentionBtn').title=attentionOn?'Фильтр внимания включён · нажмите, чтобы показать все продукты':attentionDescription;
+  $('listTitle').classList.toggle('is-filtered',attentionOn);
+  $('clearSearch').hidden=!searchQuery;
+  let arr=filterMode==='archive'?arch:filterMode==='attention'?attention:filterMode==='due'?due:active;
+  if(searchQuery){const query=searchQuery.toLocaleLowerCase('ru-RU').replace(/ё/g,'е');arr=arr.filter(b=>([b.name,b.number,b.basis,b.casing].join(' ').toLocaleLowerCase('ru-RU').replace(/ё/g,'е')).includes(query));}
+  const label=filterMode==='archive'?'Продукты в архиве':filterMode==='attention'?'Требуют внимания':filterMode==='due'?'Ждут взвешивания':'Активные продукты';
+  $('listTitle').textContent=(searchQuery?'Найдено':label)+' · '+arr.length;
+  document.querySelector('.list-footnote').hidden=!arr.length;
+  if(!arr.length){
+    const emptyCamera=filterMode==='active'&&!searchQuery&&!active.length;
+    const title=searchQuery?'Ничего не нашлось':filterMode==='attention'?'Ничего не требует внимания':filterMode==='due'?'Взвешивания не просрочены':filterMode==='archive'?'Архив пока пуст':'Пока нет активных продуктов';
+    const description=searchQuery?'Попробуйте другое название, номер или сырьё.':filterMode==='attention'?'Повторно нажмите на круг со знаком внимания, чтобы вернуться ко всем продуктам.':filterMode==='due'?'В разделе «Продукты» можно записать внеплановый замер.':filterMode==='archive'?'Завершённые продукты появятся здесь.':'Добавьте продукт, чтобы начать вести журнал.';
+    $('batchList').innerHTML='<div class="empty">'+icon(searchQuery?'search':filterMode==='archive'?'archive':'check')+'<strong>'+title+'</strong><div>'+description+'</div>'+(emptyCamera?'<button type="button" class="secondary empty-add" onclick="openAdd()">'+icon('plus')+'Добавить первый продукт</button>':'')+'</div>';
+    return;
+  }
+  arr=arr.slice().sort((a,b)=>{
+    if(sortMode==='recent')return Date.parse(b.start)-Date.parse(a.start);
+    if(sortMode==='attention'){const diff=Number(calcMetrics(b).needsAttention)-Number(calcMetrics(a).needsAttention);if(diff)return diff;}
+    return filterMode==='archive'?Date.parse(b.archivedAt)-Date.parse(a.archivedAt):Number(a.number)-Number(b.number);
+  });
+  $('batchList').innerHTML=arr.map(b=>{
+    const m=calcMetrics(b),warning=m.needsAttention,number=b.archived?icon('archive'):String(b.number).padStart(2,'0');
+    return `<article class="product-card ${warning?'warn':''}"><button class="card-open" onclick="openDetail(${b.id})" aria-label="Открыть партию ${esc(b.name)}"><div class="product-top"><span class="batch-number">${number}</span><div class="product-names"><h3>${esc(b.name)}</h3><p>${esc(b.basis)}<span aria-hidden="true"> · </span>${m.totalDays===0?'Закладка сегодня':'День '+m.totalDays}</p></div><span class="product-chevron">${icon('arrow')}</span></div><div class="weight-row"><div><span class="weight-value">${grams(m.currentWeight)}<small>г</small></span><span class="weight-label">${m.lastLog?'замер '+esc(fmtDateShort(m.lastLog.date)):'начальный вес · без замеров'}</span></div><div class="loss-block"><span class="loss-value">${percentChange(m.lossPct)}</span><span class="loss-label">от начального веса</span></div></div><div class="progress-track" role="progressbar" aria-label="Доля плановой усушки" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.round(m.progressRatio*100)}"><div class="progress-fill" style="width:${m.progressRatio*100}%"></div></div></button><div class="product-footer"><span class="next-action ${warning?'amber':''}">${warning?icon(m.isFastPace||m.isWeightGain?'alert':'clock'):'<i class="status-dot"></i>'}<span>${esc(nextAction(b,m))}</span></span>${b.archived?`<button class="weigh-button ghost" onclick="openDetail(${b.id})">Журнал</button>`:`<button class="weigh-button ${m.isDueWeigh?'due':''}" onclick="openWeigh(${b.id})">${icon('scale')}Взвесить</button>`}</div></article>`;
+  }).join('');
+}
+function plural(n,one,few,many){const a=n%10,b=n%100;return a===1&&b!==11?one:a>=2&&a<=4&&(b<12||b>14)?few:many;}
+
+// Подписи цели и вех находятся в HTML, а не поверх линий графика.
+function trajectoryForecastDay(b,m){
+  if(b.archived||m.etaDays===null||m.remainGrams<=0||!(m.recentPacePctDay>0))return null;
+  const lastDay=Math.max(0,(m.lastMeasuredMs-Date.parse(b.start))/DAY_MS);
+  const day=lastDay+m.remainGrams/(m.recentPacePctDay*m.startWeight/100);
+  return Number.isFinite(day)?day:null;
+}
+function trajectoryChartWidth(){
+  const bodyWidth=$('detailBody').clientWidth||Math.min(window.innerWidth-40,628);
+  return Math.max(220,Math.round(bodyWidth-30));
+}
+function buildTrajectorySvg(b,m){
+  const W=trajectoryChartWidth(),H=W<380?210:225;
+  const startMs=Date.parse(b.start);
+  const points=[{day:0,weight:m.startWeight},...m.logs.map(l=>({day:Math.max(0,(Date.parse(l.date)-startMs)/DAY_MS),weight:Number(l.weight)}))];
+  const lastPt=points.at(-1),forecastDay=trajectoryForecastDay(b,m);
+  const currentDay=Math.max(0,((b.archived?Date.parse(b.archivedAt||b.start):Date.now())-startMs)/DAY_MS);
+  const tickCount=W<400?3:5;
+  const maxExtent=Math.max(lastPt.day,currentDay,forecastDay||0);
+  const step=Math.max(1,Math.ceil(Math.max(7,maxExtent*1.1)/(tickCount-1)));
+  const maxDay=step*(tickCount-1);
+  const weights=points.map(p=>p.weight);
+  const lowest=Math.min(m.targetWeight,...weights),highest=Math.max(m.targetWeight,...weights);
+  const margin=Math.max(1,(highest-lowest)*.10,highest*.025);
+  const minW=Math.max(0,lowest-margin),maxW=highest+margin;
+  const yWeights=[maxW,(maxW+minW)/2,minW];
+  const labelLength=Math.max(...yWeights.map(w=>grams(w).length));
+  const padL=Math.min(100,Math.max(48,Math.ceil(labelLength*6.6+11))),padR=12,padT=15,padB=30;
+  const plotW=W-padL-padR,plotH=H-padT-padB;
+  const xOf=day=>padL+day/maxDay*plotW;
+  const yOf=weight=>padT+(maxW-weight)/Math.max(1,maxW-minW)*plotH;
+  const xy=p=>`${xOf(p.day).toFixed(2)},${yOf(p.weight).toFixed(2)}`;
+  const poly=points.map(xy).join(' ');
+  const area=`${padL},${padT+plotH} ${poly} ${xOf(lastPt.day).toFixed(2)},${padT+plotH}`;
+  const gradientId='weight-area-'+b.id;
+  const grid=yWeights.map(weight=>{
+    const y=yOf(weight).toFixed(2);
+    return `<line x1="${padL}" y1="${y}" x2="${W-padR}" y2="${y}" stroke="var(--line)"/><text x="${padL-8}" y="${Number(y)+4}" fill="var(--muted)" font-size="11" text-anchor="end">${esc(grams(weight))}</text>`;
+  }).join('');
+  const xTicks=Array.from({length:tickCount},(_,i)=>{
+    const day=i*step;
+    return `<text x="${xOf(day).toFixed(2)}" y="${H-10}" fill="var(--muted)" font-size="11" text-anchor="${i===0?'start':i===tickCount-1?'end':'middle'}">${day}</text>`;
+  }).join('');
+  const yTarget=yOf(m.targetWeight).toFixed(2);
+  const projection=forecastDay===null?'':`<line x1="${xOf(lastPt.day).toFixed(2)}" y1="${yOf(lastPt.weight).toFixed(2)}" x2="${xOf(forecastDay).toFixed(2)}" y2="${yTarget}" stroke="var(--amber)" stroke-width="2" stroke-dasharray="5 5"/><circle cx="${xOf(forecastDay).toFixed(2)}" cy="${yTarget}" r="4" fill="var(--card)" stroke="var(--amber)" stroke-width="2"/>`;
+  const today=b.archived?'':`<line x1="${xOf(currentDay).toFixed(2)}" y1="${padT}" x2="${xOf(currentDay).toFixed(2)}" y2="${padT+plotH}" stroke="var(--muted)" stroke-opacity=".45" stroke-dasharray="2 4"/>`;
+  const circles=points.map((p,i)=>{
+    const last=i===points.length-1;
+    if(points.length>80&&i!==0&&!last)return '';
+    return `<circle cx="${xOf(p.day).toFixed(2)}" cy="${yOf(p.weight).toFixed(2)}" r="${last?4:2.8}" fill="${last?'var(--emerald)':'var(--card)'}" stroke="var(--emerald)" stroke-width="1.8"/>`;
+  }).join('');
+  return `<svg class="chart-svg" data-chart-width="${W}" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc('График массы партии '+b.name+' по дням от закладки')}"><title>Динамика массы</title><desc>Сплошная линия — записанные замеры. Горизонтальная пунктирная линия — целевой вес.${forecastDay!==null?' Янтарный пунктир — приблизительный линейный прогноз.':''} Значения цели, текущего дня и финиша вынесены за область построения.</desc><defs><linearGradient id="${gradientId}" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="var(--emerald)" stop-opacity=".16"/><stop offset="100%" stop-color="var(--emerald)" stop-opacity="0"/></linearGradient></defs>${grid}${today}<polygon points="${area}" fill="url(#${gradientId})"/><line x1="${padL}" y1="${yTarget}" x2="${W-padR}" y2="${yTarget}" stroke="var(--emerald)" stroke-opacity=".65" stroke-width="1.4" stroke-dasharray="3 4"/><polyline points="${poly}" fill="none" stroke="var(--emerald)" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"/>${projection}${circles}${xTicks}</svg>`;
+}
+function buildTrajectoryChart(b,m){
+  const forecastDay=trajectoryForecastDay(b,m);
+  const measuredDay=Math.max(0,(m.lastMeasuredMs-Date.parse(b.start))/DAY_MS);
+  const reason=m.isClockIssue?'Проверьте часы и дату замера':m.isInspectionDue?'Сначала проверьте наблюдения':m.isFastPace?'Сначала подтвердите темп свежим замером':m.isDueWeigh?'Нужен свежий замер':m.isWeightGain?'Проверьте увеличение веса':!m.lastLog?'Добавьте первое взвешивание':'Нужны замеры со снижением веса и интервалом не менее часа';
+  const status=b.archived?'Партия в архиве':m.isTargetReached?'Плановая усушка достигнута':forecastDay!==null?'Ориентир: ~'+m.etaDateStr:reason;
+  const finishLabel=b.archived?'Завершение партии':m.isTargetReached?'Цель по массе':'Расчётный финиш';
+  const finishValue=b.archived?'День '+m.totalDays:m.isTargetReached?'Достигнута':forecastDay!==null?'~День '+Math.ceil(forecastDay):'Пока не рассчитан';
+  const finishNote=b.archived?fmtDateShort(b.archivedAt||b.start):m.isTargetReached?'Это не подтверждение безопасности':forecastDay!==null?'~'+m.etaDateStr+' · при сохранении темпа':reason;
+  const measuredNote=m.lastLog?'Замер: '+fmtDateShort(m.lastLog.date)+' · день '+fmt(measuredDay,1):'Пока записан только начальный вес';
+  return `<div class="chart-card"><div class="chart-header"><span class="chart-title">Динамика массы</span><span class="chart-eta ${m.isFastPace?'amber':''}">${esc(status)}</span></div><div class="chart-target-strip"><span>Цель по массе</span><strong>−${fmt(m.targetPct,1)}% · ${grams(m.targetWeight)} г</strong></div><div class="chart-units"><span>Масса, г</span><span>Дни от закладки</span></div>${buildTrajectorySvg(b,m)}<div class="chart-milestones"><div class="chart-milestone"><span>${b.archived?'На момент завершения':'Текущий день · сегодня'}</span><strong>День ${m.totalDays}</strong><small>${esc(measuredNote)}</small></div><div class="chart-milestone ${forecastDay!==null?'forecast':''}"><span>${esc(finishLabel)}</span><strong>${esc(finishValue)}</strong><small>${esc(finishNote)}</small></div></div><div class="chart-legend"><span class="legend-item"><i class="legend-line"></i>Замеры</span>${forecastDay!==null?'<span class="legend-item"><i class="legend-line dashed"></i>Прогноз</span>':''}<span class="legend-item"><i class="legend-line target"></i>Целевой вес</span>${!b.archived?'<span class="legend-item"><i class="legend-line today"></i>Сегодня</span>':''}</div><p class="chart-footnote">${forecastDay!==null?'Прогноз считается от даты последнего замера по темпу последнего интервала. Темп может меняться; дата приблизительная.':'Пунктирный прогноз не строится без подходящих свежих замеров.'} День «сегодня» не означает, что продукт взвешен сегодня.</p></div>`;
+}
+function refreshTrajectoryChart(){
+  if(!$('detailModal').classList.contains('show'))return;
+  const svg=$('detailBody').querySelector('.chart-svg');
+  if(!svg||Number(svg.dataset.chartWidth)===trajectoryChartWidth())return;
+  const b=batches.find(item=>item.id===selectedId);
+  if(b)svg.outerHTML=buildTrajectorySvg(b,calcMetrics(b));
+}
+if(typeof ResizeObserver!=='undefined')new ResizeObserver(refreshTrajectoryChart).observe($('detailBody'));
+window.addEventListener('resize',refreshTrajectoryChart);
+
+function buildDryingRecommendations(b,m){
+  if(!m.isFastPace)return '';
+  const interval=m.segmentDays<1?fmt(m.segmentDays*24,1)+' ч':fmt(m.segmentDays,1)+' сут';
+  const delta=Number(m.prevPoint.weight)-m.currentWeight;
+  return `<section class="recommendation recommendation--drying" aria-label="Рекомендации при быстрой усушке"><h3 class="recommendation-head">${icon('alert')}<span>Быстрая усушка: что проверить</span></h3><div class="drying-facts"><span>Темп <b>${fmt(m.recentPacePctDay,2)}%/сут</b></span><span>Порог внимания <b>${fmt(preferences.pace,2)}%/сут</b></span></div><p>На последнем интервале потеряно ${grams(delta)} г за ${interval}. Темп выше заданного порога. Это сигнал проверить процесс, а не подтверждение закала.</p>${m.isDueWeigh?'<p class="drying-stale">Последний замер — '+esc(dateTime(m.lastLog.date))+'. Сначала обновите вес: сигнал относится к прошлому интервалу.</p>':''}<ol class="recommendation-steps"><li><strong>Исключите ошибку замера.</strong> Проверьте весы, тару и введённый вес. Сравнивайте продукт в одинаковых условиях.</li><li><strong>Проверьте климат и обдув.</strong> Сверьте фактические влажность и температуру с технологией вашей партии. Исключите прямую струю воздуха; изменяйте режим только в допустимых для технологии пределах, без резких скачков.</li><li><strong>Осмотрите поверхность.</strong> Отметьте сухую плотную корку, трещины или неравномерное подсыхание. Уплотнение может указывать на неравномерную сушку, но по одному весу закал не определяется.</li><li><strong>Подтвердите динамику.</strong> Запланируйте следующий замер по технологической карте и сравните темп на следующем интервале. Не пытайтесь ускорить достижение цели повышением температуры или усилением обдува.</li></ol><small>Проценты рассчитаны от начальной массы. Порог внимания зависит от продукта и этапа, это не универсальная норма. Вес не подтверждает безопасность: при слизи, необычной окраске или запахе порчи не пробуйте продукт и не пытайтесь исправить его дополнительной сушкой.</small><button type="button" class="text-button" onclick="openWeigh(${b.id})">Записать контрольное взвешивание →</button></section>`;
+}
+
+function openDetail(id) {
+  const b = batches.find(x => x.id === id);
+  if (!b) return;
+  selectedId = id;
+  const m = calcMetrics(b);
+  const tone = m.needsAttention ? 'amber' : 'emerald';
+
+  $('detailTitle').textContent = (b.archived ? 'Архив · ' : `№${b.number} · `) + b.name;
+
+  // Build logs with delta
+  const fullPoints = [{ date: b.start, weight: m.startWeight, isStart: true }, ...m.logs];
+  const logRows = m.logs.slice().reverse().map((l, revIdx) => {
+    const idxInFull = fullPoints.length - 1 - revIdx;
+    const prev = fullPoints[idxInFull - 1];
+    const diffG = Number(l.weight) - Number(prev.weight);
+    const diffSign = diffG > 0 ? '+' : '';
+    const segDays = (new Date(l.date) - new Date(prev.date)) / DAY_MS;
+    const segPace = segDays>=1/24 ? ((Number(prev.weight) - Number(l.weight)) / m.startWeight * 100) / segDays : null;
+    const warnFast = (segPace!==null && segPace>preferences.pace) || diffG > 0;
+    return `
+      <div class="logentry">
+        <div class="logentry-head">
+          <b>${l.weight} г <span style="font-weight:400;color:var(--muted);font-size:12px">(${((m.startWeight - l.weight)/m.startWeight*100).toFixed(1)}%)</span></b>
+          <span class="logentry-delta ${warnFast ? 'amber' : ''}">${diffSign}${grams(diffG)} г · ${segPace===null?'темп не оценён':fmt(segPace,2)+'%/сут'}</span>
+        </div>
+        <small>${dateTime(l.date)}</small>
+        <div>${l.text ? esc(l.text) : 'Без замечаний'}</div>
+      </div>
+    `;
+  }).join('');
+
+  $('detailBody').innerHTML = `
+    <!-- 3. Hero Block: Remaining Grams & Lost % -->
+    <div class="hero-stats">
+      <div class="hero-card ${tone}">
+        <div class="hero-label">${m.remainGrams > 0 ? 'Осталось сбросить' : 'Целевой вес достигнут'}</div>
+        <div class="hero-big">${m.remainGrams} г</div>
+        <div class="hero-sub">Текущий: ${m.currentWeight} г → Цель: ${m.targetWeight} г</div>
+      </div>
+      <div class="hero-card emerald">
+        <div class="hero-label">Потеря массы</div>
+        <div class="hero-big">${percentChange(m.lossPct)}</div>
+        <div class="hero-sub">Темп: ${m.recentPacePctDay===null?'нет данных':fmt(m.recentPacePctDay,2)+'%/сут'} · День ${m.totalDays}</div>
+      </div>
+    </div>
+
+    ${buildDryingRecommendations(b,m)}
+
+    ${buildTrajectoryChart(b,m)}
+
+    <div class="detail-grid">
+      <div class="detail-cell"><span>Сырьё и оболочка</span><b>${esc(b.basis)} · ${esc(b.casing)}</b></div>
+      <div class="detail-cell"><span>Посол / специи</span><b>${esc(b.spices)}</b></div>
+      <div class="detail-cell"><span>Начальный вес</span><b>${m.startWeight} г (${fmtDateShort(b.start)})</b></div>
+      <div class="detail-cell"><span>Климат камеры</span><b>${b.temp || '12'} °C · ${b.humidity || '75'}% RH</b></div>
+    </div>
+
+    ${b.note ? `<div class="logentry"><small>Технологическая заметка</small>${esc(b.note)}</div>` : ''}
+
+    <div class="log">
+      <h3>Журнал взвешиваний (${m.logs.length})</h3>
+      ${logRows || '<div class="empty">Пока только стартовый вес при закладке.</div>'}
+    </div>
+
+    <div class="actions">
+      ${b.archived
+        ? `<button class="secondary" onclick="restoreProduct(${b.id})">Вернуть в камеру</button>`
+        : `<button class="primary" onclick="openWeigh(${b.id})">⚖ Взвесить сейчас</button>
+           <button class="secondary" onclick="archiveProduct(${b.id})">В архив</button>`
+      }
+    </div>
+  `;
+  $('detailModal').classList.add('show');
+}
+
+// 2. Open Weighing Modal & Bind Live Preview Calculation
+function openWeigh(id){
+  const b=batches.find(x=>x.id===id);if(!b||b.archived)return;
+  if(journalLoadBlocked){storageDetails();return;}
+  closeModal('detailModal');selectedId=id;$('weighForm').reset();resetPhotoDraft('weigh');
+  const m=calcMetrics(b);
+  $('weighModalTitle').textContent='№'+b.number+' · '+b.name;
+  $('weighInputLabel').textContent='Текущий вес на весах, г (предыдущий: '+grams(m.currentWeight)+' г)';
+  $('livePrevInfo').textContent='Старт '+grams(m.startWeight)+' г · цель '+grams(m.targetWeight)+' г (−'+fmt(m.targetPct,1)+'%)';
+  $('currentWeight').value='';$('currentWeight').placeholder='Введите показание весов';
+  updateLiveWeighPreview();openModal('weighModal');
+}
+
+function updateLiveWeighPreview(){
+  const b=batches.find(x=>x.id===selectedId);if(!b)return;
+  const nowMs=Date.now(),m=calcMetrics(b,nowMs),raw=$('currentWeight').value.trim(),val=Number(raw);
+  const cells=[$('liveCellLoss'),$('liveCellRemain'),$('liveCellDelta')],alertBox=$('liveAlert');
+  cells.forEach(el=>el.className='live-cell');alertBox.className='live-alert';
+  const valid=raw!==''&&Number.isFinite(val)&&val>0&&val<=1000000;
+  const mass=valid?massMetrics(m.startWeight,m.targetPct,val):m;
+  $('liveLossPct').textContent=percentChange(mass.lossPct);
+  $('liveTargetSub').textContent=(valid?'после записи · цель ':'сейчас · цель ')+'−'+fmt(m.targetPct,1)+'%';
+  $('liveRemainG').textContent=grams(mass.remainGrams)+' г';
+  $('liveTargetWeightSub').textContent='до '+grams(m.targetWeight)+' г';
+  if(!valid){
+    $('liveDeltaG').textContent=raw?'некорректный вес':'введите вес';$('livePaceSub').textContent='темп не рассчитан';
+    if(raw){alertBox.className='live-alert show amber';alertBox.textContent='Введите положительный вес не более 1 000 000 г.';}
+    return;
+  }
+  const segment=measurementInterval(m.startWeight,m.lastLog||{date:b.start,weight:m.startWeight},{date:new Date(nowMs).toISOString(),weight:val});
+  $('liveDeltaG').textContent=(segment.deltaGrams>0?'+':'')+grams(segment.deltaGrams)+' г';
+  $('livePaceSub').textContent=segment.pace===null?'темп: интервал менее часа':fmt(segment.pace,2)+'%/сут';
+  const messages=[];let warning=false;
+  if(m.isClockIssue){warning=true;messages.push('Предыдущая запись датирована будущим. Проверьте часы устройства: новая запись пока не может быть сохранена.');}
+  if(segment.deltaGrams>0){warning=true;cells[2].classList.add('amber');messages.push('Вес увеличился на '+grams(segment.deltaGrams)+' г. Проверьте показание, тару и введённые цифры.');}
+  if(segment.pace!==null&&segment.pace>preferences.pace){warning=true;cells[2].classList.add('amber');messages.push('Темп '+fmt(segment.pace,2)+'%/сут выше заданного порога '+fmt(preferences.pace,2)+'%/сут. Проверьте замер и технологический режим; это не диагноз закала.');}
+  if(mass.isTargetReached){messages.push('Плановая усушка достигнута. Это не подтверждение безопасности и не автоматическая команда завершить процесс.');}
+  else messages.push('До плановой массы осталось '+grams(mass.remainGrams)+' г.');
+  if(segment.pace===null&&!m.isClockIssue)messages.push('При интервале менее часа темп не оценивается; вес и дата сохраняются без подмены интервала.');
+  alertBox.className='live-alert show '+(warning?'amber':'emerald');alertBox.textContent=messages.join(' ');
+}
+
+$('currentWeight').addEventListener('input', updateLiveWeighPreview);
+
+function openAdd(){
+  if(journalLoadBlocked){storageDetails();return;}
+  selectedId=null;$('batchForm').reset();resetPhotoDraft('new');
+  $('newBatchHint').textContent='Номер '+firstFree()+' назначится автоматически. Дата и время закладки — при сохранении.';
+  openModal('modal');
+}
+function archiveProduct(id){
+  const b=batches.find(x=>x.id===id);if(!b||b.archived)return;
+  if(calcMetrics(b).isClockIssue){toast('Проверьте дату последнего замера и часы устройства перед архивацией.');return;}
+  if(!confirm('Переместить «'+b.name+'» в архив? Номер '+b.number+' освободится, история и фотографии сохранятся.'))return;
+  const next=batches.map(x=>x.id===id?{...x,archived:true,archivedAt:nowIso(),archiveDateEstimated:false,originalNumber:x.number,number:null}:x);
+  if(!save(next))return;
+  closeModal('detailModal');render();toast('Продукт перемещён в архив. Номер освобождён.');
+}
+function restoreProduct(id){
+  const b=batches.find(x=>x.id===id);if(!b||!b.archived)return;
+  const number=firstFree(),next=batches.map(x=>x.id===id?{...x,archived:false,archivedAt:null,archiveDateEstimated:false,number}:x);
+  if(!save(next))return;
+  closeModal('detailModal');setFilter('active');toast('Продукт возвращён в работу под номером '+number+'.');
+}
+
+// Event bindings
+$('addBtn').onclick = openAdd;
+$('closeBtn').onclick=()=>closeModal('modal');
+$('weighClose').onclick=()=>closeModal('weighModal');
+$('detailClose').onclick=()=>closeModal('detailModal');
+$('photoClose').onclick=()=>closeModal('photoModal');
+$('storageBanner').onclick=storageDetails;
+$('guideBtn').onclick = () => {closeModal('settingsModal');openModal('guideModal');};
+$('guideClose').onclick = () => closeModal('guideModal');
+$('infoClose').onclick = () => closeModal('infoModal');
+
+$('tabActiveBtn').onclick = () => setFilter('active');
+$('tabDueBtn').onclick = () => setFilter('due');
+$('tabArchiveBtn').onclick = () => setFilter('archive');
+$('attentionBtn').onclick = () => {
+  const mode=filterMode==='attention'?'active':'attention';
+  if(mode==='attention'){searchQuery='';$('searchInput').value='';}
+  setFilter(mode);
+};
+$('searchInput').addEventListener('input',e=>{searchQuery=e.target.value.trim();$('batchScroll').scrollTop=0;render();});
+$('clearSearch').onclick=()=>{searchQuery='';$('searchInput').value='';render();$('searchInput').focus();};
+$('sortSelect').onchange=e=>{sortMode=e.target.value;render();};
+$('settingsBtn').onclick = openBackupPanel;
+$('settingsClose').onclick = () => closeModal('settingsModal');
+window.onclick = e => {
+  if(e.target.classList.contains('modal'))closeModal(e.target.id);
+};
+document.addEventListener('keydown',e=>{
+  const open=Array.from(document.querySelectorAll('.modal.show'));
+  const top=open.filter(el=>el.classList.contains('front')).at(-1)||open.at(-1);
+  if(!top)return;
+  if(e.key==='Escape'){e.preventDefault();closeModal(top.id);}
+  if(e.key==='Tab'){
+    const nodes=Array.from(top.querySelectorAll('button:not(:disabled),input:not(:disabled),select,textarea,summary,[tabindex="0"]')).filter(el=>el.getClientRects().length);
+    if(!nodes.length)return;
+    const first=nodes[0],last=nodes.at(-1);
+    if(e.shiftKey&&(document.activeElement===first||!top.contains(document.activeElement))){e.preventDefault();last.focus();}
+    else if(!e.shiftKey&&(document.activeElement===last||!top.contains(document.activeElement))){e.preventDefault();first.focus();}
+  }
+});
+
+$('batchForm').onsubmit=e=>{
+  e.preventDefault();if(!$('batchForm').reportValidity()||photoDrafts.new.busy)return;
+  let id=Date.now();while(batches.some(b=>b.id===id))id++;
+  const number=firstFree();
+  const data={id,number,originalNumber:number,name:$('name').value.trim(),type:$('type').value,basis:$('basis').value,spices:$('spices').value.trim(),casing:$('casing').value,start:nowIso(),weight:Number($('weight').value),target:Number($('target').value),temp:$('temp').value,humidity:$('humidity').value,archived:false,archivedAt:null,note:$('note').value.trim(),photo:photoDrafts.new.data,photos:[],logs:[]};
+  if(!save([data,...batches]))return;
+  closeModal('modal');searchQuery='';$('searchInput').value='';setFilter('active');toast('Продукт №'+number+' сохранён в этом браузере.');
+};
+$('weighForm').onsubmit=e=>{
+  e.preventDefault();if(!$('weighForm').reportValidity()||photoDrafts.weigh.busy)return;
+  const b=batches.find(x=>x.id===selectedId);if(!b||b.archived)return;
+  const m=calcMetrics(b);if(m.isClockIssue){toast('Дата предыдущей записи позже текущего времени. Проверьте часы устройства.');return;}
+  const parts=[];if($('smell').value)parts.push('Запах: '+$('smell').value);if($('surface').value)parts.push('Поверхность: '+$('surface').value);if($('observation').value.trim())parts.push($('observation').value.trim());
+  const log={date:nowIso(),weight:Number($('currentWeight').value),text:parts.join(' · '),photo:photoDrafts.weigh.data,requiresReview:$('requiresReview')?.checked===true};
+  const next=batches.map(x=>x.id===b.id?{...x,logs:[...(x.logs||[]),log]}:x);
+  if(!save(next))return;
+  closeModal('weighModal');render();openDetail(b.id);toast('Взвешивание сохранено. Дата и время назначены автоматически.');
+};
+
+// BackupPanel: реальные локальные файлы, две автокопии и безопасный откат.
+function backupEnvelope(items=batches){
+  return {app:'ФермоКонтроль',format:'fermocontrol-web',formatVersion:1,version:VERSION,createdAt:nowIso(),settings:{interval:preferences.interval,pace:preferences.pace},batches:clone(items)};
+}
+function backupCounts(items){return {active:items.filter(b=>!b.archived).length,archive:items.filter(b=>b.archived).length,logs:items.reduce((n,b)=>n+(b.logs||[]).length,0)};}
+function getAutoBackups(){
+  const stored=readStored(AUTO_BACKUP_KEY,[]);
+  return (Array.isArray(stored)?stored:[]).filter(item=>item&&typeof item.createdAt==='string'&&Number.isFinite(Date.parse(item.createdAt))&&Array.isArray(item.batches)).slice(0,2);
+}
+function recordAutoBackup(){
+  try{
+    const previous=getAutoBackups();
+    if(previous.length&&JSON.stringify(previous[0].batches)===JSON.stringify(batches)){autoBackupProblem='';return true;}
+    localStorage.setItem(AUTO_BACKUP_KEY,JSON.stringify([backupEnvelope(),...previous].slice(0,2)));
+    autoBackupProblem='';return true;
+  }catch{autoBackupProblem='Автокопия не обновилась: хранилище недоступно или заполнено. Выгрузите JSON-файл.';return false;}
+}
+function hasRecovery(){return Array.isArray(readStored(RECOVERY_KEY,null)?.batches);}
+function fullBackupDate(iso){return new Date(iso).toLocaleString('ru-RU',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'});}
+function refreshBackupPanel(){
+  const counts=backupCounts(batches);
+  $('backupActiveCount').textContent=counts.active;
+  $('backupArchiveCount').textContent=counts.archive;
+  $('backupLogCount').textContent=counts.logs;
+  $('versionTag').textContent='v'+VERSION;
+  $('intervalSetting').value=preferences.interval;
+  $('paceSetting').value=preferences.pace;
+  $('backupStatus').textContent=preferences.backupAt&&Number.isFinite(Date.parse(preferences.backupAt))?'Последняя выгрузка: '+fullBackupDate(preferences.backupAt):'Файл резервной копии ещё не выгружался.';
+  const copies=getAutoBackups();
+  $('autoBackupList').innerHTML=copies.length?copies.map((item,index)=>{
+    const c=backupCounts(item.batches);
+    return '<div class="backup-copy"><div><strong>'+(index===0?'Последняя автокопия':'Предыдущая автокопия')+'</strong><small>'+esc(fullBackupDate(item.createdAt))+' · продуктов: '+item.batches.length+' · замеров: '+c.logs+'</small></div><button type="button" onclick="previewAutoBackup('+index+')" aria-label="Восстановить автокопию от '+esc(fullBackupDate(item.createdAt))+'" title="Восстановить эту автокопию">'+icon('undo')+'</button></div>';
+  }).join(''):'<div class="backup-empty">Автокопии появятся после сохранения журнала.</div>';
+  $('autoBackupStatus').textContent=autoBackupProblem||(copies.length?'Храним два последних различающихся состояния журнала.':'');
+  $('rollbackBtn').hidden=!hasRecovery();
+  $('saveRecoveryBtn').hidden=!hasRecovery();
+}
+function openBackupPanel(){refreshBackupPanel();openModal('settingsModal');}
+function downloadLocalFile(content,name,type){
+  const blob=new Blob([content],{type}),url=URL.createObjectURL(blob),a=document.createElement('a');
+  a.href=url;a.download=name;document.body.appendChild(a);
+  try{a.click();}finally{a.remove();setTimeout(()=>URL.revokeObjectURL(url),15000);}
+}
+function backupFileName(extension='json'){return 'FermoControl_'+new Date().toISOString().slice(0,19).replace(/[:T]/g,'-')+'.'+extension;}
+function exportLocalBackup(payload=backupEnvelope(),isRecovery=false){
+  try{
+    downloadLocalFile(JSON.stringify(payload,null,2),isRecovery?'FermoControl_before_restore.json':backupFileName(),'application/json;charset=utf-8');
+    if(!isRecovery){preferences.backupAt=nowIso();savePreferences();refreshBackupPanel();}
+    toast('Файл передан браузеру для сохранения. Проверьте папку загрузок.');
+    return true;
+  }catch{toast('Не удалось выгрузить копию. Проверьте разрешения браузера.');return false;}
+}
+function checkedBackup(raw){
+  if(!raw||typeof raw!=='object')throw new Error('Файл не содержит резервную копию журнала.');
+  if(!Array.isArray(raw)&&raw.format&&raw.format!=='fermocontrol-web')throw new Error('Этот формат не совместим с макетом.');
+  if(!Array.isArray(raw)&&Number(raw.formatVersion||1)>1)throw new Error('Копия создана более новой версией макета.');
+  const incoming=normalizeBatches(Array.isArray(raw)?raw:raw.batches);
+  const settings=raw.settings&&typeof raw.settings==='object'?raw.settings:{};
+  return {batches:incoming,settings:{interval:Math.round(Math.min(30,Math.max(1,Number(settings.interval)||preferences.interval))),pace:Math.min(20,Math.max(.1,Number(settings.pace)||preferences.pace))},createdAt:Number.isFinite(Date.parse(raw.createdAt))?raw.createdAt:null};
+}
+function previewBackup(raw,source){
+  try{
+    const checked=checkedBackup(raw),counts=backupCounts(checked.batches);
+    pendingBackupRestore=checked;
+    $('restoreSource').textContent=source+(checked.createdAt?' · '+fullBackupDate(checked.createdAt):'');
+    $('restoreActiveCount').textContent=counts.active;
+    $('restoreArchiveCount').textContent=counts.archive;
+    $('restoreLogCount').textContent=counts.logs;
+    openModal('backupRestoreModal');
+  }catch(error){toast('Копия не открыта: '+error.message);}
+}
+function previewAutoBackup(index){const item=getAutoBackups()[index];if(item)previewBackup(item,'Локальная автокопия');}
+$('exportBtn').onclick=()=>exportLocalBackup();
+$('importBtn').onclick=()=>{$('importFile').value='';$('importFile').click();};
+$('importFile').onchange=async e=>{
+  const file=e.target.files?.[0];if(!file)return;
+  if(file.size>25*1024*1024){toast('Файл слишком большой: максимум 25 МБ.');e.target.value='';return;}
+  $('importBtn').disabled=true;
+  try{previewBackup(JSON.parse(await file.text()),'Файл: '+file.name);}
+  catch{toast('Не удалось прочитать JSON-файл. Текущий журнал не изменён.');}
+  finally{$('importBtn').disabled=false;e.target.value='';}
+};
+$('restoreClose').onclick=$('restoreCancel').onclick=()=>{pendingBackupRestore=null;closeModal('backupRestoreModal');};
+$('restoreConfirm').onclick=()=>{
+  if(!pendingBackupRestore)return;
+  const incoming=pendingBackupRestore;
+  try{
+    // Обе записи обязательны: при ошибке квоты текущий журнал остаётся в памяти и хранилище.
+    localStorage.setItem(RECOVERY_KEY,JSON.stringify(backupEnvelope()));
+    localStorage.setItem(KEY,JSON.stringify(incoming.batches));
+  }catch{toast('Замена отменена: не удалось сохранить страховочную копию или новый журнал. Сначала выгрузите JSON и освободите место.');return;}
+  batches=incoming.batches;
+  preferences.interval=incoming.settings.interval;preferences.pace=incoming.settings.pace;
+  savePreferences();recordAutoBackup();
+  pendingBackupRestore=null;selectedId=null;searchQuery='';$('searchInput').value='';
+  setFilter('active');refreshBackupPanel();closeModal('backupRestoreModal');
+  toast('Журнал восстановлен. Предыдущее состояние доступно через «Откатить восстановление».');
+};
+$('rollbackBtn').onclick=()=>{const copy=readStored(RECOVERY_KEY,null);if(copy)previewBackup(copy,'Страховочная копия перед последним восстановлением');};
+$('saveRecoveryBtn').onclick=()=>{const copy=readStored(RECOVERY_KEY,null);if(copy)exportLocalBackup(copy,true);};
+$('connectCloud').onclick=()=>showInfo('Подключение Яндекс Диска','<p class="info-copy">Это автономный HTML-макет: OAuth-вход и обращения к Яндекс Диску не подключены. Токен не запрашивается и не сохраняется.</p><p class="info-copy">Выгрузка и восстановление из облака станут доступны после интеграции с сервисом. Сейчас можно сохранить локальный JSON и отправить его через приложение устройства.</p>','Резервное копирование в облако');
+$('updateBtn').onclick=()=>{
+  $('updateStatus').textContent='Проверка недоступна: сервер обновлений не подключён. Версия макета — '+VERSION+'.';
+  showInfo('Обновление приложения','<p class="info-copy">Текущая версия HTML-макета — '+esc(VERSION)+'. Проверка сервера и скачивание APK здесь не выполняются.</p><p class="info-copy">Этот экран показывает оформление BackupPanel. Реальная проверка и установка обновлений требуют Android-интеграции.</p>','Версия и обновления');
+};
+$('shareBackupBtn').onclick=async()=>{
+  const button=$('shareBackupBtn');button.disabled=true;
+  try{
+    const payload=JSON.stringify(backupEnvelope(),null,2),file=new File([payload],backupFileName(),{type:'application/json'});
+    if(navigator.share&&navigator.canShare&&navigator.canShare({files:[file]})){
+      await navigator.share({files:[file],title:'Резервная копия ФермоКонтроль'});
+      toast('Копия передана выбранному приложению.');
+    }else{exportLocalBackup();toast('Отправка из браузера недоступна. Сохраните JSON и отправьте его через приложение устройства.');}
+  }catch(error){if(error.name!=='AbortError')toast('Отправка недоступна. Воспользуйтесь кнопкой «Выгрузить».');}
+  finally{button.disabled=false;}
+};
+$('csvBtn').onclick=()=>{
+  const csvCell=value=>{let s=String(value??'');if(/^[=+@\-\t\r]/.test(s))s="'"+s;return '"'+s.replace(/"/g,'""')+'"';};
+  const rows=[['Продукт','Номер','Статус','Запись','Дата и время (UTC)','Вес, г','Наблюдение']];
+  batches.forEach(b=>{
+    const state=b.archived?'Архив':'В работе';
+    rows.push([b.name,b.number??b.originalNumber??'',state,'Начальный вес',b.start,b.weight,b.note||'']);
+    (b.logs||[]).forEach(l=>rows.push([b.name,b.number??b.originalNumber??'',state,'Взвешивание',l.date,l.weight,l.text||'']));
+  });
+  try{downloadLocalFile('\uFEFF'+rows.map(row=>row.map(csvCell).join(';')).join('\r\n'),backupFileName('csv'),'text/csv;charset=utf-8');toast('Таблица передана браузеру для сохранения. Фотографии в CSV не входят.');}
+  catch{toast('Не удалось выгрузить таблицу.');}
+};
+$('intervalSetting').onchange=e=>{preferences.interval=Math.round(Math.min(30,Math.max(1,Number(e.target.value)||3)));e.target.value=preferences.interval;savePreferences();render();};
+$('paceSetting').onchange=e=>{preferences.pace=Math.min(20,Math.max(.1,Number(e.target.value)||1.5));e.target.value=preferences.pace;savePreferences();render();};
+$('resetDemoBtn').onclick=()=>previewBackup(backupEnvelope(clone(DEMO_BATCHES)),'Демонстрационные продукты');
+// Завершённые сценарии локального хранения. Сетевые сервисы здесь не имитируются.
+let queuedAppAction=null,lastDownloadRequest=null;
+
+function logReviewReasons(log){
+  const text=String(log.text||'').toLocaleLowerCase('ru-RU'),reasons=[];
+  if(log.requiresReview===true)reasons.push('Пользователь отметил необходимость проверки');
+  if(text.includes('запах: резкий, подозрительный'))reasons.push('Отмечен резкий, подозрительный запах');
+  if(text.includes('поверхность: влажная, липкая'))reasons.push('Отмечена влажная, липкая поверхность');
+  if(text.includes('поверхность: уплотнение'))reasons.push('Отмечено уплотнение поверхности');
+  return reasons;
+}
+function calcMetrics(b,nowMs=Date.now()){
+  const startMs=Date.parse(b.start),endMs=b.archived?Date.parse(b.archivedAt||b.start):nowMs;
+  const logs=(b.logs||[]).slice().sort((a,c)=>Date.parse(a.date)-Date.parse(c.date));
+  const lastLog=logs.at(-1)||null,prevPoint=logs.at(-2)||{date:b.start,weight:Number(b.weight)};
+  const startWeight=Number(b.weight),currentWeight=lastLog?Number(lastLog.weight):startWeight;
+  const mass=massMetrics(startWeight,Number(b.target),currentWeight);
+  const lastMeasuredMs=Date.parse(lastLog?.date||b.start);
+  const segment=lastLog?measurementInterval(startWeight,prevPoint,lastLog):{segmentDays:0,pace:null};
+  const measuredDays=(lastMeasuredMs-startMs)/DAY_MS;
+  const totalDays=Math.max(0,Math.floor((endMs-startMs)/DAY_MS));
+  const isClockIssue=!b.archived&&(lastMeasuredMs>nowMs||startMs>nowMs);
+  const daysSinceWeigh=Math.max(0,Math.floor((nowMs-lastMeasuredMs)/DAY_MS));
+  const isDueWeigh=!b.archived&&!isClockIssue&&daysSinceWeigh>=preferences.interval;
+  const isFastPace=!b.archived&&segment.pace!==null&&segment.pace>preferences.pace;
+  const isWeightGain=!b.archived&&Boolean(lastLog&&currentWeight>Number(prevPoint.weight));
+  const reviewedMs=b.reviewedThrough?Date.parse(b.reviewedThrough):-Infinity;
+  const reviewLogs=logs.filter(l=>Date.parse(l.date)>reviewedMs&&logReviewReasons(l).length>0);
+  const isInspectionDue=!b.archived&&reviewLogs.length>0;
+  const needsAttention=!b.archived&&Boolean(isDueWeigh||isFastPace||isWeightGain||isClockIssue||mass.isTargetReached||isInspectionDue);
+  let etaDays=null,etaDateStr=null;
+  if(!b.archived&&!isDueWeigh&&!isFastPace&&!isClockIssue&&!isInspectionDue&&mass.remainGrams>0&&segment.pace>0){
+    const projectedMs=lastMeasuredMs+mass.remainGrams/(segment.pace*startWeight/100)*DAY_MS;
+    const days=Math.ceil((projectedMs-nowMs)/DAY_MS);
+    if(days>0&&days<366){etaDays=days;etaDateStr=fmtDateShort(new Date(projectedMs).toISOString());}
+  }
+  return {...mass,totalDays,logs,lastLog,prevPoint,lastMeasuredMs,daysSinceWeigh,segmentDays:segment.segmentDays,recentPacePctDay:segment.pace,pacePctDay:measuredDays>=1/24?mass.lossPct/measuredDays:null,isClockIssue,isDueWeigh,isFastPace,isWeightGain,isInspectionDue,reviewLogs,needsAttention,etaDays,etaDateStr};
+}
+function nextAction(b,m){
+  if(b.archived)return (b.archiveDateEstimated?'Завершение приблизительно · ':'Завершено ')+fmtDateShort(b.archivedAt||b.start);
+  if(m.isClockIssue)return 'Дата записи в будущем · проверьте часы';
+  if(m.isInspectionDue)return 'Требует проверки · есть наблюдения';
+  if(m.isWeightGain)return 'Вес вырос · проверьте запись';
+  if(m.isFastPace)return 'Быстрая усушка · '+fmt(m.recentPacePctDay,2)+'%/сут';
+  if(m.isTargetReached)return 'Плановая усушка достигнута';
+  if(m.isDueWeigh)return 'Пора взвесить · '+m.daysSinceWeigh+' дн. без замера';
+  const days=Math.max(1,preferences.interval-m.daysSinceWeigh);
+  return days===1?'Следующий замер завтра':'Следующий замер через '+days+' дн.';
+}
+function requestAppAction(title,description,label,action){
+  queuedAppAction=action;
+  $('appActionTitle').textContent=title;$('appActionDescription').textContent=description;$('appActionConfirm').textContent=label;
+  openModal('appActionModal');
+}
+function inspectionPanelHTML(b,m){
+  if(!m.isInspectionDue)return b.reviewedThrough?'<p class="detail-safety">Пользователь отметил проверку '+esc(fullBackupDate(b.reviewedThrough))+'. Это отметка в журнале, не заключение о безопасности.</p>':'';
+  const reasons=[...new Set(m.reviewLogs.flatMap(logReviewReasons))];
+  return '<section class="review-panel" aria-label="Требует проверки"><h3>'+icon('alert')+' Требует проверки</h3><p>'+reasons.map(esc).join(' · ')+'.</p><p>Записи сохраняют отметку внимания до вашего подтверждения проверки. Новое обычное взвешивание не скрывает прежние наблюдения.</p><small>Приложение не определяет безопасность по весу или фотографии. При признаках порчи не пробуйте продукт и не пытайтесь исправить его дополнительной сушкой.</small><button type="button" class="secondary" onclick="markReviewComplete('+b.id+')">Зафиксировать проверку</button></section>';
+}
+function markReviewComplete(id){
+  const b=batches.find(x=>x.id===id);if(!b)return;
+  if(calcMetrics(b).isClockIssue){toast('Сначала проверьте часы устройства и даты записей.');return;}
+  requestAppAction('Зафиксировать проверку?','Будет снято только напоминание по уже сделанным наблюдениям. Их текст останется в журнале. Эта отметка не подтверждает безопасность продукта и не снимает другие напоминания.','Проверка проведена',()=>{
+    if(!save(batches.map(x=>x.id===id?{...x,reviewedThrough:nowIso()}:x)))return false;
+    render();openDetail(id);toast('Проверка отмечена пользователем. Исходные наблюдения сохранены.');return true;
+  });
+}
+function archiveProduct(id){
+  const b=batches.find(x=>x.id===id);if(!b||b.archived)return;
+  if(calcMetrics(b).isClockIssue){toast('Перед архивацией проверьте дату последнего замера и часы устройства.');return;}
+  requestAppAction('Переместить в архив?','«'+b.name+'»: номер '+b.number+' освободится. История, наблюдения и фотографии сохранятся. Архивация сама по себе не означает, что продукт безопасен.','В архив',()=>{
+    const next=batches.map(x=>x.id===id?{...x,archived:true,archivedAt:nowIso(),archiveDateEstimated:false,originalNumber:x.number,number:null}:x);
+    if(!save(next))return false;
+    closeModal('detailModal');render();toast('Продукт перемещён в архив. Номер освобождён.');return true;
+  });
+}
+
+// Фото: обработка только на устройстве, без отправки файлов на сервер.
+function updatePhotoDraft(kind){
+  const d=photoDrafts[kind],prefix=kind==='new'?'newPhoto':kind==='weigh'?'weighPhoto':'diaryPhoto';
+  const preview=$(prefix+'Preview'),label=$(prefix+'Label'),remove=$(prefix+'Remove'),choose=$(prefix+'Choose');
+  if(preview){if(d.data){preview.src=d.data;preview.style.display='block';}else{preview.removeAttribute('src');preview.style.display='none';}}
+  if(label)label.textContent=d.message||(d.busy?'Подготовка фотографии…':d.data?'Фото подготовлено · ещё не сохранено':kind==='new'?'Исходное фото · по желанию':kind==='weigh'?'Фото этого взвешивания':'Выберите фотографию');
+  if(remove)remove.hidden=!d.data&&!d.busy;
+  if(choose)choose.textContent=d.data||d.busy?'Заменить':kind==='diary'?'Выбрать':'Добавить';
+  const form=$(kind==='new'?'batchForm':kind==='weigh'?'weighForm':'diaryPhotoForm');
+  const submit=form?.querySelector('[type="submit"]');if(submit)submit.disabled=d.busy||(kind==='diary'&&!d.data);
+}
+function resetPhotoDraft(kind){
+  const d=photoDrafts[kind];if(!d)return;
+  d.token++;d.data=null;d.busy=false;d.message='';
+  const input=$(kind==='new'?'newPhotoInput':kind==='weigh'?'weighPhotoInput':'diaryPhotoInput');if(input)input.value='';
+  updatePhotoDraft(kind);
+}
+async function compressLocalPhoto(file){
+  if(!file||file.size===0)throw new Error('Выбран пустой файл.');
+  if(file.size>20*1024*1024)throw new Error('Фотография слишком большая: максимум 20 МБ.');
+  if(file.type==='image/svg+xml'||(!file.type.startsWith('image/')&&!/\.(jpe?g|png|webp|gif|avif|bmp|heic|heif)$/i.test(file.name)))throw new Error('Выберите фотографию, а не документ или SVG.');
+  const url=URL.createObjectURL(file),image=new Image();
+  try{
+    await new Promise((resolve,reject)=>{image.onload=resolve;image.onerror=()=>reject(new Error('Браузер не смог открыть изображение. Попробуйте JPEG, PNG или WebP.'));image.src=url;});
+    const w=image.naturalWidth,h=image.naturalHeight;
+    if(!w||!h||w*h>60000000)throw new Error('Слишком большое разрешение изображения. Сначала уменьшите его на устройстве.');
+    const canvas=document.createElement('canvas');
+    let edge=1280,result='';
+    for(let attempt=0;attempt<3;attempt++){
+      const scale=Math.min(1,edge/Math.max(w,h));canvas.width=Math.max(1,Math.round(w*scale));canvas.height=Math.max(1,Math.round(h*scale));
+      const ctx=canvas.getContext('2d');if(!ctx)throw new Error('Обработка изображений недоступна в этом браузере.');
+      ctx.fillStyle='#f2f0e8';ctx.fillRect(0,0,canvas.width,canvas.height);ctx.drawImage(image,0,0,canvas.width,canvas.height);
+      result=canvas.toDataURL('image/jpeg',attempt===0?.78:.68);
+      if(result.length<=650000)break;edge=attempt===0?1024:800;
+    }
+    if(!safePhoto(result))throw new Error('Не удалось подготовить фотографию для хранения.');
+    return result;
+  }finally{URL.revokeObjectURL(url);}
+}
+async function chooseLocalPhoto(kind,file){
+  const d=photoDrafts[kind],token=++d.token;d.busy=true;d.message='Подготовка фотографии…';updatePhotoDraft(kind);
+  try{
+    const data=await compressLocalPhoto(file);if(token!==d.token)return;
+    d.data=data;d.busy=false;d.message='Фото подготовлено · сохранится вместе с записью';updatePhotoDraft(kind);
+  }catch(error){
+    if(token!==d.token)return;
+    d.busy=false;d.message=error.message||'Не удалось обработать фотографию.';updatePhotoDraft(kind);toast(d.message);
+  }
+}
+function batchPhotos(b){
+  const items=[];
+  if(b.photo)items.push({data:b.photo,date:b.start,kind:'start',index:0,title:'Исходное фото'});
+  (b.logs||[]).forEach((log,index)=>{if(log.photo)items.push({data:log.photo,date:log.date,kind:'log',index,title:'Фото взвешивания'});});
+  (b.photos||[]).forEach((p,index)=>items.push({data:p.data,date:p.date,kind:'diary',index,title:'Фото дневника'}));
+  return items.sort((a,c)=>Date.parse(c.date)-Date.parse(a.date));
+}
+function photoTilesHTML(b,limit=8){
+  return batchPhotos(b).slice(0,limit).map((p,index)=>'<button type="button" class="photo-tile" onclick="showBatchPhoto('+b.id+','+index+')" aria-label="'+esc(p.title+' · '+fullBackupDate(p.date))+'"><img loading="lazy" decoding="async" src="'+p.data+'" alt="'+esc(p.title+' — '+b.name)+'"><small>'+esc(p.title)+'<br>'+esc(dateTime(p.date))+'</small></button>').join('');
+}
+function photoDiaryHTML(b){
+  const count=batchPhotos(b).length;
+  return '<section class="photo-diary"><div class="section-title"><h3>Фотодневник</h3><span>'+count+' '+plural(count,'фото','фото','фото')+'</span></div>'+(count?'<div class="photo-grid">'+photoTilesHTML(b)+'</div>':'<div class="photo-empty">'+icon('camera')+'<div><strong>Фотографий пока нет</strong><p>Можно добавить отдельное фото или приложить его к взвешиванию.</p></div></div>')+(count>8?'<button type="button" class="secondary photo-add" onclick="showAllBatchPhotos('+b.id+')">Все фотографии · '+count+'</button>':'')+'<button type="button" class="secondary photo-add" onclick="openDiaryPhoto('+b.id+')">'+icon('plus')+' Добавить фотографию</button><p class="detail-safety">Указывается время добавления в журнал, не дата съёмки. Фото не подтверждает безопасность продукта.</p></section>';
+}
+function showAllBatchPhotos(id){const b=batches.find(x=>x.id===id);if(b)showInfo('Фотодневник','<div class="photo-grid">'+photoTilesHTML(b,10000)+'</div>',b.name);}
+function showBatchPhoto(id,index){
+  const b=batches.find(x=>x.id===id),p=b&&batchPhotos(b)[index];if(!p)return;
+  showInfo(p.title,'<img class="info-photo" src="'+p.data+'" alt="'+esc(p.title+' — '+b.name)+'">'+definition([['Продукт',b.name],['Время записи в журнал',fullBackupDate(p.date)],['Дата съёмки','Не считывается из файла']])+'<div class="actions"><button type="button" class="secondary" onclick="downloadBatchPhoto('+id+','+index+')">Скачать фото</button><button type="button" class="danger" onclick="removeBatchPhoto('+id+','+index+')">Удалить фото</button></div>','Фотодневник');
+}
+function downloadBatchPhoto(id,index){
+  const b=batches.find(x=>x.id===id),p=b&&batchPhotos(b)[index];if(!p)return;
+  try{
+    const comma=p.data.indexOf(','),mime=p.data.slice(5,p.data.indexOf(';')),bytes=Uint8Array.from(atob(p.data.slice(comma+1)),ch=>ch.charCodeAt(0));
+    downloadLocalFile(bytes,'FermoControl_photo_'+id+'_'+index+'.'+(mime==='image/jpeg'?'jpg':mime.split('/')[1]),mime);
+    toast('Фото передано браузеру для сохранения.');
+  }catch{toast('Браузер не смог подготовить файл фотографии.');}
+}
+function removeBatchPhoto(id,index){
+  const b=batches.find(x=>x.id===id),p=b&&batchPhotos(b)[index];if(!p)return;
+  requestAppAction('Удалить фотографию?','Удалится только выбранное фото. Продукт, вес, дата и текст записи останутся. Уже выгруженные файлы резервных копий не меняются.','Удалить фото',()=>{
+    const current=batches.find(x=>x.id===id),actual=current&&batchPhotos(current)[index];
+    if(!actual||actual.data!==p.data||actual.date!==p.date){toast('Фотодневник изменился. Откройте фотографию заново.');return false;}
+    const changed={...current};
+    if(p.kind==='start')changed.photo=null;
+    if(p.kind==='log')changed.logs=current.logs.map((l,i)=>i===p.index?{...l,photo:null}:l);
+    if(p.kind==='diary')changed.photos=current.photos.filter((_,i)=>i!==p.index);
+    if(!save(batches.map(x=>x.id===id?changed:x)))return false;
+    closeModal('infoModal');render();openDetail(id);toast('Фотография удалена. Остальная запись сохранена.');return true;
+  });
+}
+function openDiaryPhoto(id){
+  const b=batches.find(x=>x.id===id);if(!b||journalLoadBlocked)return;
+  if((b.photos||[]).length>=100){toast('В отдельном фотодневнике уже 100 фотографий.');return;}
+  resetPhotoDraft('diary');selectedPhotoBatchId=id;$('photoModalSubtitle').textContent=b.name;openModal('photoModal');
+}
+function inspectionHint(){
+  if(!$('inspectionHint'))return;
+  const text=($('smell').value?'Запах: '+$('smell').value:'')+' · '+($('surface').value?'Поверхность: '+$('surface').value:'');
+  const reasons=logReviewReasons({text,requiresReview:$('requiresReview')?.checked===true});
+  $('inspectionHint').textContent=reasons.length?'После сохранения продукт получит отметку «Требует проверки». Она не является диагнозом.':'Можно вручную отметить необходимость проверки. Приложение не делает заключений о безопасности.';
+  $('inspectionHint').classList.toggle('is-warning',reasons.length>0);
+}
+function openWeigh(id){
+  const b=batches.find(x=>x.id===id);if(!b||b.archived)return;
+  if(journalLoadBlocked){storageDetails();return;}
+  closeModal('detailModal');selectedId=id;$('weighForm').reset();resetPhotoDraft('weigh');
+  const m=calcMetrics(b);
+  $('weighModalTitle').textContent='№'+b.number+' · '+b.name;
+  $('weighInputLabel').textContent='Текущий вес на весах, г (предыдущий: '+grams(m.currentWeight)+' г)';
+  $('livePrevInfo').textContent='Старт '+grams(m.startWeight)+' г · цель '+grams(m.targetWeight)+' г (−'+fmt(m.targetPct,1)+'%)';
+  $('currentWeight').value='';$('currentWeight').placeholder='Введите показание весов';
+  inspectionHint();updateLiveWeighPreview();openModal('weighModal');
+}
+function openDetail(id){
+  const b=batches.find(x=>x.id===id);if(!b)return;selectedId=id;
+  const m=calcMetrics(b),tone=m.needsAttention?'amber':'emerald';
+  $('detailTitle').textContent=(b.archived?'Архив · ':'№'+b.number+' · ')+b.name;
+  const points=[{date:b.start,weight:m.startWeight},...m.logs];
+  const rows=m.logs.map((log,index)=>{
+    const segment=measurementInterval(m.startWeight,points[index],log),mass=massMetrics(m.startWeight,m.targetPct,Number(log.weight));
+    const warning=segment.deltaGrams>0||(segment.pace!==null&&segment.pace>preferences.pace),review=logReviewReasons(log);
+    return '<article class="logentry"><div class="logentry-head"><b>'+grams(log.weight)+' г <span class="log-mass-change">('+percentChange(mass.lossPct)+')</span></b><span class="logentry-delta '+(warning?'amber':'')+'">'+(segment.deltaGrams>0?'+':'')+grams(segment.deltaGrams)+' г · '+(segment.pace===null?'темп не оценён':fmt(segment.pace,2)+'%/сут')+'</span></div><small>'+esc(fullBackupDate(log.date))+'</small><div>'+esc(log.text||'Наблюдения не указаны')+'</div>'+(review.length?'<p class="log-review">'+icon('alert')+' Отмечена необходимость проверки</p>':'')+(log.photo?'<button type="button" class="log-photo-button" onclick="showBatchPhoto('+id+','+batchPhotos(b).findIndex(p=>p.kind==='log'&&p.index===index)+')">'+icon('camera')+' Фото этого взвешивания</button>':'')+'</article>';
+  }).reverse().join('');
+  const temp=b.temp===''||b.temp==null?'не указана':grams(Number(b.temp))+' °C';
+  const humidity=b.humidity===''||b.humidity==null?'не указана':grams(Number(b.humidity))+'% RH';
+  $('detailBody').innerHTML='<div class="detail-intro"><span class="status-pill '+(m.needsAttention?'warning':'')+'">'+(b.archived?'В архиве':m.isInspectionDue?'Требует проверки':m.needsAttention?'Нужно действие':'Нет сработавших напоминаний')+'</span><span>День '+m.totalDays+'</span></div>'+
+    (m.isClockIssue?'<div class="notice">Дата записи находится в будущем. Проверьте часы устройства и даты в журнале. Прогноз и новое взвешивание недоступны до устранения несоответствия.</div>':'')+
+    '<div class="hero-stats"><div class="hero-card '+tone+'"><div class="hero-label">'+(m.isTargetReached?'Плановая усушка достигнута':'До плановой массы')+'</div><div class="hero-big">'+grams(m.remainGrams)+' г</div><div class="hero-sub">Последняя запсь: '+grams(m.currentWeight)+' г → цель '+grams(m.targetWeight)+' г</div></div><div class="hero-card emerald"><div class="hero-label">Изменение массы</div><div class="hero-big">'+percentChange(m.lossPct)+'</div><div class="hero-sub">Темп: '+(m.recentPacePctDay===null?'не оценён':fmt(m.recentPacePctDay,2)+'%/сут')+'</div></div></div>'+
+    inspectionPanelHTML(b,m)+buildDryingRecommendations(b,m)+buildTrajectoryChart(b,m)+
+    '<div class="detail-grid"><div class="detail-cell"><span>Сырьё и оболочка</span><b>'+esc(b.basis||'Не указано')+' · '+esc(b.casing||'Не указана')+'</b></div><div class="detail-cell"><span>Посол / специи</span><b>'+esc(b.spices||'Не указаны')+'</b></div><div class="detail-cell"><span>Начальный вес</span><b>'+grams(m.startWeight)+' г</b><span>'+esc(fullBackupDate(b.start))+'</span></div><div class="detail-cell"><span>Климат, введённый вручную</span><b>Температура: '+esc(temp)+'</b><b>Влажность: '+esc(humidity)+'</b></div></div>'+
+    (b.note?'<div class="logentry"><small>Технологическая заметка</small>'+esc(b.note)+'</div>':'')+
+    (b.archived?'<p class="detail-safety">'+(b.archiveDateEstimated?'Точная дата архивации не была записана; используется приблизительная дата: ':'Дата архивации: ')+esc(fullBackupDate(b.archivedAt||b.start))+'.</p>':'')+
+    photoDiaryHTML(b)+'<div class="log"><h3>Журнал взвешиваний ('+m.logs.length+')</h3>'+(rows||'<div class="empty">Записан только начальный вес при закладке.</div>')+'</div><div class="actions">'+(b.archived?'<button type="button" class="secondary" onclick="restoreProduct('+id+')">Вернуть в работу</button>':'<button type="button" class="primary" onclick="openWeigh('+id+')">Взвесить сейчас</button><button type="button" class="secondary" onclick="archiveProduct('+id+')">В архив</button>')+'</div><p class="detail-safety">Достижение целевого веса не подтверждает безопасность. Отсутствие напоминаний означает только отсутствие сработавших правил журнала.</p>';
+  openModal('detailModal');
+}
+
+// BackupPanel: запись журнала, внутренняя копия и передача файла — разные статусы.
+function backupEnvelope(items=batches){return {app:'ФермоКонтроль',format:'fermocontrol-web',formatVersion:1,version:VERSION,createdAt:nowIso(),settings:{interval:preferences.interval,pace:preferences.pace},batches:clone(items)};}
+function checkedBackup(raw){
+  if(!raw||typeof raw!=='object')throw new Error('Файл не содержит резервную копию.');
+  const legacy=Array.isArray(raw);
+  if(!legacy&&raw.format&&raw.format!=='fermocontrol-web')throw new Error('Формат копии несовместим с этим макетом.');
+  if(!legacy&&raw.formatVersion!=null&&(!Number.isInteger(raw.formatVersion)||raw.formatVersion!==1))throw new Error('Версия формата не поддерживается.');
+  const incoming=normalizeBatches(legacy?raw:raw.batches),settings=legacy?{}:(raw.settings??{});
+  if(!settings||typeof settings!=='object'||Array.isArray(settings))throw new Error('Некорректные настройки в копии.');
+  let interval=preferences.interval,pace=preferences.pace;
+  if(settings.interval!=null){interval=Number(settings.interval);if(!Number.isInteger(interval)||interval<1||interval>30)throw new Error('Некорректный интервал взвешиваний в копии.');}
+  if(settings.pace!=null){pace=Number(settings.pace);if(!Number.isFinite(pace)||pace<.1||pace>20)throw new Error('Некорректный порог темпа в копии.');}
+  if(!legacy&&raw.createdAt!=null&&!Number.isFinite(Date.parse(raw.createdAt)))throw new Error('Некорректная дата создания копии.');
+  return {batches:incoming,settings:{interval,pace},createdAt:legacy?null:(raw.createdAt||null)};
+}
+function getAutoBackups(){
+  try{
+    const text=localStorage.getItem(AUTO_BACKUP_KEY);if(text===null)return [];
+    const list=JSON.parse(text);if(!Array.isArray(list)||list.length>2)throw new Error('Некорректный список автокопий.');
+    return list.map(item=>{const checked=checkedBackup(item);if(!checked.createdAt)throw new Error('У автокопии нет даты.');return {...item,batches:checked.batches};});
+  }catch{autoBackupProblem='Автокопии не удалось прочитать. Журнал не заменён. Можно выгрузить журнал в JSON и отдельно удалить повреждённые автокопии.';return [];}
+}
+function recordAutoBackup(){
+  if(journalLoadBlocked)return false;
+  try{
+    const raw=localStorage.getItem(AUTO_BACKUP_KEY);
+    let previous=[];
+    if(raw!==null){const parsed=JSON.parse(raw);if(!Array.isArray(parsed)||parsed.length>2)throw new Error('Некорректные автокопии.');previous=parsed.map(item=>{checkedBackup(item);return item;});}
+    if(previous.length&&JSON.stringify(previous[0].batches)===JSON.stringify(batches)){autoBackupProblem='';return true;}
+    localStorage.setItem(AUTO_BACKUP_KEY,JSON.stringify([backupEnvelope(),...previous].slice(0,2)));autoBackupProblem='';return true;
+  }catch{autoBackupProblem='Журнал сохранён, но автокопия не обновилась: нет места, хранилище недоступно или прежняя автокопия повреждена. Выгрузите JSON-файл.';return false;}
+}
+function hasRecovery(){const record=readStored(RECOVERY_KEY,null);return Boolean(record&&(Array.isArray(record.batches)||typeof record.raw==='string'));}
+function refreshBackupPanel(){
+  const counts=backupCounts(batches);
+  $('backupActiveCount').textContent=counts.active;$('backupArchiveCount').textContent=counts.archive;$('backupLogCount').textContent=counts.logs;
+  $('versionTag').textContent='v'+VERSION;$('intervalSetting').value=preferences.interval;$('paceSetting').value=preferences.pace;
+  const sentAt=lastDownloadRequest||preferences.backupAt;
+  $('backupStatus').textContent=sentAt&&Number.isFinite(Date.parse(sentAt))?'Последняя передача JSON браузеру: '+fullBackupDate(sentAt)+'. Сохранение файла браузер нам не подтверждает.':'JSON-файл ещё не передавался браузеру для сохранения.';
+  const copies=getAutoBackups();
+  $('autoBackupList').innerHTML=copies.length?copies.map((item,index)=>{const c=backupCounts(item.batches);return '<div class="backup-copy"><div><strong>'+(index===0?'Последняя автокопия':'Предыдущая автокопия')+'</strong><small>'+esc(fullBackupDate(item.createdAt))+' · продуктов: '+item.batches.length+' · замеров: '+c.logs+'</small></div><button type="button" onclick="previewAutoBackup('+index+')" aria-label="Открыть автокопию от '+esc(fullBackupDate(item.createdAt))+'">'+icon('undo')+'</button></div>';}).join(''):'<div class="backup-empty">Доступных автокопий пока нет.</div>';
+  $('autoBackupStatus').textContent=autoBackupProblem||(copies.length?'Два последних различающихся сохранённых состояния журнала.':'Автокопия создаётся после успешной записи журнала.');
+  const recovery=readStored(RECOVERY_KEY,null),rawRecovery=typeof recovery?.raw==='string';
+  $('rollbackBtn').hidden=!Array.isArray(recovery?.batches);$('saveRecoveryBtn').hidden=!hasRecovery();
+  if($('recoveryStatus'))$('recoveryStatus').textContent=rawRecovery?'Перед восстановлением сохранена исходная нечитаемая запись. Её можно скачать без преобразований.':Array.isArray(recovery?.batches)?'Страховочная копия перед последней заменой доступна для отката.':'';
+  $('shareBackupBtn').disabled=journalLoadBlocked;$('csvBtn').disabled=journalLoadBlocked;
+  $('exportBtn').disabled=journalLoadBlocked&&startupRaw===null;
+  $('exportBtn').innerHTML=icon('download')+(journalLoadBlocked?'Исходная запись':'Выгрузить JSON');
+  refreshCloudPanel();paintStorageState();
+}
+function openBackupPanel(){refreshBackupPanel();openModal('settingsModal');}
+function exportLocalBackup(payload=backupEnvelope(),isRecovery=false){
+  if(journalLoadBlocked&&!isRecovery){exportSourceRecord();return false;}
+  try{
+    downloadLocalFile(JSON.stringify(payload,null,2),isRecovery?'FermoControl_before_restore.json':backupFileName(),'application/json;charset=utf-8');
+    if(!isRecovery){lastDownloadRequest=nowIso();savePreferences({...preferences,backupAt:lastDownloadRequest});refreshBackupPanel();}
+    toast('JSON передан браузеру. Проверьте сохранённый файл: подтверждения скачивания у макета нет.');return true;
+  }catch{toast('Не удалось передать файл браузеру для сохранения.');return false;}
+}
+function previewBackup(raw,source){
+  try{
+    const checked=checkedBackup(raw),counts=backupCounts(checked.batches),photoCount=checked.batches.reduce((n,b)=>n+batchPhotos(b).length,0);
+    pendingBackupRestore=checked;
+    $('restoreSource').textContent=source+(checked.createdAt?' · '+fullBackupDate(checked.createdAt):'')+' · фотографий: '+photoCount;
+    $('restoreActiveCount').textContent=counts.active;$('restoreArchiveCount').textContent=counts.archive;$('restoreLogCount').textContent=counts.logs;
+    if($('restoreWarning'))$('restoreWarning').textContent=(journalLoadBlocked?'Исходная запись хранилища будет сохранена без преобразований. ':'Сейчас в журнале продуктов: '+batches.length+'. Текущий журнал будет сохранён в страховочную копию. ')+'Данные из копии заменят журнал целиком, а не объединятся с ним. Номера, даты и наблюдения не перенумеровываются и не обрезаются. При ошибке записи замена отменяется.';
+    openModal('backupRestoreModal');
+  }catch(error){toast('Копия не открыта: '+error.message);}
+}
+function previewAutoBackup(index){const copy=getAutoBackups()[index];if(copy)previewBackup(copy,'Автокопия этого браузера');}
+function applyBackupRestore(){
+  if(!pendingBackupRestore)return;
+  const incoming=pendingBackupRestore;
+  let oldRecovery=null,recoveryWritten=false,text;
+  try{
+    const current=localStorage.getItem(KEY);
+    if(current!==lastStoredRaw)throw new Error('Журнал изменён в другой вкладке. Сначала выгрузите открытый журнал и перезагрузите макет.');
+    if(journalLoadBlocked&&startupSource!==KEY&&startupRaw!==null&&localStorage.getItem(startupSource)!==startupRaw)throw new Error('Исходная запись изменилась. Перезагрузите макет перед восстановлением.');
+    text=JSON.stringify(normalizeBatches(incoming.batches));
+    oldRecovery=localStorage.getItem(RECOVERY_KEY);
+    const recovery=journalLoadBlocked&&startupRaw!==null?{format:'fermocontrol-source-record',createdAt:nowIso(),sourceKey:startupSource,raw:startupRaw}:backupEnvelope();
+    localStorage.setItem(RECOVERY_KEY,JSON.stringify(recovery));recoveryWritten=true;
+    localStorage.setItem(KEY,text);
+  }catch(error){
+    if(recoveryWritten){try{if(oldRecovery===null)localStorage.removeItem(RECOVERY_KEY);else localStorage.setItem(RECOVERY_KEY,oldRecovery);}catch{}}
+    journalStorageProblem='Замена не выполнена. Текущий журнал не изменён. '+(error.name==='QuotaExceededError'?'Недостаточно места для страховочной копии и нового журнала.':error.message||'Хранилище недоступно.');
+    paintStorageState();toast(journalStorageProblem);return;
+  }
+  batches=incoming.batches;lastStoredRaw=text;startupRaw=text;startupSource=KEY;journalLoadBlocked=false;needsInitialSave=false;journalStorageProblem='';journalSavedAt=nowIso();
+  const settingsSaved=savePreferences({...preferences,interval:incoming.settings.interval,pace:incoming.settings.pace});
+  recordAutoBackup();pendingBackupRestore=null;selectedId=null;searchQuery='';$('searchInput').value='';
+  for(const id of ['modal','weighModal','photoModal','detailModal','infoModal','backupRestoreModal'])if($(id)?.classList.contains('show'))closeModal(id);
+  setFilter('active');refreshBackupPanel();
+  toast(settingsSaved?'Журнал восстановлен. Предыдущее состояние доступно в страховочной копии.':'Журнал восстановлен, но настройки контроля не записались. Прежние настройки сохранены.');
+}
+function cloudProviderTitle(){return preferences.cloud==='google'?'Google Диск':'Яндекс Диск';}
+function refreshCloudPanel(){
+  document.querySelectorAll('input[name="appCloudProvider"]').forEach(input=>input.checked=input.value===preferences.cloud);
+  if($('cloudProviderTitle'))$('cloudProviderTitle').textContent=cloudProviderTitle();
+  if($('connectCloud'))$('connectCloud').innerHTML=icon('link')+'Подключить '+cloudProviderTitle();
+}
+
+// Интерфейс подтверждений и дополнения к существующему оформлению.
+const appCompletionStyle=document.createElement('style');
+appCompletionStyle.textContent=`
+[hidden]{display:none!important}.storage-banner{display:block;width:100%;margin:12px 0 0;border:1px solid var(--amber-line);border-radius:11px;padding:10px 12px;background:var(--amber-soft);color:var(--amber);text-align:left;font-size:12px;line-height:1.5;min-height:44px}.upload-field{flex-wrap:wrap}.upload-field>span[id]{min-width:90px;overflow-wrap:anywhere}.upload-field label{min-height:44px;display:inline-flex;align-items:center;justify-content:center}.photo-remove{min-width:44px;min-height:44px;border:1px solid var(--line);border-radius:11px;color:#e7b99a}.photo-tile img{width:100%;object-fit:cover}.photo-tile small{line-height:1.5}.photo-add{min-height:44px}.logentry-head{flex-wrap:wrap;align-items:flex-start}.log-mass-change{font-size:12px;font-weight:400;color:var(--muted)}.log-photo-button{margin-top:9px;display:flex;align-items:center;gap:7px;border:1px solid var(--line);border-radius:10px;padding:9px 11px;min-height:44px;color:#c7dcba;font-size:12px}.log-photo-button .ico{width:17px;height:17px}.review-panel{border:1px solid #725a38;background:#edbc7709;padding:15px;border-radius:15px;margin:0 0 18px}.review-panel h3{display:flex;align-items:center;gap:8px;font-size:14px;color:var(--amber);margin:0 0 9px}.review-panel p{font-size:12px;line-height:1.65;color:#dcc8a7;margin:8px 0}.review-panel small{display:block;font-size:11px;line-height:1.6;color:#b5a88f}.review-panel button{margin-top:13px;min-height:44px}.log-review{font-size:11px;color:var(--amber);display:flex;align-items:center;gap:6px}.log-review .ico{width:14px;height:14px}.inspection-choice{display:flex;gap:10px;align-items:flex-start;margin:6px 0 10px;font-size:12px;line-height:1.5;color:#c3cfb9;cursor:pointer}.inspection-choice input{width:20px;height:20px;flex:0 0 20px;accent-color:#b5d9ab;margin:0}.is-warning{color:var(--amber)!important}.backup-actions .backup-button{white-space:normal}.backup-status-row{flex-wrap:wrap}.backup-status-row>span,.backup-status-row>strong{overflow-wrap:anywhere}.backup-confirm-actions>button{white-space:normal}.backup-copy>button{min-width:44px;min-height:44px}.app{height:var(--available-app-height,100dvh)}.sheet{max-height:min(92dvh,calc(var(--available-app-height,100dvh) - 16px))}.modal{height:var(--available-app-height,100dvh);bottom:auto}.compact-view .top{padding-top:max(8px,env(safe-area-inset-top))}.compact-view .brand-sub{display:none}.compact-view .dashboard-controls{padding-top:8px}.compact-view .searchbox{margin-bottom:8px;min-height:44px}.compact-view .sectionhead{margin-bottom:6px}.compact-view .list-heading{padding-bottom:6px}.close{min-width:44px;min-height:44px;width:44px;height:44px}.weigh-button{min-height:44px}.cloud-choice{min-height:48px;white-space:normal}.info-copy{overflow-wrap:anywhere}.detail-grid .detail-cell{min-width:0;overflow-wrap:anywhere}.hero-stats .hero-card{min-width:0}.hero-big,.hero-sub{overflow-wrap:anywhere}@media(max-width:360px){.formgrid{grid-template-columns:1fr}.live-preview-grid{gap:5px}.live-cell{padding:9px 6px}.live-cell strong{font-size:14px}.hero-stats{grid-template-columns:1fr}.actions{flex-wrap:wrap}.actions button{min-width:120px}.backup-card .backup-actions{grid-template-columns:1fr}}
+`;
+document.head.appendChild(appCompletionStyle);
+document.body.insertAdjacentHTML('beforeend','<div class="modal front" id="appActionModal" role="dialog" aria-modal="true" aria-labelledby="appActionTitle"><section class="sheet"><div class="sheettop"><h2 id="appActionTitle">Подтвердить действие</h2><button type="button" class="close" id="appActionClose" aria-label="Отмена">×</button></div><p class="info-copy" id="appActionDescription"></p><div class="backup-confirm-actions"><button type="button" class="secondary" id="appActionCancel">Отмена</button><button type="button" class="primary" id="appActionConfirm">Подтвердить</button></div></section></div>');
+$('appActionClose').onclick=$('appActionCancel').onclick=()=>{queuedAppAction=null;closeModal('appActionModal');};
+$('appActionConfirm').onclick=()=>{
+  if(!queuedAppAction)return;const action=queuedAppAction;const button=$('appActionConfirm');button.disabled=true;
+  try{if(action()!==false){queuedAppAction=null;closeModal('appActionModal');}}
+  catch(error){toast('Действие не завершено: '+(error.message||'ошибка'));}
+  finally{button.disabled=false;}
+};
+
+const cloudCard=document.querySelector('[aria-labelledby="cloudTitle"]');
+cloudCard.innerHTML='<div class="backup-card-head"><span class="backup-section-icon" data-icon="cloud"></span><div><span class="backup-kicker">Облако</span><h3 id="cloudTitle">Резервное копирование в облако</h3></div></div><div class="cloud-options" role="group" aria-label="Облачный сервис"><label class="cloud-choice"><input type="radio" name="appCloudProvider" value="yandex">Яндекс Диск</label><label class="cloud-choice"><input type="radio" name="appCloudProvider" value="google">Google Диск</label></div><div class="backup-status-row"><span id="cloudProviderTitle">Яндекс Диск</span><span class="connection-pill"><i aria-hidden="true"></i>Не подключён</span></div><div class="backup-status-row"><span>Облачная копия</span><strong>Нет подтверждённого сохранения</strong></div><button type="button" class="backup-button" id="connectCloud">Подключить сервис</button><div class="backup-actions"><button type="button" class="backup-button" disabled>Выгрузить в облако</button><button type="button" class="backup-button" disabled>Восстановить из облака</button></div><p class="backup-muted">Оба сервиса показаны как варианты для Android-версии. В этом автономном макете OAuth и облачное резервное копирование не подключены. Токены не запрашиваются. Это не синхронизация устройств.</p>';
+document.querySelectorAll('input[name="appCloudProvider"]').forEach(input=>input.onchange=()=>{savePreferences({...preferences,cloud:input.value});refreshCloudPanel();});
+$('connectCloud').onclick=()=>showInfo('Подключение: '+cloudProviderTitle(),'<p class="info-copy">В этом HTML-макете нет входа в облачный сервис и сетевого сохранения. Выбор сервиса меняет только настройку интерфейса.</p><p class="info-copy">В Android-версии потребуются отдельная авторизация и проверка результата каждой операции. До ответа сервиса нельзя показывать статус «Облачная копия сохранена».</p><p class="info-copy">Сейчас используйте локальный JSON. Его можно самостоятельно загрузить в выбранное облако через приложение устройства.</p>','Облачное резервное копирование');
+
+for(const kind of ['new','weigh','diary']){
+  const prefix=kind==='new'?'newPhoto':kind==='weigh'?'weighPhoto':'diaryPhoto';
+  $(prefix+'Input').onchange=e=>{const file=e.target.files?.[0];e.target.value='';if(file)chooseLocalPhoto(kind,file);};
+  $(prefix+'Remove').onclick=()=>resetPhotoDraft(kind);
+  resetPhotoDraft(kind);
+}
+$('diaryPhotoForm').onsubmit=e=>{
+  e.preventDefault();const d=photoDrafts.diary,b=batches.find(x=>x.id===selectedPhotoBatchId);
+  if(!b||d.busy||!d.data)return;
+  const next=batches.map(x=>x.id===b.id?{...x,photos:[...(x.photos||[]),{date:nowIso(),data:d.data}]}:x);
+  if(!save(next))return;
+  const id=b.id;closeModal('photoModal');render();openDetail(id);toast('Фотография сохранена. Запись веса не создавалась.');
+};
+let reviewCheckbox=$('weighForm').querySelector('input[type="checkbox"]');
+if(!reviewCheckbox){
+  const label=document.createElement('label');label.className='inspection-choice';label.innerHTML='<input type="checkbox" id="requiresReview"><span>Требует проверки — отметить вручную</span>';
+  $('weighForm').querySelector('[type="submit"]').before(label);reviewCheckbox=$('requiresReview');
+}else{reviewCheckbox.id='requiresReview';reviewCheckbox.closest('label')?.classList.add('inspection-choice');}
+const reviewHint=document.createElement('p');reviewHint.id='inspectionHint';reviewHint.className='helper-text';$('weighForm').querySelector('[type="submit"]').before(reviewHint);
+for(const id of ['smell','surface','requiresReview'])$(id).addEventListener('change',inspectionHint);
+$('observation').maxLength=4000;
+for(const id of ['smell','surface','observation']){const el=$(id),label=el.previousElementSibling;if(label?.tagName==='LABEL')label.htmlFor=id;}
+
+$('exportBtn').onclick=()=>exportLocalBackup();
+$('restoreConfirm').onclick=applyBackupRestore;
+$('restoreClose').onclick=$('restoreCancel').onclick=()=>closeModal('backupRestoreModal');
+$('rollbackBtn').onclick=()=>{const record=readStored(RECOVERY_KEY,null);if(Array.isArray(record?.batches))previewBackup(record,'Страховочная копия перед последней заменой');};
+$('saveRecoveryBtn').onclick=()=>{
+  const record=readStored(RECOVERY_KEY,null);if(!record)return;
+  if(typeof record.raw==='string'){
+    try{downloadLocalFile(record.raw,'FermoControl_source_before_restore.json','application/json;charset=utf-8');toast('Исходная запись передана браузеру без преобразований.');}catch{toast('Не удалось подготовить файл.');}
+  }else exportLocalBackup(record,true);
+};
+$('importFile').onchange=async e=>{
+  const file=e.target.files?.[0];if(!file)return;
+  if(file.size>25*1024*1024){toast('Максимальный размер JSON-копии — 25 МБ.');e.target.value='';return;}
+  $('importBtn').disabled=true;
+  try{previewBackup(JSON.parse(await file.text()),'Файл: '+file.name);}
+  catch{toast('JSON-файл не прочитан. Текущий журнал не изменён.');}
+  finally{$('importBtn').disabled=false;e.target.value='';}
+};
+$('intervalSetting').onchange=e=>{const next=Math.round(Math.min(30,Math.max(1,Number(e.target.value)||3)));savePreferences({...preferences,interval:next});e.target.value=preferences.interval;render();};
+$('paceSetting').onchange=e=>{const next=Math.min(20,Math.max(.1,Number(e.target.value)||1.5));savePreferences({...preferences,pace:next});e.target.value=preferences.pace;render();};
+const clearCopies=document.createElement('button');clearCopies.type='button';clearCopies.className='text-button';clearCopies.style.cssText='margin-top:12px;min-height:44px';clearCopies.textContent='Удалить только автокопии';
+clearCopies.onclick=()=>requestAppAction('Удалить автокопии браузера?','Удалятся только две внутренние автокопии. Текущий журнал, страховочная копия перед восстановлением и скачанные файлы останутся. Сначала желательно выгрузить JSON.','Удалить автокопии',()=>{
+  try{localStorage.removeItem(AUTO_BACKUP_KEY);autoBackupProblem='';refreshBackupPanel();toast('Внутренние автокопии удалены. Журнал не изменён.');return true;}
+  catch{toast('Браузер не разрешил удалить автокопии.');return false;}
+});
+document.querySelector('.backup-history-body').appendChild(clearCopies);
+// Удаляем возможную старую кнопку того же действия, чтобы не оставлять неработающий дубль.
+for(const button of document.querySelectorAll('.backup-history-body button'))if(button!==clearCopies&&/удалить.*автокоп/i.test(button.textContent))button.remove();
+const localHelp=document.querySelector('[aria-labelledby="localTitle"] .backup-muted');
+if(localHelp)localHelp.textContent='JSON включает продукты, архив, взвешивания и сохранённые фотографии. Скачивание файла и его сохранение браузером — разные события. Формат предназначен для этого HTML-макета.';
+for(const [id,title] of [['modal','modalTitle'],['weighModal','weighModalTitle'],['detailModal','detailTitle']]){$(id).setAttribute('role','dialog');$(id).setAttribute('aria-modal','true');$(id).setAttribute('aria-labelledby',title);}
+function updateAvailableViewport(){
+  const viewport=window.visualViewport,height=viewport&&viewport.scale===1?viewport.height:window.innerHeight;
+  document.documentElement.style.setProperty('--available-app-height',Math.round(height)+'px');
+  document.documentElement.classList.toggle('compact-view',height<500);
+}
+window.addEventListener('resize',updateAvailableViewport);window.visualViewport?.addEventListener('resize',updateAvailableViewport);updateAvailableViewport();
+window.addEventListener('storage',e=>{
+  if(e.key!==KEY&&e.key!==null)return;
+  try{if(localStorage.getItem(KEY)!==lastStoredRaw){journalStorageProblem='Журнал изменён или удалён в другой вкладке. Открытый журнал не перезаписан. Выгрузите его в JSON и перезагрузите макет перед изменениями.';paintStorageState();}}catch{}
+});
+document.addEventListener('visibilitychange',()=>{if(!document.hidden&&!document.querySelector('.modal.show'))render();});
+hydrateIcons();refreshCloudPanel();
+if(!journalLoadBlocked){if(needsInitialSave){if(save(batches))needsInitialSave=false;}else recordAutoBackup();}
+render();
+</script>
+</body>
+</html>
