@@ -17,10 +17,11 @@ class MainActivity : ComponentActivity() {
             FermocontrolTheme {
                 MainScreen(
                     batches = demoSampleBatches,
+                    onSelect = { /* TODO: детали партии */ },
+                    onWeigh = { /* TODO: взвешивание партии */ },
                     onAdd = { /* TODO: экран "Новый продукт" */ },
-                    onAlerts = { /* TODO: экран "Внимание" */ },
                     onSettings = { /* TODO: экран "Настройки" */ },
-                    onBatchClick = { /* TODO: детали партии */ },
+                    onProfile = { /* TODO: экран "Профиль" */ },
                 )
             }
         }

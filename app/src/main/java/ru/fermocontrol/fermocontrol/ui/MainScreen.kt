@@ -1,179 +1,226 @@
 package ru.fermocontrol.fermocontrol.ui
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
-import androidx.compose.material3.Surface
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.*
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.material3.TextField
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import ru.fermocontrol.fermocontrol.model.Batch
-import ru.fermocontrol.fermocontrol.ui.components.BatchCard
-import ru.fermocontrol.fermocontrol.ui.theme.Amber
-import ru.fermocontrol.fermocontrol.ui.theme.Bg
-import ru.fermocontrol.fermocontrol.ui.theme.Card
-import ru.fermocontrol.fermocontrol.ui.theme.Emerald
-import ru.fermocontrol.fermocontrol.ui.theme.EmeraldLine
-import ru.fermocontrol.fermocontrol.ui.theme.EmeraldSoft
-import ru.fermocontrol.fermocontrol.ui.theme.Ink
-import ru.fermocontrol.fermocontrol.ui.theme.Line
-import ru.fermocontrol.fermocontrol.ui.theme.Muted
+import ru.fermocontrol.fermocontrol.ui.theme.*
 
-enum class MainTab(val label: String) {
-    Products("Продукты"),
-    Weigh("Взвесить"),
-    Archive("Архив"),
-}
+private val MutedLine = Line          // вместо отсутствующего CardLine
+private val EmeraldDeep = Color(0xFF1A1F18)
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MainScreen(
     batches: List<Batch>,
-    onAdd: () -> Unit,
-    onAlerts: () -> Unit,
-    onSettings: () -> Unit,
-    onBatchClick: (Batch) -> Unit,
+    onSelect: (Batch) -> Unit = {},
+    onWeigh: (Batch) -> Unit = {},
+    onAdd: () -> Unit = {},
+    onSettings: () -> Unit = {},
+    onProfile: () -> Unit = {},
 ) {
+    var sort by remember { mutableStateOf("number") }
     var query by remember { mutableStateOf("") }
-    var tab by remember { mutableStateOf(MainTab.Products) }
+    var onlyActive by remember { mutableStateOf(false) }
 
-    val filtered = remember(batches, query, tab) {
-        batches.filter { batch ->
-            val matchesTab = when (tab) {
-                MainTab.Archive -> batch.archived
-                else -> !batch.archived
+    val filtered = remember(batches, sort, query, onlyActive) {
+        batches
+            .filter { if (onlyActive) !it.archived else true }
+            .filter { query.isBlank() || it.name.contains(query, true) }
+            .let { list ->
+                when (sort) {
+                    "attention" -> list.sortedBy { !it.requiresAction() }
+                    "new" -> list.sortedByDescending { it.createdAtEpochMs }
+                    else -> list.sortedBy { it.number }
+                }
             }
-            val matchesQuery = query.isBlank() ||
-                batch.name.contains(query, ignoreCase = true) ||
-                batch.number.toString().contains(query)
-            matchesTab && matchesQuery
-        }
     }
 
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(Bg)
-            .statusBarsPadding()
     ) {
-        // Шапка
+        // ── Шапка ──
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 20.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
+                .padding(start = 20.dp, end = 20.dp, top = 18.dp, bottom = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = "Фермоконтроль",
-                    color = Ink,
-                    fontSize = 22.sp,
-                    fontWeight = FontWeight.SemiBold,
+                    text = "Камера",
+                    fontSize = 24.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = Ink
                 )
                 Text(
-                    text = "журнал партий",
-                    color = Muted,
+                    text = "Партии созревания",
                     fontSize = 13.sp,
+                    color = Muted
                 )
             }
 
-            HeaderIconButton(emoji = "⚠", color = Amber, onClick = onAlerts)
-            Spacer(Modifier.width(10.dp))
-            HeaderIconButton(emoji = "+", color = Emerald, onClick = onAdd)
-            Spacer(Modifier.width(10.dp))
-            HeaderIconButton(emoji = "⚙", color = Muted, onClick = onSettings)
+            HeaderTool(
+                icon = { Icon(Icons.Outlined.Search, null, tint = Muted) },
+                onClick = { query = if (query.isEmpty()) " " else "" }
+            )
+            HeaderTool(
+                icon = { Icon(Icons.Outlined.Notifications, null, tint = Ink) },
+                hasAttention = batches.any { it.requiresAction() },
+                count = batches.count { it.requiresAction() },
+                onClick = { onlyActive = !onlyActive }
+            )
+            HeaderTool(
+                icon = { Icon(Icons.Outlined.Settings, null, tint = Ink) },
+                accent = true,
+                onClick = onSettings
+            )
         }
 
-        // Поиск
-        OutlinedTextField(
-            value = query,
-            onValueChange = { query = it },
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 20.dp),
-            placeholder = { Text("Поиск по названию или номеру…", color = Muted) },
-            singleLine = true,
-            shape = RoundedCornerShape(14.dp),
-            colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = EmeraldLine,
-                unfocusedBorderColor = Line,
-                cursorColor = Emerald,
-                focusedTextColor = Ink,
-                unfocusedTextColor = Ink,
-            ),
-        )
+        // ── Поиск ──
+        if (query.isNotBlank()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 6.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Card)
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(Icons.Outlined.Search, null, tint = Muted)
+                Spacer(Modifier.width(8.dp))
+                TextField(
+                    value = query,
+                    onValueChange = { query = it },
+                    modifier = Modifier.weight(1f),
+                    textStyle = androidx.compose.ui.text.TextStyle(fontSize = 14.sp, color = Ink),
+                    singleLine = true,
+                    placeholder = { Text("Название партии…", color = Muted) }
+                )
+            }
+        }
 
-        Spacer(Modifier.height(14.dp))
+        // ── Сортировка ──
+        SortRow(sort = sort, onSelect = { sort = it })
 
-        // Вкладки-пилюли
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 20.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        // ── Список ──
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(horizontal = 20.dp, vertical = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            MainTab.entries.forEach { t ->
-                TabPill(
-                    label = t.label,
-                    selected = tab == t,
-                    onClick = { tab = t },
+            items(filtered, key = { it.id }) { batch ->
+                BatchCard(
+                    batch = batch,
+                    onClick = { onSelect(batch) },
+                    onWeigh = { onWeigh(batch) }
                 )
             }
+            item { Spacer(Modifier.height(72.dp)) }
         }
+    }
 
-        Spacer(Modifier.height(14.dp))
+    // ── Кнопка добавления ──
+    Box(modifier = Modifier.fillMaxSize()) {
+        RoundedButton(
+            text = "Новая закладка",
+            accent = true,
+            onClick = onAdd,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = 20.dp)
+                .fillMaxWidth(0.9f)
+        )
+    }
+}
 
-        // Список
-        if (filtered.isEmpty()) {
+// ───────────────────────── Производные данные партии ─────────────────────────
+
+private fun Batch.currentWeightGrams(): Double =
+    logs.lastOrNull()?.weightGrams ?: startWeightGrams
+
+private fun Batch.lossPercent(): Double {
+    val cur = currentWeightGrams()
+    if (startWeightGrams <= 0.0) return 0.0
+    return ((startWeightGrams - cur) / startWeightGrams) * 100.0
+}
+
+private fun Batch.targetProgress(): Float {
+    if (targetLossPercent <= 0.0) return 0f
+    return (lossPercent() / targetLossPercent).toFloat().coerceIn(0f, 1f)
+}
+
+private fun Batch.day(): Int {
+    if (createdAtEpochMs <= 0L) return 0
+    val now = System.currentTimeMillis()
+    return ((now - createdAtEpochMs) / (1000L * 60 * 60 * 24)).toInt()
+}
+
+private fun Batch.requiresAction(): Boolean =
+    lossPercent() >= targetLossPercent || logs.lastOrNull()?.needsCheck == true
+
+private fun Batch.nextActionText(): String = when {
+    logs.lastOrNull()?.needsCheck == true -> "Требует проверки"
+    lossPercent() >= targetLossPercent -> "Цель достигнута"
+    archived -> "В архиве"
+    else -> "Контрольное взвешивание"
+}
+
+// ─────────────────────────────── Компоненты ───────────────────────────────
+
+@Composable
+private fun HeaderTool(
+    icon: @Composable () -> Unit,
+    accent: Boolean = false,
+    hasAttention: Boolean = false,
+    count: Int = 0,
+    onClick: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .padding(start = 8.dp)
+            .size(40.dp)
+            .clip(CircleShape)
+            .background(if (accent) Emerald else Card)
+            .clickable { onClick() },
+        contentAlignment = Alignment.Center
+    ) {
+        icon()
+        if (hasAttention) {
             Box(
                 modifier = Modifier
-                    .fillMaxSize()
-                    .padding(32.dp),
-                contentAlignment = Alignment.Center,
+                    .align(Alignment.TopEnd)
+                    .size(14.dp)
+                    .clip(CircleShape)
+                    .background(Amber),
+                contentAlignment = Alignment.Center
             ) {
-                Text(
-                    text = if (tab == MainTab.Weigh) "Нет активных партий для взвешивания"
-                    else "Партии не найдены",
-                    color = Muted,
-                    fontSize = 15.sp,
-                )
-            }
-        } else {
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(horizontal = 20.dp, vertical = 4.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                items(filtered, key = { it.id }) { batch ->
-                    BatchCard(batch = batch, onClick = { onBatchClick(batch) })
+                if (count > 0) {
+                    Text(
+                        text = count.toString().take(2),
+                        fontSize = 8.sp,
+                        color = Bg,
+                        fontWeight = FontWeight.Bold
+                    )
                 }
             }
         }
@@ -181,47 +228,187 @@ fun MainScreen(
 }
 
 @Composable
-private fun HeaderIconButton(
-    emoji: String,
-    color: Color,
-    onClick: () -> Unit,
-) {
-    Surface(
-        onClick = onClick,
-        shape = CircleShape,
-        color = Card,
-        border = BorderStroke(1.dp, Line),
+private fun SortRow(sort: String, onSelect: (String) -> Unit) {
+    val options = listOf(
+        "number" to "По номеру",
+        "attention" to "Сначала внимание",
+        "new" to "Сначала новые"
+    )
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 20.dp, vertical = 6.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp)
     ) {
-        Box(
-            modifier = Modifier.size(44.dp),
-            contentAlignment = Alignment.Center,
-        ) {
-            Text(text = emoji, fontSize = 20.sp, color = color)
+        options.forEach { (key, label) ->
+            val selected = sort == key
+            Text(
+                text = label,
+                fontSize = 11.sp,
+                color = if (selected) Emerald else Muted,
+                fontWeight = if (selected) FontWeight.Medium else FontWeight.Normal,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .clickable { onSelect(key) }
+                    .padding(horizontal = 6.dp, vertical = 2.dp)
+            )
         }
     }
 }
 
 @Composable
-private fun TabPill(
-    label: String,
-    selected: Boolean,
+private fun RoundedButton(
+    text: String,
+    accent: Boolean,
+    expanded: Boolean = false,
     onClick: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
-    val bg = if (selected) EmeraldSoft else Color.Transparent
-    val fg = if (selected) Emerald else Muted
-    val border = if (selected) EmeraldLine else Line
-
-    Surface(
-        onClick = onClick,
-        shape = RoundedCornerShape(50),
-        color = bg,
-        border = BorderStroke(1.dp, border),
+    Box(
+        modifier = modifier
+            .let { if (expanded) it.fillMaxWidth() else it }
+            .clip(RoundedCornerShape(14.dp))
+            .background(if (accent) Emerald else Card)
+            .clickable { onClick() }
+            .padding(vertical = 14.dp),
+        contentAlignment = Alignment.Center
     ) {
+        Text(
+            text = text,
+            fontSize = 15.sp,
+            fontWeight = FontWeight.Medium,
+            color = if (accent) EmeraldDeep else Ink
+        )
+    }
+}
+
+@Composable
+private fun BatchCard(
+    batch: Batch,
+    onClick: () -> Unit,
+    onWeigh: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(Card)
+            .clickable { onClick() }
+            .padding(14.dp)
+    ) {
+        // Верхняя строка: номер + название + потеря %
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                modifier = Modifier
+                    .size(40.dp, 42.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(Line),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = batch.number.toString(),
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Muted
+                )
+            }
+
+            Spacer(Modifier.width(10.dp))
+
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = batch.name,
+                    fontSize = 16.sp,
+                    color = Ink
+                )
+                Text(
+                    text = "${batch.rawMaterial} · день ${batch.day()}",
+                    fontSize = 12.sp,
+                    color = Muted
+                )
+            }
+
+            Column(horizontalAlignment = Alignment.End) {
+                Text(
+                    text = "%.1f%%".format(batch.lossPercent()),
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Emerald
+                )
+                Text(
+                    text = "потеря",
+                    fontSize = 10.sp,
+                    color = Muted
+                )
+            }
+        }
+
+        Spacer(Modifier.height(10.dp))
+
+        // Крупный вес
+        Text(
+            text = "%.0f г".format(batch.currentWeightGrams()),
+            fontSize = 30.sp,
+            fontWeight = FontWeight.Medium,
+            color = Ink
+        )
+
+        Spacer(Modifier.height(8.dp))
+
+        // Прогресс-бар к цели
         Box(
-            modifier = Modifier.padding(horizontal = 18.dp, vertical = 8.dp),
-            contentAlignment = Alignment.Center,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(4.dp)
+                .clip(RoundedCornerShape(2.dp))
+                .background(Line)
         ) {
-            Text(text = label, color = fg, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth(batch.targetProgress())
+                    .height(4.dp)
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(if (batch.requiresAction()) Amber else Emerald)
+            )
+        }
+
+        Spacer(Modifier.height(10.dp))
+
+        // Нижняя строка: действие + кнопка Взвесить
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .size(6.dp)
+                        .clip(CircleShape)
+                        .background(if (batch.requiresAction()) Amber else Emerald)
+                )
+                Spacer(Modifier.width(6.dp))
+                Text(
+                    text = batch.nextActionText(),
+                    fontSize = 12.sp,
+                    color = Muted
+                )
+            }
+
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(if (batch.requiresAction()) Amber else Line)
+                    .clickable { onWeigh() }
+                    .padding(horizontal = 14.dp, vertical = 7.dp)
+            ) {
+                Text(
+                    text = "Взвесить",
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Medium,
+                    color = if (batch.requiresAction()) Bg else Ink
+                )
+            }
         }
     }
 }
