@@ -38,10 +38,12 @@ import ru.fermocontrol.fermocontrol.data.BatchRepository
 import ru.fermocontrol.fermocontrol.model.Batch
 import ru.fermocontrol.fermocontrol.model.NewBatchDraft
 import ru.fermocontrol.fermocontrol.model.WeightLog
+import ru.fermocontrol.fermocontrol.ui.BatchDetailSheet
 import ru.fermocontrol.fermocontrol.ui.MainScreen
 import ru.fermocontrol.fermocontrol.ui.NewBatchDialog
 import ru.fermocontrol.fermocontrol.ui.WeighSheet
 import ru.fermocontrol.fermocontrol.ui.theme.FermocontrolTheme
+import java.io.File
 
 class MainActivity : ComponentActivity() {
 
@@ -72,7 +74,7 @@ class MainActivity : ComponentActivity() {
 
                         else -> MainScreen(
                             batches = journal.batches,
-                            onSelect = { pending("Детали партии") },
+                            onSelect = journal::openDetail,
                             onWeigh = journal::openWeigh,
                             onAdd = journal::openNewBatch,
                             onSettings = { pending("Настройки") },
@@ -81,6 +83,20 @@ class MainActivity : ComponentActivity() {
                     }
 
                     if (!journal.loading && journal.loadError == null) {
+                        val detailBatch = journal.detailBatch
+                        if (detailBatch != null) {
+                            BatchDetailSheet(
+                                batch = detailBatch,
+                                saving = journal.saving,
+                                error = journal.archiveError,
+                                // Путь должен совпадать с тем, куда BatchRepository кладёт фото.
+                                photoFile = { name -> File(filesDir, "photos/$name") },
+                                onDismiss = journal::closeDetail,
+                                onWeigh = { journal.openWeigh(detailBatch) },
+                                onSetArchived = { archived -> journal.setArchived(archived) },
+                            )
+                        }
+
                         if (journal.newBatchOpen) {
                             NewBatchDialog(
                                 saving = journal.saving,
@@ -143,6 +159,9 @@ class JournalViewModel(application: Application) :
     var weighError by mutableStateOf<String?>(null)
         private set
 
+    var archiveError by mutableStateOf<String?>(null)
+        private set
+
     var newBatchOpen by mutableStateOf(false)
         private set
 
@@ -151,6 +170,12 @@ class JournalViewModel(application: Application) :
 
     val weighingBatch: Batch?
         get() = batches.firstOrNull { it.id == weighingBatchId }
+
+    // Открытая карточка партии.
+    private var detailBatchId by mutableStateOf<Long?>(null)
+
+    val detailBatch: Batch?
+        get() = batches.firstOrNull { it.id == detailBatchId }
 
     init {
         reload()
@@ -333,7 +358,6 @@ class JournalViewModel(application: Application) :
                 )
 
                 // Добавляем запись только выбранной партии.
-                // Остальные партии и предыдущие записи сохраняются.
                 val updated = batches.map { existing ->
                     if (existing.id == batch.id) {
                         existing.copy(logs = existing.logs + log)
@@ -357,6 +381,65 @@ class JournalViewModel(application: Application) :
                     "Не удалось сохранить взвешивание: " +
                     (error.localizedMessage ?: "ошибка записи") +
                     "\nФорма оставлена открытой."
+            } finally {
+                saving = false
+            }
+        }
+    }
+
+    fun openDetail(batch: Batch) {
+        if (
+            loading ||
+            saving ||
+            loadError != null ||
+            newBatchOpen
+        ) {
+            return
+        }
+
+        val actual = batches.firstOrNull { it.id == batch.id } ?: return
+
+        archiveError = null
+        detailBatchId = actual.id
+    }
+
+    fun closeDetail() {
+        if (saving) return
+
+        detailBatchId = null
+        archiveError = null
+    }
+
+    fun setArchived(archived: Boolean) {
+        if (loading || saving || loadError != null) return
+
+        val batch = detailBatch ?: return
+        if (batch.archived == archived) return
+
+        saving = true
+        archiveError = null
+
+        scope.launch {
+            try {
+                val updated = batches.map { existing ->
+                    if (existing.id == batch.id) {
+                        existing.copy(archived = archived)
+                    } else {
+                        existing
+                    }
+                }
+
+                // Сначала запись на диск, потом обновление экрана.
+                repository.save(updated)
+                batches = updated
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (error: Exception) {
+                Log.e("Fermocontrol", "Cannot save archive state", error)
+
+                archiveError =
+                    "Не удалось изменить архив: " +
+                    (error.localizedMessage ?: "ошибка записи")
             } finally {
                 saving = false
             }
