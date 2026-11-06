@@ -22,6 +22,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import ru.fermocontrol.fermocontrol.model.Batch
 import ru.fermocontrol.fermocontrol.ui.theme.*
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 private val MutedLine = Line          // вместо отсутствующего CardLine
 private val EmeraldDeep = Color(0xFF1A1F18)
@@ -35,11 +38,14 @@ fun MainScreen(
     onSettings: () -> Unit = {},
     onProfile: () -> Unit = {},
 ) {
-    var sort by remember { mutableStateOf("number") }
-    var query by remember { mutableStateOf("") }
-    var onlyActive by remember { mutableStateOf(false) }
+   var sort by remember { mutableStateOf("number") }
+	var query by remember { mutableStateOf("") }
+	var onlyActive by remember { mutableStateOf(false) }
 
-    val filtered = remember(batches, sort, query, onlyActive) {
+	val todayLabel = remember {
+    SimpleDateFormat("d MMMM yyyy", Locale.forLanguageTag("ru-RU")).format(Date())
+	}
+		val filtered = remember(batches, sort, query, onlyActive) {
         batches
             .filter { if (onlyActive) !it.archived else true }
             .filter { query.isBlank() || it.name.contains(query, true) }
@@ -58,42 +64,101 @@ fun MainScreen(
             .background(Bg)
     ) {
         // ── Шапка ──
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(start = 20.dp, end = 20.dp, top = 18.dp, bottom = 8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "Камера",
-                    fontSize = 24.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = Ink
-                )
-                Text(
-                    text = "Партии созревания",
-                    fontSize = 13.sp,
-                    color = Muted
-                )
-            }
-
-            HeaderTool(
-                icon = { Icon(Icons.Outlined.Search, null, tint = Muted) },
-                onClick = { query = if (query.isEmpty()) " " else "" }
+Column(
+    modifier = Modifier
+        .fillMaxWidth()
+        .padding(start = 20.dp, end = 20.dp, top = 18.dp, bottom = 8.dp)
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = "ФермоКонтроль",
+                fontSize = 18.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = Ink
             )
-            HeaderTool(
-                icon = { Icon(Icons.Outlined.Notifications, null, tint = Ink) },
-                hasAttention = batches.any { it.requiresAction() },
-                count = batches.count { it.requiresAction() },
-                onClick = { onlyActive = !onlyActive }
-            )
-            HeaderTool(
-                icon = { Icon(Icons.Outlined.Settings, null, tint = Ink) },
-                accent = true,
-                onClick = onSettings
+            Text(
+                text = "ЖУРНАЛ СОЗРЕВАНИЯ",
+                fontSize = 10.sp,
+                letterSpacing = 1.3.sp,
+                color = Muted
             )
         }
+
+        HeaderTool(
+            icon = {
+                Icon(
+                    imageVector = Icons.Outlined.Notifications,
+                    contentDescription = "Внимание",
+                    tint = Ink
+                )
+            },
+            hasAttention = batches.any { it.requiresAction() },
+            count = batches.count { it.requiresAction() },
+            onClick = { onlyActive = !onlyActive }
+        )
+
+        HeaderTool(
+            icon = {
+                Icon(
+                    imageVector = Icons.Outlined.Add,
+                    contentDescription = "Новая закладка",
+                    tint = Bg
+                )
+            },
+            accent = true,
+            onClick = onAdd
+        )
+
+        HeaderTool(
+            icon = {
+                Icon(
+                    imageVector = Icons.Outlined.Settings,
+                    contentDescription = "Настройки",
+                    tint = Ink
+                )
+            },
+            onClick = onSettings
+        )
+    }
+
+    Spacer(Modifier.height(24.dp))
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.Bottom
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = "Камера",
+                fontSize = 28.sp,
+                fontWeight = FontWeight.Medium,
+                color = Ink
+            )
+            Text(
+                text = "Партии созревания",
+                fontSize = 13.sp,
+                color = Muted
+            )
+        }
+
+        Column(horizontalAlignment = Alignment.End) {
+            Text(
+                text = "Сегодня",
+                fontSize = 11.sp,
+                color = Muted
+            )
+            Text(
+                text = todayLabel,
+                fontSize = 12.sp,
+                color = Ink
+            )
+        }
+    }
+}
 
         // ── Поиск ──
         if (query.isNotBlank()) {
