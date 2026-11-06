@@ -1,0 +1,283 @@
+package ru.fermocontrol.fermocontrol.ui
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CheckboxDefaults
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import java.util.Locale
+import kotlin.math.abs
+import kotlin.math.max
+import ru.fermocontrol.fermocontrol.model.Batch
+import ru.fermocontrol.fermocontrol.model.computeMetrics
+import ru.fermocontrol.fermocontrol.ui.components.FcPrimaryButton
+import ru.fermocontrol.fermocontrol.ui.components.FcSelect
+import ru.fermocontrol.fermocontrol.ui.components.FcSheet
+import ru.fermocontrol.fermocontrol.ui.components.FieldPair
+import ru.fermocontrol.fermocontrol.ui.components.LabeledInput
+import ru.fermocontrol.fermocontrol.ui.theme.*
+
+private val SMELLS = listOf(
+    "Не указан", "Чистый вяленый аромат", "Пряный, ореховый",
+    "Кисловатый", "Резкий, подозрительный",
+)
+private val SURFACES = listOf(
+    "Не указана", "Сухая, без изменений", "Благородный белый налёт",
+    "Влажная, липкая", "Уплотнение (риск закала)",
+)
+
+private const val MAX_WEIGHT_G = 1_000_000.0
+private const val HOUR_MS = 3_600_000L
+private const val DAY_MS = 86_400_000.0
+
+private fun weighNum(v: String): Double? =
+    v.trim().replace(',', '.').toDoubleOrNull()?.takeIf { it.isFinite() }
+
+private fun weighDec(v: Double, digits: Int): String =
+    String.format(Locale.forLanguageTag("ru"), "%.${digits}f", v)
+
+/** Панель «Взвешивание партии» по макету v0.4.1 (#weighModal). */
+@Composable
+fun WeighSheet(
+    batch: Batch,
+    saving: Boolean,
+    error: String?,
+    onDismiss: () -> Unit,
+    onSave: (weightGrams: Double, smell: String, surface: String, needsCheck: Boolean) -> Unit,
+) {
+    var weightText by rememberSaveable(batch.id) { mutableStateOf("") }
+    var smell by rememberSaveable(batch.id) { mutableStateOf(SMELLS.first()) }
+    var surface by rememberSaveable(batch.id) { mutableStateOf(SURFACES.first()) }
+    var needsCheck by rememberSaveable(batch.id) { mutableStateOf(false) }
+
+    val now = remember(batch.id) { System.currentTimeMillis() }
+    val metrics = remember(batch) { computeMetrics(batch, now) }
+
+    val start = batch.startWeightGrams
+    val target = batch.targetLossPercent
+    val targetWeight = start * (1.0 - target / 100.0)
+    val lastLog = batch.logs.maxByOrNull { it.atEpochMs }
+    val prevWeight = lastLog?.weightGrams ?: start
+    val prevTime = lastLog?.atEpochMs ?: batch.createdAtEpochMs
+    val clockIssue = prevTime > now
+
+    val parsed = weighNum(weightText)
+    val entered = parsed?.takeIf { it > 0.0 && it <= MAX_WEIGHT_G }
+    val invalidInput = weightText.isNotBlank() && entered == null
+
+    val shown = entered ?: metrics.currentWeightGrams
+    val lossPct = if (start > 0.0) (start - shown) / start * 100.0 else 0.0
+    val remainG = max(0.0, shown - targetWeight)
+    val targetReached = target > 0.0 && lossPct >= target
+
+    val delta = entered?.let { it - prevWeight }
+    val elapsed = now - prevTime
+    val pace = if (entered != null && start > 0.0 && elapsed >= HOUR_MS) {
+        (prevWeight - entered) / start * 100.0 / (elapsed / DAY_MS)
+    } else null
+
+    val increased = delta != null && delta > 0.0
+    val warning = increased || clockIssue
+
+    val messages = buildList {
+        if (invalidInput) add("Введите положительный вес не более 1 000 000 г.")
+        if (clockIssue) add("Предыдущая запись датирована будущим. Проверьте часы устройства: новая запись пока не может быть сохранена.")
+        if (increased) add("Вес увеличился на ${fmtGrams(delta!!)} г. Проверьте показание, тару и введённые цифры.")
+        if (entered != null) {
+            if (targetReached) add("Плановая усушка достигнута. Это не подтверждение безопасности и не автоматическая команда завершить процесс.")
+            else add("До плановой массы осталось ${fmtGrams(remainG)} г.")
+            if (pace == null && !clockIssue) add("При интервале менее часа темп не оценивается; вес и дата сохраняются без подмены интервала.")
+        }
+    }
+
+    FcSheet(
+        title = "Взвешивание партии",
+        subtitle = "№${batch.number} · ${batch.name}",
+        onDismiss = onDismiss,
+        dismissible = !saving,
+    ) {
+        if (error != null) {
+            Text(error, color = Danger, fontSize = 12.sp, modifier = Modifier.padding(bottom = 12.dp))
+        }
+
+        LabeledInput(
+            label = "Текущий вес на весах, г",
+            value = weightText,
+            onValueChange = { weightText = it },
+            placeholder = "1168",
+            enabled = !saving,
+            keyboardType = KeyboardType.Decimal,
+            error = if (invalidInput) "Введите вес в граммах, больше 0" else null,
+        )
+
+        // Живой расчёт прогресса
+        val box = RoundedCornerShape(14.dp)
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 14.dp)
+                .clip(box)
+                .background(Color(0xFF1B271E))
+                .border(1.dp, Color(0xFF3B4D35), box)
+                .padding(13.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Text("ЖИВОЙ РАСЧЁТ ПРОГРЕССА", color = Muted, fontSize = 9.sp,
+                    letterSpacing = 0.6.sp, fontWeight = FontWeight.SemiBold)
+                Text(
+                    if (entered != null) "после записи" else "сейчас",
+                    color = Muted, fontSize = 9.sp,
+                )
+            }
+            LiveCell(
+                label = "Потеря веса",
+                value = fmtPercentChange(lossPct),
+                sub = (if (entered != null) "после записи · цель −" else "сейчас · цель −") +
+                    weighDec(target, 1) + "%",
+            )
+            LiveCell(
+                label = "До цели",
+                value = "${fmtGrams(remainG)} г",
+                sub = "до ${fmtGrams(targetWeight)} г",
+            )
+            LiveCell(
+                label = "С прошлого замера",
+                value = when {
+                    delta != null -> (if (delta > 0.0) "+" else if (delta < 0.0) "−" else "") +
+                        fmtGrams(abs(delta)) + " г"
+                    weightText.isNotBlank() -> "некорректный вес"
+                    else -> "введите вес"
+                },
+                sub = when {
+                    entered == null -> "темп не рассчитан"
+                    pace == null -> "темп: интервал менее часа"
+                    else -> weighDec(pace, 2) + "%/сут"
+                },
+                warn = increased,
+            )
+            if (messages.isNotEmpty()) {
+                val amber = warning || invalidInput
+                val s = RoundedCornerShape(10.dp)
+                Text(
+                    text = messages.joinToString(" "),
+                    color = if (amber) Color(0xFFE4C28F) else Color(0xFFBFD9B1),
+                    fontSize = 11.sp,
+                    lineHeight = 17.6.sp,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(s)
+                        .background(if (amber) AmberSoft else EmeraldSoft)
+                        .border(1.dp, if (amber) AmberLine else EmeraldLine, s)
+                        .padding(10.dp),
+                )
+            }
+        }
+
+        Text(
+            "ОСМОТР И ЗАМЕТКИ · ПО ЖЕЛАНИЮ",
+            color = Color(0xFFB2C5A5),
+            fontSize = 10.sp,
+            letterSpacing = 1.sp,
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.padding(top = 4.dp, bottom = 8.dp),
+        )
+
+        FieldPair(
+            first = { m -> FcSelect("Запах", smell, SMELLS, { smell = it }, m) },
+            second = { m -> FcSelect("Поверхность", surface, SURFACES, { surface = it }, m) },
+        )
+
+        val cbShape = RoundedCornerShape(12.dp)
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 14.dp)
+                .clip(cbShape)
+                .background(Color(0x07EDBC77))
+                .border(1.dp, Color(0xFF5D5036), cbShape)
+                .toggleable(value = needsCheck, enabled = !saving, role = Role.Checkbox) { needsCheck = it }
+                .padding(12.dp),
+            verticalAlignment = Alignment.Top,
+        ) {
+            Checkbox(
+                checked = needsCheck,
+                onCheckedChange = null,
+                enabled = !saving,
+                colors = CheckboxDefaults.colors(checkedColor = Amber, checkmarkColor = Bg),
+                modifier = Modifier.size(19.dp),
+            )
+            Column(Modifier.padding(start = 10.dp)) {
+                Text("Требует проверки", color = Color(0xFFD9C7AA), fontSize = 12.sp)
+                Text(
+                    "Отдельная отметка в журнале, не заключение о безопасности.",
+                    color = Muted, fontSize = 12.sp, lineHeight = 19.sp,
+                )
+            }
+        }
+
+        FcPrimaryButton(
+            text = if (saving) "Сохранение…" else "Сохранить запись",
+            enabled = !saving && entered != null && !clockIssue,
+        ) {
+            entered?.let {
+                onSave(
+                    it,
+                    smell.takeUnless { s -> s == SMELLS.first() }.orEmpty(),
+                    surface.takeUnless { s -> s == SURFACES.first() }.orEmpty(),
+                    needsCheck,
+                )
+            }
+        }
+        Spacer(Modifier.height(4.dp))
+    }
+}
+
+@Composable
+private fun LiveCell(label: String, value: String, sub: String, warn: Boolean = false) {
+    val shape = RoundedCornerShape(11.dp)
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(Color(0xFF172219))
+            .border(1.dp, if (warn) AmberLine else Color(0xFF34442F), shape)
+            .padding(horizontal = 11.dp, vertical = 9.dp),
+    ) {
+        Text(label, color = Muted, fontSize = 10.sp)
+        Row(
+            modifier = Modifier.padding(top = 2.dp),
+            verticalAlignment = Alignment.Bottom,
+            horizontalArrangement = Arrangement.spacedBy(7.dp),
+        ) {
+            Text(value, color = if (warn) Amber else Ink, fontSize = 16.sp, fontWeight = FontWeight.Medium)
+            Text(sub, color = Muted, fontSize = 10.sp, modifier = Modifier.padding(bottom = 2.dp))
+        }
+    }
+}
