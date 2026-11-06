@@ -105,3 +105,20 @@ private fun Double.pow(n: Int): Double {
     repeat(n) { result *= this }
     return result
 }
+/**
+ * Единое правило внимания для счётчиков, фильтра и карточки.
+ * Достижение цели усушки не означает оценку безопасности продукта.
+ */
+fun Batch.requiresAttention(
+    metrics: Metrics = computeMetrics(this),
+): Boolean {
+    if (archived) return false
+
+    val lastLog = logs.maxByOrNull { it.atEpochMs }
+
+    val targetReached =
+        metrics.targetLossPercent > 0.0 &&
+            metrics.lostPercent >= metrics.targetLossPercent
+
+    return lastLog?.needsCheck == true || targetReached
+}

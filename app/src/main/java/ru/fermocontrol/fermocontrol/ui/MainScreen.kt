@@ -1,34 +1,79 @@
 package ru.fermocontrol.fermocontrol.ui
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.*
+import androidx.compose.material.icons.outlined.Add
+import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.ExpandMore
+import androidx.compose.material.icons.outlined.Notifications
+import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
+import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import ru.fermocontrol.fermocontrol.model.Batch
-import ru.fermocontrol.fermocontrol.ui.theme.*
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import kotlinx.coroutines.delay
+import ru.fermocontrol.fermocontrol.model.Batch
+import ru.fermocontrol.fermocontrol.model.Metrics
+import ru.fermocontrol.fermocontrol.model.computeMetrics
+import ru.fermocontrol.fermocontrol.model.requiresAttention
+import ru.fermocontrol.fermocontrol.ui.components.BatchCard
+import ru.fermocontrol.fermocontrol.ui.theme.*
 
-private val MutedLine = Line          // вместо отсутствующего CardLine
-private val EmeraldDeep = Color(0xFF1A1F18)
+private enum class MainTab(val label: String) {
+    PRODUCTS("Продукты"),
+    WEIGH("Взвесить"),
+    ARCHIVE("Архив"),
+}
 
+private enum class BatchSort(val label: String) {
+    NUMBER("По номеру"),
+    ATTENTION("Сначала внимание"),
+    NEW("Сначала новые"),
+}
+
+private data class BatchRow(
+    val batch: Batch,
+    val metrics: Metrics,
+    val attention: Boolean,
+)
+
+@Suppress("UNUSED_PARAMETER")
 @Composable
 fun MainScreen(
     batches: List<Batch>,
@@ -37,447 +82,591 @@ fun MainScreen(
     onAdd: () -> Unit = {},
     onSettings: () -> Unit = {},
     onProfile: () -> Unit = {},
-	onWeighBatch: (Batch) -> Unit = { batch -> onWeigh(batch) },
+    onWeighBatch: (Batch) -> Unit = onWeigh,
 ) {
-   var sort by remember { mutableStateOf("number") }
-	var query by remember { mutableStateOf("") }
-	var onlyActive by remember { mutableStateOf(false) }
-
-	val todayLabel = remember {
-    SimpleDateFormat("d MMMM yyyy", Locale.forLanguageTag("ru-RU")).format(Date())
-	}
-		val filtered = remember(batches, sort, query, onlyActive) {
-        batches
-            .filter { if (onlyActive) !it.archived else true }
-            .filter { query.isBlank() || it.name.contains(query, true) }
-            .let { list ->
-                when (sort) {
-                    "attention" -> list.sortedBy { !it.requiresAction() }
-                    "new" -> list.sortedByDescending { it.createdAtEpochMs }
-                    else -> list.sortedBy { it.number }
-                }
-            }
+    var tab by rememberSaveable {
+        mutableStateOf(MainTab.PRODUCTS)
+    }
+    var sort by rememberSaveable {
+        mutableStateOf(BatchSort.NUMBER)
+    }
+    var query by rememberSaveable {
+        mutableStateOf("")
+    }
+    var category by rememberSaveable {
+        mutableStateOf("")
     }
 
-    Column(
+    val listState = rememberLazyListState()
+    val focusManager = LocalFocusManager.current
+
+    // Обновляем дату и возраст партий, если экран долго открыт.
+    val nowEpochMs by produceState(
+        initialValue = System.currentTimeMillis()
+    ) {
+        while (true) {
+            delay(60_000L)
+            value = System.currentTimeMillis()
+        }
+    }
+
+    val todayLabel = remember(nowEpochMs) {
+        SimpleDateFormat(
+            "d MMMM yyyy",
+            Locale.forLanguageTag("ru-RU"),
+        ).format(Date(nowEpochMs))
+    }
+
+    // Один набор метрик используется и в списке, и в карточках.
+    val rows = remember(batches, nowEpochMs) {
+        batches.map { batch ->
+            val metrics = computeMetrics(batch, nowEpochMs)
+
+            BatchRow(
+                batch = batch,
+                metrics = metrics,
+                attention = batch.requiresAttention(metrics),
+            )
+        }
+    }
+
+    val counts = mapOf(
+        MainTab.PRODUCTS to rows.count { !it.batch.archived },
+        MainTab.WEIGH to rows.count { it.attention },
+        MainTab.ARCHIVE to rows.count { it.batch.archived },
+    )
+
+    val categories = remember(batches) {
+        batches
+            .map { it.category.trim() }
+            .filter { it.isNotEmpty() }
+            .distinct()
+            .sorted()
+    }
+
+    val categoryOptions = remember(categories) {
+        listOf("" to "Все категории") +
+            categories.map { it to it }
+    }
+
+    // Например, после загрузки другого журнала.
+    LaunchedEffect(categories) {
+        if (category.isNotEmpty() && category !in categories) {
+            category = ""
+        }
+    }
+
+    val filtered = remember(rows, tab, query, category, sort) {
+        val q = query.trim()
+
+        val matching = rows.filter { row ->
+            val batch = row.batch
+
+            val matchesTab = when (tab) {
+                MainTab.PRODUCTS -> !batch.archived
+                MainTab.WEIGH -> row.attention
+                MainTab.ARCHIVE -> batch.archived
+            }
+
+            val matchesCategory =
+                category.isEmpty() ||
+                    batch.category.trim() == category
+
+            val matchesQuery =
+                q.isEmpty() ||
+                    batch.name.contains(q, ignoreCase = true) ||
+                    batch.rawMaterial.contains(q, ignoreCase = true) ||
+                    batch.category.contains(q, ignoreCase = true) ||
+                    batch.number.toString()
+                        .padStart(2, '0')
+                        .contains(q)
+
+            matchesTab && matchesCategory && matchesQuery
+        }
+
+        when (sort) {
+            BatchSort.NUMBER ->
+                matching.sortedBy { it.batch.number }
+
+            BatchSort.ATTENTION ->
+                matching.sortedWith(
+                    compareBy<BatchRow> { !it.attention }
+                        .thenBy { it.batch.number }
+                )
+
+            BatchSort.NEW ->
+                matching.sortedByDescending {
+                    it.batch.createdAtEpochMs
+                }
+        }
+    }
+
+    LaunchedEffect(tab, query, category, sort) {
+        listState.scrollToItem(0)
+    }
+
+    LazyColumn(
+        state = listState,
         modifier = Modifier
             .fillMaxSize()
             .background(Bg)
+            .safeDrawingPadding()
+            .imePadding(),
+        contentPadding = PaddingValues(
+            start = 20.dp,
+            top = 12.dp,
+            end = 20.dp,
+            bottom = 24.dp,
+        ),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        // ── Шапка ──
-Column(
-    modifier = Modifier
-        .fillMaxWidth()
-        .padding(start = 20.dp, end = 20.dp, top = 18.dp, bottom = 8.dp)
-) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = "ФермоКонтроль",
-                fontSize = 18.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = Ink
-            )
-            Text(
-                text = "ЖУРНАЛ СОЗРЕВАНИЯ",
-                fontSize = 10.sp,
-                letterSpacing = 1.3.sp,
-                color = Muted
-            )
-        }
-
-        HeaderTool(
-            icon = {
-                Icon(
-                    imageVector = Icons.Outlined.Notifications,
-                    contentDescription = "Внимание",
-                    tint = Ink
-                )
-            },
-            hasAttention = batches.any { it.requiresAction() },
-            count = batches.count { it.requiresAction() },
-            onClick = { onlyActive = !onlyActive }
-        )
-
-        HeaderTool(
-            icon = {
-                Icon(
-                    imageVector = Icons.Outlined.Add,
-                    contentDescription = "Новая закладка",
-                    tint = Bg
-                )
-            },
-            accent = true,
-            onClick = onAdd
-        )
-
-        HeaderTool(
-            icon = {
-                Icon(
-                    imageVector = Icons.Outlined.Settings,
-                    contentDescription = "Настройки",
-                    tint = Ink
-                )
-            },
-            onClick = onSettings
-        )
-    }
-
-    Spacer(Modifier.height(24.dp))
-
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.Bottom
-    ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = "Камера",
-                fontSize = 28.sp,
-                fontWeight = FontWeight.Medium,
-                color = Ink
-            )
-            Text(
-                text = "Партии созревания",
-                fontSize = 13.sp,
-                color = Muted
-            )
-        }
-
-        Column(horizontalAlignment = Alignment.End) {
-            Text(
-                text = "Сегодня",
-                fontSize = 11.sp,
-                color = Muted
-            )
-            Text(
-                text = todayLabel,
-                fontSize = 12.sp,
-                color = Ink
-            )
-        }
-    }
-}
-
-        // ── Поиск ──
-        if (query.isNotBlank()) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 20.dp, vertical = 6.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(Card)
-                    .padding(horizontal = 12.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically
+        item(key = "controls") {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                Icon(Icons.Outlined.Search, null, tint = Muted)
-                Spacer(Modifier.width(8.dp))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    Column(
+                        modifier = Modifier.weight(1f),
+                    ) {
+                        Text(
+                            text = "ФермоКонтроль",
+                            color = Ink,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+
+                        Text(
+                            text = "ЖУРНАЛ СОЗРЕВАНИЯ",
+                            color = Muted,
+                            fontSize = 9.sp,
+                            letterSpacing = 1.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+
+                    HeaderAction(
+                        icon = Icons.Outlined.Notifications,
+                        description = "Внимание",
+                        count = counts.getValue(MainTab.WEIGH),
+                        onClick = {
+                            focusManager.clearFocus()
+
+                            // Не оставляем скрывающие результаты фильтры.
+                            query = ""
+                            category = ""
+                            tab = MainTab.WEIGH
+                        },
+                    )
+
+                    HeaderAction(
+                        icon = Icons.Outlined.Add,
+                        description = "Новая закладка",
+                        accent = true,
+                        onClick = onAdd,
+                    )
+
+                    HeaderAction(
+                        icon = Icons.Outlined.Settings,
+                        description = "Настройки",
+                        onClick = onSettings,
+                    )
+                }
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 6.dp),
+                    verticalAlignment = Alignment.Bottom,
+                ) {
+                    Text(
+                        text = "Камера",
+                        modifier = Modifier.weight(1f),
+                        color = Ink,
+                        fontSize = 27.sp,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+
+                    Text(
+                        text = todayLabel,
+                        modifier = Modifier.padding(
+                            start = 8.dp,
+                            bottom = 4.dp,
+                        ),
+                        color = Muted,
+                        fontSize = 12.sp,
+                    )
+                }
+
+                // Поиск отображается всегда, включая пустой запрос.
                 TextField(
                     value = query,
                     onValueChange = { query = it },
-                    modifier = Modifier.weight(1f),
-                    textStyle = androidx.compose.ui.text.TextStyle(fontSize = 14.sp, color = Ink),
+                    modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
-                    placeholder = { Text("Название партии…", color = Muted) }
+                    shape = RoundedCornerShape(12.dp),
+                    textStyle = MaterialTheme.typography.bodyMedium,
+                    placeholder = {
+                        Text(
+                            text = "Название, номер или сырьё",
+                            fontSize = 14.sp,
+                        )
+                    },
+                    leadingIcon = {
+                        Icon(
+                            imageVector = Icons.Outlined.Search,
+                            contentDescription = null,
+                        )
+                    },
+                    trailingIcon = {
+                        if (query.isNotEmpty()) {
+                            IconButton(
+                                onClick = { query = "" },
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Outlined.Close,
+                                    contentDescription = "Очистить поиск",
+                                )
+                            }
+                        }
+                    },
+                    keyboardOptions = KeyboardOptions(
+                        imeAction = ImeAction.Search,
+                    ),
+                    keyboardActions = KeyboardActions(
+                        onSearch = {
+                            focusManager.clearFocus()
+                        },
+                    ),
+                    colors = TextFieldDefaults.colors(
+                        focusedTextColor = Ink,
+                        unfocusedTextColor = Ink,
+                        focusedContainerColor = Card,
+                        unfocusedContainerColor = Card,
+                        focusedIndicatorColor = Color.Transparent,
+                        unfocusedIndicatorColor = Color.Transparent,
+                        focusedLeadingIconColor = Muted,
+                        unfocusedLeadingIconColor = Muted,
+                        focusedTrailingIconColor = Muted,
+                        unfocusedTrailingIconColor = Muted,
+                        focusedPlaceholderColor = Muted,
+                        unfocusedPlaceholderColor = Muted,
+                        cursorColor = Emerald,
+                    ),
+                )
+
+                MainTabs(
+                    selected = tab,
+                    counts = counts,
+                    onSelect = {
+                        focusManager.clearFocus()
+                        tab = it
+                    },
+                )
+
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    ChoiceMenu(
+                        current = category,
+                        options = categoryOptions,
+                        onSelect = {
+                            focusManager.clearFocus()
+                            category = it
+                        },
+                        modifier = Modifier.weight(1f),
+                    )
+
+                    ChoiceMenu(
+                        current = sort,
+                        options = BatchSort.entries.map {
+                            it to it.label
+                        },
+                        onSelect = {
+                            focusManager.clearFocus()
+                            sort = it
+                        },
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+
+                Text(
+                    text = "Показано: ${filtered.size}",
+                    color = Muted,
+                    fontSize = 12.sp,
                 )
             }
         }
 
-        // ── Сортировка ──
-        SortRow(sort = sort, onSelect = { sort = it })
-
-        // ── Список ──
-        LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(horizontal = 20.dp, vertical = 10.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            items(filtered, key = { it.id }) { batch ->
-    BatchCard(
-        batch = batch,
-        onClick = {
-            onSelect(batch)
-        },
-        onWeigh = {
-            onWeighBatch(batch)
-        }
-    )
-}
-            item { Spacer(Modifier.height(72.dp)) }
+        if (filtered.isEmpty()) {
+            item(key = "empty") {
+                EmptyBatchState(
+                    tab = tab,
+                    hasFilters =
+                        query.isNotBlank() || category.isNotEmpty(),
+                    onClearFilters = {
+                        query = ""
+                        category = ""
+                    },
+                    onAdd = onAdd,
+                )
+            }
+        } else {
+            items(
+                items = filtered,
+                key = { "batch-${it.batch.id}" },
+            ) { row ->
+                BatchCard(
+    batch = row.batch,
+    onClick = {
+        focusManager.clearFocus()
+        onSelect(row.batch)
+    },
+    onWeigh = {
+        focusManager.clearFocus()
+        onWeighBatch(row.batch)
+    },
+)
+            }
         }
     }
-
-    // ── Кнопка добавления ──
-    Box(modifier = Modifier.fillMaxSize()) {
-        RoundedButton(
-            text = "Новая закладка",
-            accent = true,
-            onClick = onAdd,
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .padding(bottom = 20.dp)
-                .fillMaxWidth(0.9f)
-        )
-    }
 }
-
-// ───────────────────────── Производные данные партии ─────────────────────────
-
-private fun Batch.currentWeightGrams(): Double =
-    logs.lastOrNull()?.weightGrams ?: startWeightGrams
-
-private fun Batch.lossPercent(): Double {
-    val cur = currentWeightGrams()
-    if (startWeightGrams <= 0.0) return 0.0
-    return ((startWeightGrams - cur) / startWeightGrams) * 100.0
-}
-
-private fun Batch.targetProgress(): Float {
-    if (targetLossPercent <= 0.0) return 0f
-    return (lossPercent() / targetLossPercent).toFloat().coerceIn(0f, 1f)
-}
-
-private fun Batch.day(): Int {
-    if (createdAtEpochMs <= 0L) return 0
-    val now = System.currentTimeMillis()
-    return ((now - createdAtEpochMs) / (1000L * 60 * 60 * 24)).toInt()
-}
-
-private fun Batch.requiresAction(): Boolean =
-    lossPercent() >= targetLossPercent || logs.lastOrNull()?.needsCheck == true
-
-private fun Batch.nextActionText(): String = when {
-    logs.lastOrNull()?.needsCheck == true -> "Требует проверки"
-    lossPercent() >= targetLossPercent -> "Цель достигнута"
-    archived -> "В архиве"
-    else -> "Контрольное взвешивание"
-}
-
-// ─────────────────────────────── Компоненты ───────────────────────────────
 
 @Composable
-private fun HeaderTool(
-    icon: @Composable () -> Unit,
-    accent: Boolean = false,
-    hasAttention: Boolean = false,
+private fun HeaderAction(
+    icon: ImageVector,
+    description: String,
+    onClick: () -> Unit,
     count: Int = 0,
-    onClick: () -> Unit
+    accent: Boolean = false,
 ) {
     Box(
-        modifier = Modifier
-            .padding(start = 8.dp)
-            .size(40.dp)
-            .clip(CircleShape)
-            .background(if (accent) Emerald else Card)
-            .clickable { onClick() },
-        contentAlignment = Alignment.Center
+        modifier = Modifier.size(48.dp),
     ) {
-        icon()
-        if (hasAttention) {
+        IconButton(
+            onClick = onClick,
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    color = if (accent) Emerald else Card,
+                    shape = CircleShape,
+                ),
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = if (count > 0) {
+                    "$description: $count"
+                } else {
+                    description
+                },
+                tint = when {
+                    accent -> Bg
+                    count > 0 -> Amber
+                    else -> Ink
+                },
+                modifier = Modifier.size(21.dp),
+            )
+        }
+
+        if (count > 0) {
             Box(
                 modifier = Modifier
                     .align(Alignment.TopEnd)
-                    .size(14.dp)
-                    .clip(CircleShape)
-                    .background(Amber),
-                contentAlignment = Alignment.Center
+                    .size(18.dp)
+                    .background(Amber, CircleShape),
+                contentAlignment = Alignment.Center,
             ) {
-                if (count > 0) {
-                    Text(
-                        text = count.toString().take(2),
-                        fontSize = 8.sp,
-                        color = Bg,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
+                Text(
+                    text = if (count > 9) "9+" else count.toString(),
+                    color = Bg,
+                    fontSize = 9.sp,
+                    fontWeight = FontWeight.Bold,
+                )
             }
         }
     }
 }
 
 @Composable
-private fun SortRow(sort: String, onSelect: (String) -> Unit) {
-    val options = listOf(
-        "number" to "По номеру",
-        "attention" to "Сначала внимание",
-        "new" to "Сначала новые"
-    )
+private fun MainTabs(
+    selected: MainTab,
+    counts: Map<MainTab, Int>,
+    onSelect: (MainTab) -> Unit,
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 20.dp, vertical = 6.dp),
-        horizontalArrangement = Arrangement.spacedBy(6.dp)
+            .clip(RoundedCornerShape(14.dp))
+            .background(Card)
+            .selectableGroup()
+            .padding(4.dp),
     ) {
-        options.forEach { (key, label) ->
-            val selected = sort == key
-            Text(
-                text = label,
-                fontSize = 11.sp,
-                color = if (selected) Emerald else Muted,
-                fontWeight = if (selected) FontWeight.Medium else FontWeight.Normal,
+        MainTab.entries.forEach { tab ->
+            val active = selected == tab
+
+            Box(
                 modifier = Modifier
-                    .clip(RoundedCornerShape(8.dp))
-                    .clickable { onSelect(key) }
-                    .padding(horizontal = 6.dp, vertical = 2.dp)
-            )
+                    .weight(1f)
+                    .heightIn(min = 48.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(
+                        if (active) EmeraldSoft else Color.Transparent
+                    )
+                    .selectable(
+                        selected = active,
+                        role = Role.Tab,
+                        onClick = { onSelect(tab) },
+                    )
+                    .padding(horizontal = 4.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = "${tab.label} ${counts[tab] ?: 0}",
+                    color = if (active) Emerald else Muted,
+                    fontSize = 12.sp,
+                    fontWeight = if (active) {
+                        FontWeight.SemiBold
+                    } else {
+                        FontWeight.Normal
+                    },
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    textAlign = TextAlign.Center,
+                )
+            }
         }
     }
 }
 
 @Composable
-private fun RoundedButton(
-    text: String,
-    accent: Boolean,
-    expanded: Boolean = false,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
+private fun <T> ChoiceMenu(
+    current: T,
+    options: List<Pair<T, String>>,
+    onSelect: (T) -> Unit,
+    modifier: Modifier = Modifier,
 ) {
-    Box(
-        modifier = modifier
-            .let { if (expanded) it.fillMaxWidth() else it }
-            .clip(RoundedCornerShape(14.dp))
-            .background(if (accent) Emerald else Card)
-            .clickable { onClick() }
-            .padding(vertical = 14.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(
-            text = text,
-            fontSize = 15.sp,
-            fontWeight = FontWeight.Medium,
-            color = if (accent) EmeraldDeep else Ink
-        )
+    var expanded by remember {
+        mutableStateOf(false)
+    }
+
+    val label = options
+        .firstOrNull { it.first == current }
+        ?.second
+        .orEmpty()
+
+    Box(modifier = modifier) {
+        TextButton(
+            onClick = { expanded = true },
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = 48.dp),
+            shape = RoundedCornerShape(10.dp),
+            colors = ButtonDefaults.textButtonColors(
+                containerColor = Card,
+                contentColor = Muted,
+            ),
+            contentPadding = PaddingValues(horizontal = 10.dp),
+        ) {
+            Text(
+                text = label,
+                modifier = Modifier.weight(1f),
+                fontSize = 12.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+
+            Icon(
+                imageVector = Icons.Outlined.ExpandMore,
+                contentDescription = null,
+                modifier = Modifier.size(18.dp),
+            )
+        }
+
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+        ) {
+            options.forEach { (value, title) ->
+                DropdownMenuItem(
+                    text = {
+                        Text(
+                            text = title,
+                            color = if (value == current) Emerald else Ink,
+                        )
+                    },
+                    onClick = {
+                        expanded = false
+                        onSelect(value)
+                    },
+                )
+            }
+        }
     }
 }
 
 @Composable
-private fun BatchCard(
-    batch: Batch,
-    onClick: () -> Unit,
-    onWeigh: () -> Unit
+private fun EmptyBatchState(
+    tab: MainTab,
+    hasFilters: Boolean,
+    onClearFilters: () -> Unit,
+    onAdd: () -> Unit,
 ) {
+    val title = when {
+        hasFilters -> "Ничего не найдено"
+        tab == MainTab.WEIGH -> "Нет партий, требующих внимания"
+        tab == MainTab.ARCHIVE -> "Архив пуст"
+        else -> "Пока нет продуктов"
+    }
+
+    val subtitle = when {
+        hasFilters ->
+            "Измени поисковый запрос или выбранную категорию."
+
+        tab == MainTab.WEIGH ->
+            "Здесь появятся партии с отметкой проверки " +
+                "или достигнутой целью усушки."
+
+        tab == MainTab.ARCHIVE ->
+            "Завершённые партии появятся здесь."
+
+        else ->
+            "Добавь первую закладку, чтобы начать журнал."
+    }
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .background(Card)
-            .clickable { onClick() }
-            .padding(14.dp)
+            .padding(horizontal = 12.dp, vertical = 32.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        // Верхняя строка: номер + название + потеря %
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(
-                modifier = Modifier
-                    .size(40.dp, 42.dp)
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(Line),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = batch.number.toString(),
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Muted
-                )
-            }
-
-            Spacer(Modifier.width(10.dp))
-
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = batch.name,
-                    fontSize = 16.sp,
-                    color = Ink
-                )
-                Text(
-                    text = "${batch.rawMaterial} · день ${batch.day()}",
-                    fontSize = 12.sp,
-                    color = Muted
-                )
-            }
-
-            Column(horizontalAlignment = Alignment.End) {
-                Text(
-                    text = "%.1f%%".format(batch.lossPercent()),
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Emerald
-                )
-                Text(
-                    text = "потеря",
-                    fontSize = 10.sp,
-                    color = Muted
-                )
-            }
-        }
-
-        Spacer(Modifier.height(10.dp))
-
-        // Крупный вес
         Text(
-            text = "%.0f г".format(batch.currentWeightGrams()),
-            fontSize = 30.sp,
-            fontWeight = FontWeight.Medium,
-            color = Ink
+            text = title,
+            color = Ink,
+            fontSize = 18.sp,
+            fontWeight = FontWeight.SemiBold,
+            textAlign = TextAlign.Center,
         )
 
-        Spacer(Modifier.height(8.dp))
+        Text(
+            text = subtitle,
+            color = Muted,
+            fontSize = 14.sp,
+            textAlign = TextAlign.Center,
+        )
 
-        // Прогресс-бар к цели
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(4.dp)
-                .clip(RoundedCornerShape(2.dp))
-                .background(Line)
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth(batch.targetProgress())
-                    .height(4.dp)
-                    .clip(RoundedCornerShape(2.dp))
-                    .background(if (batch.requiresAction()) Amber else Emerald)
-            )
-        }
-
-        Spacer(Modifier.height(10.dp))
-
-        // Нижняя строка: действие + кнопка Взвесить
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    modifier = Modifier
-                        .size(6.dp)
-                        .clip(CircleShape)
-                        .background(if (batch.requiresAction()) Amber else Emerald)
-                )
-                Spacer(Modifier.width(6.dp))
-                Text(
-                    text = batch.nextActionText(),
-                    fontSize = 12.sp,
-                    color = Muted
-                )
+        if (hasFilters) {
+            TextButton(onClick = onClearFilters) {
+                Text("Сбросить поиск и категорию")
             }
-
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(if (batch.requiresAction()) Amber else Line)
-                    .clickable { onWeigh() }
-                    .padding(horizontal = 14.dp, vertical = 7.dp)
-            ) {
-                Text(
-                    text = "Взвесить",
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Medium,
-                    color = if (batch.requiresAction()) Bg else Ink
-                )
+        } else if (tab == MainTab.PRODUCTS) {
+            Button(onClick = onAdd) {
+                Text("Новая закладка")
             }
         }
     }
