@@ -104,9 +104,8 @@ class MainActivity : ComponentActivity() {
                         }
 
                         val weighingBatch = journal.weighingBatch
-
 if (weighingBatch != null) {
-    JournalWeighDialog(
+    WeighSheet(
         batch = weighingBatch,
         saving = journal.saving,
         error = journal.weighError,
@@ -314,9 +313,19 @@ class JournalViewModel(application: Application) :
     }
 
     fun saveWeight(
-        weightGrams: Double,
-        needsCheck: Boolean,
-    ) {
+    weightGrams: Double,
+    smell: String,
+    surface: String,
+    needsCheck: Boolean,
+) {
+    // ...проверки без изменений...
+    val log = WeightLog(
+        atEpochMs = System.currentTimeMillis(),
+        weightGrams = weightGrams,
+        smellNote = smell,
+        surfaceNote = surface,
+        needsCheck = needsCheck,
+    ){
         if (loading || saving || loadError != null) return
 
         val batch = weighingBatch ?: return
@@ -382,13 +391,7 @@ class JournalViewModel(application: Application) :
 }
 
 @Composable
-private fun JournalWeighDialog(
-    batch: Batch,
-    saving: Boolean,
-    error: String?,
-    onDismiss: () -> Unit,
-    onSave: (Double, Boolean) -> Unit,
-) {
+ {
     var weightText by rememberSaveable(batch.id) {
         mutableStateOf("")
     }
