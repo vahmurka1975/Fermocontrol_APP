@@ -10,37 +10,24 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.ViewModelProvider
-import java.util.Locale
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -104,15 +91,15 @@ class MainActivity : ComponentActivity() {
                         }
 
                         val weighingBatch = journal.weighingBatch
-if (weighingBatch != null) {
-    WeighSheet(
-        batch = weighingBatch,
-        saving = journal.saving,
-        error = journal.weighError,
-        onDismiss = journal::dismissWeigh,
-        onSave = journal::saveWeight,
-    )
-}
+                        if (weighingBatch != null) {
+                            WeighSheet(
+                                batch = weighingBatch,
+                                saving = journal.saving,
+                                error = journal.weighError,
+                                onDismiss = journal::dismissWeigh,
+                                onSave = journal::saveWeight,
+                            )
+                        }
                     }
                 }
             }
@@ -313,19 +300,11 @@ class JournalViewModel(application: Application) :
     }
 
     fun saveWeight(
-    weightGrams: Double,
-    smell: String,
-    surface: String,
-    needsCheck: Boolean,
-) {
-    // ...проверки без изменений...
-    val log = WeightLog(
-        atEpochMs = System.currentTimeMillis(),
-        weightGrams = weightGrams,
-        smellNote = smell,
-        surfaceNote = surface,
-        needsCheck = needsCheck,
-    ){
+        weightGrams: Double,
+        smell: String,
+        surface: String,
+        needsCheck: Boolean,
+    ) {
         if (loading || saving || loadError != null) return
 
         val batch = weighingBatch ?: return
@@ -348,6 +327,8 @@ class JournalViewModel(application: Application) :
                 val log = WeightLog(
                     atEpochMs = System.currentTimeMillis(),
                     weightGrams = weightGrams,
+                    smellNote = smell,
+                    surfaceNote = surface,
                     needsCheck = needsCheck,
                 )
 
@@ -355,9 +336,7 @@ class JournalViewModel(application: Application) :
                 // Остальные партии и предыдущие записи сохраняются.
                 val updated = batches.map { existing ->
                     if (existing.id == batch.id) {
-                        existing.copy(
-                            logs = existing.logs + log,
-                        )
+                        existing.copy(logs = existing.logs + log)
                     } else {
                         existing
                     }
@@ -388,152 +367,6 @@ class JournalViewModel(application: Application) :
         scope.cancel()
         super.onCleared()
     }
-}
-
-@Composable
- {
-    var weightText by rememberSaveable(batch.id) {
-        mutableStateOf("")
-    }
-
-    var needsCheck by rememberSaveable(batch.id) {
-        mutableStateOf(false)
-    }
-
-    // Поддерживаем как 1980.5, так и 1980,5.
-    val parsedWeight = weightText
-        .trim()
-        .replace(',', '.')
-        .toDoubleOrNull()
-        ?.takeIf { it.isFinite() && it > 0.0 }
-
-    val invalidWeight = weightText.isNotBlank() && parsedWeight == null
-
-    val currentWeight = batch.logs.lastOrNull()?.weightGrams
-        ?: batch.startWeightGrams
-
-    val formattedCurrentWeight = String.format(
-        Locale.getDefault(),
-        "%.1f",
-        currentWeight,
-    )
-
-    AlertDialog(
-        onDismissRequest = {
-            if (!saving) {
-                onDismiss()
-            }
-        },
-        properties = DialogProperties(
-            dismissOnBackPress = !saving,
-            dismissOnClickOutside = !saving,
-        ),
-        title = {
-            Text("Взвешивание")
-        },
-        text = {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                Text(
-                    text = "#${batch.number} · ${batch.name}",
-                    style = MaterialTheme.typography.titleMedium,
-                )
-
-                Text(
-                    text = "Последний вес: $formattedCurrentWeight г",
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-
-                OutlinedTextField(
-                    value = weightText,
-                    onValueChange = { weightText = it },
-                    modifier = Modifier.fillMaxWidth(),
-                    enabled = !saving,
-                    singleLine = true,
-                    label = {
-                        Text("Новый вес, г")
-                    },
-                    placeholder = {
-                        Text("Например, 1980,5")
-                    },
-                    keyboardOptions = KeyboardOptions(
-                        keyboardType = KeyboardType.Decimal,
-                    ),
-                    isError = invalidWeight,
-                )
-
-                if (invalidWeight) {
-                    Text(
-                        text = "Введите корректный вес больше нуля.",
-                        color = MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.bodySmall,
-                    )
-                }
-
-                if (
-                    parsedWeight != null &&
-                    parsedWeight > currentWeight
-                ) {
-                    Text(
-                        text = "Вес больше предыдущего. " +
-                            "Проверь введённое значение.",
-                        style = MaterialTheme.typography.bodySmall,
-                    )
-                }
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Checkbox(
-                        checked = needsCheck,
-                        onCheckedChange = { needsCheck = it },
-                        enabled = !saving,
-                    )
-
-                    Text("Требует проверки")
-                }
-
-                if (error != null) {
-                    Text(
-                        text = error,
-                        color = MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.bodySmall,
-                    )
-                }
-            }
-        },
-        confirmButton = {
-            Button(
-                enabled = !saving && parsedWeight != null,
-                onClick = {
-                    parsedWeight?.let { weight ->
-                        onSave(weight, needsCheck)
-                    }
-                },
-            ) {
-                Text(
-                    text = if (saving) {
-                        "Сохраняем…"
-                    } else {
-                        "Сохранить"
-                    },
-                )
-            }
-        },
-        dismissButton = {
-            TextButton(
-                enabled = !saving,
-                onClick = onDismiss,
-            ) {
-                Text("Отмена")
-            }
-        },
-    )
 }
 
 @Composable
