@@ -1,212 +1,189 @@
 package ru.fermocontrol.fermocontrol.data
 
+import org.json.JSONArray
+import org.json.JSONObject
 import ru.fermocontrol.fermocontrol.model.Batch
 import ru.fermocontrol.fermocontrol.model.WeightLog
 
 object JournalCodec {
 
     fun encode(batches: List<Batch>): String {
-        val sb = StringBuilder()
-        sb.append("{\n")
-        sb.append("  \"app\": \"ФермоКонтроль\",\n")
-        sb.append("  \"format\": \"fermocontrol\",\n")
-        sb.append("  \"formatVersion\": 1,\n")
-        sb.append("  \"version\": \"1.0\",\n")
-        sb.append("  \"createdAt\": \"${System.currentTimeMillis()}\",\n")
-        sb.append("  \"batches\": [")
-        batches.forEachIndexed { i, b ->
-            if (i > 0) sb.append(",")
-            sb.append("\n    ").append(encodeBatch(b))
-        }
-        sb.append("\n  ]\n}")
-        return sb.toString()
+        validate(batches)
+
+        val array = JSONArray()
+        batches.forEach { array.put(encodeBatch(it)) }
+
+        return JSONObject().apply {
+            put("app", "ФермоКонтроль")
+            put("format", "fermocontrol")
+            put("formatVersion", 1)
+            put("version", "1.0")
+            put("createdAt", System.currentTimeMillis().toString())
+            put("batches", array)
+        }.toString(2)
     }
 
-    private fun encodeBatch(b: Batch): String {
-        val items = mutableListOf(
-            "\"id\": ${b.id}",
-            "\"number\": ${b.number}",
-            "\"name\": ${json(b.name)}",
-            "\"category\": ${json(b.category)}",
-            "\"rawMaterial\": ${json(b.rawMaterial)}",
-            "\"spices\": ${json(b.spices)}",
-            "\"casing\": ${json(b.casing)}",
-            "\"startWeightGrams\": ${b.startWeightGrams}",
-            "\"targetLossPercent\": ${b.targetLossPercent}",
-            "\"archived\": ${b.archived}",
-            "\"createdAtEpochMs\": ${b.createdAtEpochMs}"
-        )
-        b.temperatureC?.let { items.add("\"temperatureC\": $it") }
-        b.humidityPercent?.let { items.add("\"humidityPercent\": $it") }
-        items.add("\"note\": ${json(b.note)}")
-        b.photoFileName?.let { items.add("\"photoFileName\": ${json(it)}") }
+    fun decode(json: String): List<Batch> {
+        val root = JSONObject(json)
 
-        val logs = b.logs.joinToString(",") { encodeLog(it) }
-        items.add("\"logs\": [$logs]")
-
-        return "{" + items.joinToString(", ") + "}"
-    }
-
-    private fun encodeLog(l: WeightLog): String {
-        val items = mutableListOf(
-            "\"atEpochMs\": ${l.atEpochMs}",
-            "\"weightGrams\": ${l.weightGrams}",
-            "\"smellNote\": ${json(l.smellNote)}",
-            "\"surfaceNote\": ${json(l.surfaceNote)}",
-            "\"needsCheck\": ${l.needsCheck}"
-        )
-        l.photoFileName?.let { items.add("\"photoFileName\": ${json(it)}") }
-        return "{" + items.joinToString(", ") + "}"
-    }
-
-    private fun json(s: String): String {
-        val sb = StringBuilder("\"")
-        for (c in s) {
-            when (c) {
-                '"' -> sb.append("\\\"")
-                '\\' -> sb.append("\\\\")
-                '\n' -> sb.append("\\n")
-                '\r' -> sb.append("\\r")
-                '\t' -> sb.append("\\t")
-                else -> if (c < ' ') sb.append("\\u%04x".format(c.code)) else sb.append(c)
+        if (root.has("format")) {
+            require(root.getString("format") == "fermocontrol") {
+                "Неизвестный формат журнала"
             }
         }
-        return sb.append("\"").toString()
+
+        if (root.has("formatVersion")) {
+            require(root.getInt("formatVersion") == 1) {
+                "Эта версия формата журнала не поддерживается"
+            }
+        }
+
+        // Отсутствующий или поврежденный массив — ошибка,
+        // а не повод вернуть пустой журнал.
+        val array = root.getJSONArray("batches")
+        val batches = List(array.length()) { index ->
+            decodeBatch(array.getJSONObject(index))
+        }
+
+        validate(batches)
+        return batches
     }
 
-    // ---------- Декодирование ----------
-    fun decode(json: String): List<Batch> {
-        val batchesArr = extractArray(json, "batches") ?: return emptyList()
-        return batchesArr.map { decodeBatch(it) }
+    private fun encodeBatch(batch: Batch): JSONObject {
+        val logs = JSONArray()
+        batch.logs.forEach { logs.put(encodeLog(it)) }
+
+        return JSONObject().apply {
+            put("id", batch.id)
+            put("number", batch.number)
+            put("name", batch.name)
+            put("category", batch.category)
+            put("rawMaterial", batch.rawMaterial)
+            put("spices", batch.spices)
+            put("casing", batch.casing)
+            put("startWeightGrams", batch.startWeightGrams)
+            put("targetLossPercent", batch.targetLossPercent)
+            put("createdAtEpochMs", batch.createdAtEpochMs)
+            put("archived", batch.archived)
+            put("note", batch.note)
+            batch.temperatureC?.let { put("temperatureC", it) }
+            batch.humidityPercent?.let { put("humidityPercent", it) }
+            batch.photoFileName?.let { put("photoFileName", it) }
+            put("logs", logs)
+        }
     }
 
-    private fun decodeBatch(json: String): Batch {
-        fun get(key: String): String? = extractValue(json, key)
+    private fun encodeLog(log: WeightLog): JSONObject =
+        JSONObject().apply {
+            put("atEpochMs", log.atEpochMs)
+            put("weightGrams", log.weightGrams)
+            put("smellNote", log.smellNote)
+            put("surfaceNote", log.surfaceNote)
+            put("needsCheck", log.needsCheck)
+            log.photoFileName?.let { put("photoFileName", it) }
+        }
+
+    private fun decodeBatch(obj: JSONObject): Batch {
+        val logsArray = if (obj.isNull("logs")) {
+            JSONArray()
+        } else {
+            obj.getJSONArray("logs")
+        }
 
         return Batch(
-            id = get("id")?.trim()?.toLongOrNull() ?: 0L,
-            number = get("number")?.trim()?.toIntOrNull() ?: 0,
-            name = get("name") ?: "",
-            category = get("category") ?: "",
-            rawMaterial = get("rawMaterial") ?: "",
-            spices = get("spices") ?: "",
-            casing = get("casing") ?: "",
-            startWeightGrams = get("startWeightGrams")?.trim()?.toDoubleOrNull() ?: 0.0,
-            targetLossPercent = get("targetLossPercent")?.trim()?.toDoubleOrNull() ?: 30.0,
-            temperatureC = get("temperatureC")?.trim()?.toDoubleOrNull(),
-            humidityPercent = get("humidityPercent")?.trim()?.toDoubleOrNull(),
-            note = get("note") ?: "",
-            photoFileName = get("photoFileName"),
-            createdAtEpochMs = get("createdAtEpochMs")?.trim()?.toLongOrNull() ?: 0L,
-            archived = get("archived")?.trim()?.toBoolean() ?: false,
-            logs = extractArray(json, "logs")?.map { decodeLog(it) } ?: emptyList()
+            id = obj.getLong("id"),
+            number = obj.getInt("number"),
+            name = obj.getString("name"),
+            category = obj.textOrEmpty("category"),
+            rawMaterial = obj.textOrEmpty("rawMaterial"),
+            spices = obj.textOrEmpty("spices"),
+            casing = obj.textOrEmpty("casing"),
+            startWeightGrams = obj.getDouble("startWeightGrams"),
+            targetLossPercent = obj.getDouble("targetLossPercent"),
+            temperatureC = obj.nullableDouble("temperatureC"),
+            humidityPercent = obj.nullableDouble("humidityPercent"),
+            note = obj.textOrEmpty("note"),
+            photoFileName = obj.nullableText("photoFileName"),
+            createdAtEpochMs = obj.getLong("createdAtEpochMs"),
+            archived = if (obj.isNull("archived")) {
+                false
+            } else {
+                obj.getBoolean("archived")
+            },
+            logs = List(logsArray.length()) { index ->
+                decodeLog(logsArray.getJSONObject(index))
+            },
         )
     }
 
-    private fun decodeLog(json: String): WeightLog {
-        fun get(key: String): String? = extractValue(json, key)
-        return WeightLog(
-            atEpochMs = get("atEpochMs")?.trim()?.toLongOrNull() ?: 0L,
-            weightGrams = get("weightGrams")?.trim()?.toDoubleOrNull() ?: 0.0,
-            smellNote = get("smellNote") ?: "",
-            surfaceNote = get("surfaceNote") ?: "",
-            needsCheck = get("needsCheck")?.trim()?.toBoolean() ?: false,
-            photoFileName = get("photoFileName")
+    private fun decodeLog(obj: JSONObject): WeightLog =
+        WeightLog(
+            atEpochMs = obj.getLong("atEpochMs"),
+            weightGrams = obj.getDouble("weightGrams"),
+            smellNote = obj.textOrEmpty("smellNote"),
+            surfaceNote = obj.textOrEmpty("surfaceNote"),
+            needsCheck = if (obj.isNull("needsCheck")) {
+                false
+            } else {
+                obj.getBoolean("needsCheck")
+            },
+            photoFileName = obj.nullableText("photoFileName"),
         )
-    }
 
-    private fun extractValue(json: String, key: String): String? {
-        val idx = json.indexOf("\"$key\"")
-        if (idx < 0) return null
-        val colon = json.indexOf(':', idx)
-        if (colon < 0) return null
-        var i = colon + 1
-        while (i < json.length && json[i].isWhitespace()) i++
-        if (i >= json.length) return null
-        return when (json[i]) {
-            '"' -> {
-                val sb = StringBuilder()
-                i++
-                while (i < json.length && json[i] != '"') {
-                    if (json[i] == '\\' && i + 1 < json.length) {
-                        when (json[i + 1]) {
-                            'n' -> sb.append('\n'); 'r' -> sb.append('\r')
-                            't' -> sb.append('\t'); '"' -> sb.append('"')
-                            '\\' -> sb.append('\\')
-                            'u' -> {
-                                val hex = json.substring(i + 2, i + 6)
-                                sb.append(hex.toInt(16).toChar()); i += 4
-                            }
-                        }
-                        i++
-                    } else sb.append(json[i])
-                    i++
+    private fun JSONObject.textOrEmpty(key: String): String =
+        if (isNull(key)) "" else getString(key)
+
+    private fun JSONObject.nullableText(key: String): String? =
+        if (isNull(key)) null else getString(key)
+
+    private fun JSONObject.nullableDouble(key: String): Double? =
+        if (isNull(key)) null else getDouble(key)
+
+    private fun validate(batches: List<Batch>) {
+        require(batches.map { it.id }.toSet().size == batches.size) {
+            "В журнале повторяются идентификаторы партий"
+        }
+
+        batches.forEach { batch ->
+            require(batch.id > 0L && batch.number > 0) {
+                "Некорректный идентификатор или номер партии"
+            }
+            require(batch.name.isNotBlank()) {
+                "У партии отсутствует название"
+            }
+            require(
+                batch.startWeightGrams.isFinite() &&
+                    batch.startWeightGrams > 0.0
+            ) {
+                "Некорректный начальный вес партии №${batch.number}"
+            }
+            require(
+                batch.targetLossPercent.isFinite() &&
+                    batch.targetLossPercent > 0.0 &&
+                    batch.targetLossPercent < 100.0
+            ) {
+                "Целевая усушка должна быть больше 0 и меньше 100"
+            }
+            require(batch.createdAtEpochMs > 0L) {
+                "Некорректная дата закладки"
+            }
+            batch.temperatureC?.let {
+                require(it.isFinite()) {
+                    "Некорректная температура"
                 }
-                sb.toString()
             }
-            else -> {
-                val start = i
-                while (i < json.length && json[i] != ',' && json[i] != '}' && json[i] != ']') i++
-                json.substring(start, i)
+            batch.humidityPercent?.let {
+                require(it.isFinite() && it in 0.0..100.0) {
+                    "Влажность должна быть от 0 до 100"
+                }
+            }
+            require(batch.logs.all {
+                it.atEpochMs > 0L &&
+                    it.weightGrams.isFinite() &&
+                    it.weightGrams > 0.0
+            }) {
+                "Некорректная запись взвешивания партии №${batch.number}"
             }
         }
-    }
-
-    private fun extractArray(json: String, key: String): List<String>? {
-        val idx = json.indexOf("\"$key\"")
-        if (idx < 0) return null
-        val colon = json.indexOf(':', idx)
-        if (colon < 0) return null
-        var i = colon + 1
-        while (i < json.length && json[i].isWhitespace()) i++
-        if (i >= json.length || json[i] != '[') return null
-
-        val sb = StringBuilder()
-        var depth = 0
-        var inStr = false
-        var j = i
-        while (j < json.length) {
-            val c = json[j]
-            if (inStr) {
-                if (c == '\\') { j++; sb.append(c).append(json.getOrNull(j) ?: ' '); j++; continue }
-                if (c == '"') inStr = false
-                sb.append(c); j++; continue
-            }
-            when (c) {
-                '"' -> inStr = true
-                '[' -> depth++
-                ']' -> { depth--; if (depth == 0) { j++; break } }
-                else -> {}
-            }
-            sb.append(c); j++
-        }
-        if (sb.isEmpty()) return emptyList()
-        return splitTopLevel(sb.toString().removeSurrounding("[", "]"))
-    }
-
-    private fun splitTopLevel(s: String): List<String> {
-        val result = mutableListOf<String>()
-        var depth = 0
-        var inStr = false
-        val cur = StringBuilder()
-        var i = 0
-        while (i < s.length) {
-            val c = s[i]
-            if (inStr) {
-                if (c == '\\') { cur.append(c).append(s.getOrNull(i + 1) ?: ' '); i += 2; continue }
-                if (c == '"') inStr = false
-                cur.append(c); i++; continue
-            }
-            when (c) {
-                '"' -> { inStr = true; cur.append(c) }
-                '{', '[' -> { depth++; cur.append(c) }
-                '}', ']' -> { depth--; cur.append(c) }
-                ',' -> if (depth == 0) { result.add(cur.toString()); cur.clear() } else cur.append(c)
-                else -> cur.append(c)
-            }
-            i++
-        }
-        if (cur.isNotEmpty()) result.add(cur.toString())
-        return result
     }
 }

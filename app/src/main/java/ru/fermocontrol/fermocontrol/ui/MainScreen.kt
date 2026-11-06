@@ -37,6 +37,7 @@ fun MainScreen(
     onAdd: () -> Unit = {},
     onSettings: () -> Unit = {},
     onProfile: () -> Unit = {},
+	onWeighBatch: (Batch) -> Unit = { batch -> onWeigh(batch) },
 ) {
    var sort by remember { mutableStateOf("number") }
 	var query by remember { mutableStateOf("") }
@@ -194,12 +195,16 @@ Column(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             items(filtered, key = { it.id }) { batch ->
-                BatchCard(
-                    batch = batch,
-                    onClick = { onSelect(batch) },
-                    onWeigh = { onWeigh(batch) }
-                )
-            }
+    BatchCard(
+        batch = batch,
+        onClick = {
+            onSelect(batch)
+        },
+        onWeigh = {
+            onWeighBatch(batch)
+        }
+    )
+}
             item { Spacer(Modifier.height(72.dp)) }
         }
     }
