@@ -1,6 +1,7 @@
 package ru.fermocontrol.fermocontrol
 
 import android.app.Application
+import android.net.Uri
 import android.os.Bundle
 import android.util.Log
 import android.widget.Toast
@@ -35,6 +36,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import ru.fermocontrol.fermocontrol.data.BatchRepository
+import ru.fermocontrol.fermocontrol.data.PhotoStore
 import ru.fermocontrol.fermocontrol.model.Batch
 import ru.fermocontrol.fermocontrol.model.NewBatchDraft
 import ru.fermocontrol.fermocontrol.model.WeightLog
@@ -43,7 +45,6 @@ import ru.fermocontrol.fermocontrol.ui.MainScreen
 import ru.fermocontrol.fermocontrol.ui.NewBatchDialog
 import ru.fermocontrol.fermocontrol.ui.WeighSheet
 import ru.fermocontrol.fermocontrol.ui.theme.FermocontrolTheme
-import java.io.File
 
 class MainActivity : ComponentActivity() {
 
@@ -89,8 +90,7 @@ class MainActivity : ComponentActivity() {
                                 batch = detailBatch,
                                 saving = journal.saving,
                                 error = journal.archiveError,
-                                // Путь должен совпадать с тем, куда BatchRepository кладёт фото.
-                                photoFile = { name -> File(filesDir, "photos/$name") },
+                                photoFile = journal.photos::file,
                                 onDismiss = journal::closeDetail,
                                 onWeigh = { journal.openWeigh(detailBatch) },
                                 onSetArchived = { archived -> journal.setArchived(archived) },
@@ -112,6 +112,7 @@ class MainActivity : ComponentActivity() {
                                 batch = weighingBatch,
                                 saving = journal.saving,
                                 error = journal.weighError,
+								photoStore = journal.photos,
                                 onDismiss = journal::dismissWeigh,
                                 onSave = journal::saveWeight,
                             )
@@ -135,6 +136,7 @@ class JournalViewModel(application: Application) :
     AndroidViewModel(application) {
 
     private val repository = BatchRepository(application)
+	    val photos = PhotoStore(application)
 
     // Область переживает поворот экрана вместе с ViewModel.
     private val scope = CoroutineScope(
@@ -329,6 +331,7 @@ class JournalViewModel(application: Application) :
         smell: String,
         surface: String,
         needsCheck: Boolean,
+        photoUri: Uri?,
     ) {
         if (loading || saving || loadError != null) return
 
@@ -348,13 +351,19 @@ class JournalViewModel(application: Application) :
         weighError = null
 
         scope.launch {
+            // Имя файла, который ещё не принят журналом.
+            var storedPhoto: String? = null
+
             try {
+                storedPhoto = photoUri?.let { photos.saveFrom(it) }
+
                 val log = WeightLog(
                     atEpochMs = System.currentTimeMillis(),
                     weightGrams = weightGrams,
                     smellNote = smell,
                     surfaceNote = surface,
                     needsCheck = needsCheck,
+                    photoFileName = storedPhoto,
                 )
 
                 // Добавляем запись только выбранной партии.
@@ -372,6 +381,9 @@ class JournalViewModel(application: Application) :
                 // Закрываем форму только после успешной записи.
                 batches = updated
                 weighingBatchId = null
+
+                // Теперь файл принадлежит журналу.
+                storedPhoto = null
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (error: Exception) {
@@ -382,6 +394,8 @@ class JournalViewModel(application: Application) :
                     (error.localizedMessage ?: "ошибка записи") +
                     "\nФорма оставлена открытой."
             } finally {
+                // Журнал запись не принял, поэтому убираем файл.
+                storedPhoto?.let(photos::delete)
                 saving = false
             }
         }

@@ -1,5 +1,12 @@
 package ru.fermocontrol.fermocontrol.ui
 
+import android.content.ActivityNotFoundException
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -7,18 +14,23 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -26,6 +38,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -34,6 +49,7 @@ import androidx.compose.ui.unit.sp
 import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.max
+import ru.fermocontrol.fermocontrol.data.PhotoStore
 import ru.fermocontrol.fermocontrol.model.Batch
 import ru.fermocontrol.fermocontrol.model.computeMetrics
 import ru.fermocontrol.fermocontrol.ui.components.FcPrimaryButton
@@ -68,13 +84,52 @@ fun WeighSheet(
     batch: Batch,
     saving: Boolean,
     error: String?,
+    photoStore: PhotoStore,
     onDismiss: () -> Unit,
-    onSave: (weightGrams: Double, smell: String, surface: String, needsCheck: Boolean) -> Unit,
+    onSave: (
+        weightGrams: Double,
+        smell: String,
+        surface: String,
+        needsCheck: Boolean,
+        photoUri: Uri?,
+    ) -> Unit,
 ) {
     var weightText by rememberSaveable(batch.id) { mutableStateOf("") }
     var smell by rememberSaveable(batch.id) { mutableStateOf(SMELLS.first()) }
     var surface by rememberSaveable(batch.id) { mutableStateOf(SURFACES.first()) }
     var needsCheck by rememberSaveable(batch.id) { mutableStateOf(false) }
+    var photoUri by rememberSaveable(batch.id) { mutableStateOf<Uri?>(null) }
+    var cameraUri by rememberSaveable(batch.id) { mutableStateOf<Uri?>(null) }
+    var photoError by remember { mutableStateOf<String?>(null) }
+
+    val picker = rememberLauncherForActivityResult(
+        ActivityResultContracts.PickVisualMedia(),
+    ) { picked ->
+        if (picked != null) {
+            photoUri = picked
+            photoError = null
+        }
+    }
+
+    val camera = rememberLauncherForActivityResult(
+        ActivityResultContracts.TakePicture(),
+    ) { taken ->
+        if (taken) {
+            photoUri = cameraUri
+            photoError = null
+        }
+    }
+
+    val preview by produceState<ImageBitmap?>(null, photoUri) {
+        value = null
+        value = photoUri?.let { uri ->
+            try {
+                photoStore.loadPreview(uri).asImageBitmap()
+            } catch (error: Exception) {
+                null
+            }
+        }
+    }
 
     val now = remember(batch.id) { System.currentTimeMillis() }
     val metrics = remember(batch) { computeMetrics(batch, now) }
@@ -242,6 +297,86 @@ fun WeighSheet(
             }
         }
 
+        // Фото взвешивания
+        Text(
+            "ФОТО · ПО ЖЕЛАНИЮ",
+            color = Color(0xFFB2C5A5),
+            fontSize = 10.sp,
+            letterSpacing = 1.sp,
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.padding(bottom = 8.dp),
+        )
+
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(bottom = 10.dp),
+            horizontalArrangement = Arrangement.spacedBy(9.dp),
+        ) {
+            PhotoButton("Снять", !saving, Modifier.weight(1f)) {
+                try {
+                    val uri = photoStore.newCameraUri()
+                    cameraUri = uri
+                    camera.launch(uri)
+                } catch (e: ActivityNotFoundException) {
+                    photoError = "На устройстве нет приложения камеры."
+                } catch (e: Exception) {
+                    photoError = "Не удалось открыть камеру."
+                }
+            }
+            PhotoButton("Из галереи", !saving, Modifier.weight(1f)) {
+                picker.launch(
+                    PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly),
+                )
+            }
+        }
+
+        if (photoUri != null) {
+            val pShape = RoundedCornerShape(12.dp)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 10.dp)
+                    .clip(pShape)
+                    .background(Color(0xFF1B271E))
+                    .border(1.dp, Color(0xFF3B4D35), pShape)
+                    .padding(10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(64.dp)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(Color(0xFF142017)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    val image = preview
+                    if (image != null) {
+                        Image(
+                            bitmap = image,
+                            contentDescription = "Фото взвешивания",
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop,
+                        )
+                    }
+                }
+                Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
+                    Text("Фото приложено", color = Color(0xFFD9E4CF), fontSize = 12.sp)
+                    Text(
+                        "Сохранится вместе с записью.",
+                        color = Muted, fontSize = 11.sp, lineHeight = 17.sp,
+                    )
+                }
+                TextButton(onClick = { photoUri = null }, enabled = !saving) {
+                    Text("Убрать", color = Muted)
+                }
+            }
+        }
+
+        photoError?.let {
+            Text(it, color = Danger, fontSize = 12.sp, modifier = Modifier.padding(bottom = 10.dp))
+        }
+
+        Spacer(Modifier.height(4.dp))
+
         FcPrimaryButton(
             text = if (saving) "Сохранение…" else "Сохранить запись",
             enabled = !saving && entered != null && !clockIssue,
@@ -252,11 +387,32 @@ fun WeighSheet(
                     smell.takeUnless { s -> s == SMELLS.first() }.orEmpty(),
                     surface.takeUnless { s -> s == SURFACES.first() }.orEmpty(),
                     needsCheck,
+                    photoUri,
                 )
             }
         }
         Spacer(Modifier.height(4.dp))
     }
+}
+
+@Composable
+private fun PhotoButton(
+    text: String,
+    enabled: Boolean,
+    modifier: Modifier,
+    onClick: () -> Unit,
+) {
+    OutlinedButton(
+        onClick = onClick,
+        enabled = enabled,
+        shape = RoundedCornerShape(12.dp),
+        border = BorderStroke(1.dp, Color(0xFF42523B)),
+        colors = ButtonDefaults.outlinedButtonColors(
+            containerColor = Color(0xFF223022),
+            contentColor = Color(0xFFD5DFCD),
+        ),
+        modifier = modifier,
+    ) { Text(text, fontSize = 13.sp) }
 }
 
 @Composable
