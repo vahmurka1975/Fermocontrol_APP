@@ -1,59 +1,51 @@
 package ru.fermocontrol.fermocontrol.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.selection.selectable
-import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Close
-import androidx.compose.material.icons.outlined.ExpandMore
-import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Settings
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material.icons.outlined.Warning
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.TextField
-import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 import kotlinx.coroutines.delay
 import ru.fermocontrol.fermocontrol.model.Batch
-import ru.fermocontrol.fermocontrol.model.Metrics
-import ru.fermocontrol.fermocontrol.model.computeMetrics
-import ru.fermocontrol.fermocontrol.model.requiresAttention
+import ru.fermocontrol.fermocontrol.model.computeStatus
 import ru.fermocontrol.fermocontrol.ui.components.BatchCard
+import ru.fermocontrol.fermocontrol.ui.components.FcPrimaryButton
 import ru.fermocontrol.fermocontrol.ui.theme.*
+import androidx.compose.foundation.lazy.items
 
 private enum class MainTab(val label: String) {
     PRODUCTS("Продукты"),
@@ -67,12 +59,7 @@ private enum class BatchSort(val label: String) {
     NEW("Сначала новые"),
 }
 
-private data class BatchRow(
-    val batch: Batch,
-    val metrics: Metrics,
-    val attention: Boolean,
-)
-
+/** Главный экран: структура .top + .content макета v0.4.1. */
 @Suppress("UNUSED_PARAMETER")
 @Composable
 fun MainScreen(
@@ -82,527 +69,407 @@ fun MainScreen(
     onAdd: () -> Unit = {},
     onSettings: () -> Unit = {},
     onProfile: () -> Unit = {},
-    onWeighBatch: (Batch) -> Unit = onWeigh,
 ) {
-    var tab by rememberSaveable {
-        mutableStateOf(MainTab.PRODUCTS)
-    }
-    var sort by rememberSaveable {
-        mutableStateOf(BatchSort.NUMBER)
-    }
-    var query by rememberSaveable {
-        mutableStateOf("")
-    }
-    var category by rememberSaveable {
-        mutableStateOf("")
-    }
+    var tab by rememberSaveable { mutableStateOf(MainTab.PRODUCTS) }
+    var sort by rememberSaveable { mutableStateOf(BatchSort.NUMBER) }
+    var query by rememberSaveable { mutableStateOf("") }
+    var attentionOnly by rememberSaveable { mutableStateOf(false) }
 
     val listState = rememberLazyListState()
-    val focusManager = LocalFocusManager.current
+    val focus = LocalFocusManager.current
 
-    // Обновляем дату и возраст партий, если экран долго открыт.
-    val nowEpochMs by produceState(
-        initialValue = System.currentTimeMillis()
-    ) {
+    val now by produceState(System.currentTimeMillis()) {
         while (true) {
             delay(60_000L)
             value = System.currentTimeMillis()
         }
     }
 
-    val todayLabel = remember(nowEpochMs) {
-        SimpleDateFormat(
-            "d MMMM yyyy",
-            Locale.forLanguageTag("ru-RU"),
-        ).format(Date(nowEpochMs))
-    }
+    val rows = remember(batches, now) { batches.map { it to computeStatus(it, now) } }
+    val activeCount = rows.count { !it.first.archived }
+    val dueCount = rows.count { it.second.isDueWeigh }
+    val archiveCount = rows.count { it.first.archived }
+    val attentionCount = rows.count { it.second.needsAttention }
+    val q = query.trim()
 
-    // Один набор метрик используется и в списке, и в карточках.
-    val rows = remember(batches, nowEpochMs) {
-        batches.map { batch ->
-            val metrics = computeMetrics(batch, nowEpochMs)
-
-            BatchRow(
-                batch = batch,
-                metrics = metrics,
-                attention = batch.requiresAttention(metrics),
-            )
-        }
-    }
-
-    val counts = mapOf(
-        MainTab.PRODUCTS to rows.count { !it.batch.archived },
-        MainTab.WEIGH to rows.count { it.attention },
-        MainTab.ARCHIVE to rows.count { it.batch.archived },
-    )
-
-    val categories = remember(batches) {
-        batches
-            .map { it.category.trim() }
-            .filter { it.isNotEmpty() }
-            .distinct()
-            .sorted()
-    }
-
-    val categoryOptions = remember(categories) {
-        listOf("" to "Все категории") +
-            categories.map { it to it }
-    }
-
-    // Например, после загрузки другого журнала.
-    LaunchedEffect(categories) {
-        if (category.isNotEmpty() && category !in categories) {
-            category = ""
-        }
-    }
-
-    val filtered = remember(rows, tab, query, category, sort) {
-        val q = query.trim()
-
-        val matching = rows.filter { row ->
-            val batch = row.batch
-
-            val matchesTab = when (tab) {
-                MainTab.PRODUCTS -> !batch.archived
-                MainTab.WEIGH -> row.attention
-                MainTab.ARCHIVE -> batch.archived
+    val filtered = remember(rows, tab, attentionOnly, q, sort) {
+        val matching = rows.filter { (b, s) ->
+            val inTab = when {
+                attentionOnly -> s.needsAttention
+                tab == MainTab.PRODUCTS -> !b.archived
+                tab == MainTab.WEIGH -> s.isDueWeigh
+                else -> b.archived
             }
-
-            val matchesCategory =
-                category.isEmpty() ||
-                    batch.category.trim() == category
-
-            val matchesQuery =
+            inTab && (
                 q.isEmpty() ||
-                    batch.name.contains(q, ignoreCase = true) ||
-                    batch.rawMaterial.contains(q, ignoreCase = true) ||
-                    batch.category.contains(q, ignoreCase = true) ||
-                    batch.number.toString()
-                        .padStart(2, '0')
-                        .contains(q)
-
-            matchesTab && matchesCategory && matchesQuery
-        }
-
-        when (sort) {
-            BatchSort.NUMBER ->
-                matching.sortedBy { it.batch.number }
-
-            BatchSort.ATTENTION ->
-                matching.sortedWith(
-                    compareBy<BatchRow> { !it.attention }
-                        .thenBy { it.batch.number }
+                    b.name.contains(q, ignoreCase = true) ||
+                    b.rawMaterial.contains(q, ignoreCase = true) ||
+                    b.category.contains(q, ignoreCase = true) ||
+                    b.number.toString().padStart(2, '0').contains(q)
                 )
-
-            BatchSort.NEW ->
-                matching.sortedByDescending {
-                    it.batch.createdAtEpochMs
-                }
+        }
+        when (sort) {
+            BatchSort.NUMBER -> matching.sortedBy { it.first.number }
+            BatchSort.ATTENTION -> matching.sortedWith(
+                compareBy<Pair<Batch, ru.fermocontrol.fermocontrol.model.BatchStatus>> { !it.second.needsAttention }
+                    .thenBy { it.first.number }
+            )
+            BatchSort.NEW -> matching.sortedByDescending { it.first.createdAtEpochMs }
         }
     }
 
-    LaunchedEffect(tab, query, category, sort) {
-        listState.scrollToItem(0)
+    LaunchedEffect(tab, q, sort, attentionOnly) { listState.scrollToItem(0) }
+
+    val listTitle = when {
+        attentionOnly -> "Требуют внимания"
+        tab == MainTab.PRODUCTS -> "Активные продукты"
+        tab == MainTab.WEIGH -> "Пора взвесить"
+        else -> "Архив"
     }
 
-    LazyColumn(
-        state = listState,
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Bg)
-            .safeDrawingPadding()
-            .imePadding(),
-        contentPadding = PaddingValues(
-            start = 20.dp,
-            top = 12.dp,
-            end = 20.dp,
-            bottom = 24.dp,
-        ),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+    BoxWithConstraints(
+        modifier = Modifier.fillMaxSize().background(Bg),
+        contentAlignment = Alignment.TopCenter,
     ) {
-        item(key = "controls") {
+        val narrow = maxWidth < 390.dp
+        val hPad = if (maxWidth < 380.dp) 16.dp else 24.dp
+
+        Column(
+            modifier = Modifier
+                .widthIn(max = 700.dp)
+                .fillMaxSize()
+                .safeDrawingPadding()
+                .imePadding(),
+        ) {
             Column(
-                verticalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Brush.verticalGradient(listOf(FcHeaderTop, Bg)))
+                    .padding(start = hPad, end = hPad, top = 20.dp),
             ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    Column(
-                        modifier = Modifier.weight(1f),
-                    ) {
-                        Text(
-                            text = "ФермоКонтроль",
-                            color = Ink,
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-
-                        Text(
-                            text = "ЖУРНАЛ СОЗРЕВАНИЯ",
-                            color = Muted,
-                            fontSize = 9.sp,
-                            letterSpacing = 1.sp,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
+                    Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
+                        if (!narrow) {
+                            Box(
+                                modifier = Modifier
+                                    .size(width = 37.dp, height = 41.dp)
+                                    .clip(RoundedCornerShape(13.dp, 13.dp, 16.dp, 16.dp))
+                                    .background(Color(0xFF213021))
+                                    .border(1.dp, Color(0xFF53664C), RoundedCornerShape(13.dp, 13.dp, 16.dp, 16.dp)),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Box(
+                                    Modifier
+                                        .size(width = 16.dp, height = 20.dp)
+                                        .border(1.5.dp, Emerald, RoundedCornerShape(4.dp))
+                                )
+                            }
+                            Spacer(Modifier.width(11.dp))
+                        }
+                        Column {
+                            Text(
+                                "ФермоКонтроль",
+                                color = Ink,
+                                fontSize = if (narrow) 16.sp else 19.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                letterSpacing = (-0.6).sp,
+                                maxLines = 1,
+                            )
+                            Text(
+                                "ЖУРНАЛ СОЗРЕВАНИЯ",
+                                color = Muted,
+                                fontSize = 9.sp,
+                                letterSpacing = 1.9.sp,
+                                maxLines = 1,
+                                modifier = Modifier.padding(top = 2.dp),
+                            )
+                        }
                     }
-
-                    HeaderAction(
-                        icon = Icons.Outlined.Notifications,
-                        description = "Внимание",
-                        count = counts.getValue(MainTab.WEIGH),
-                        onClick = {
-                            focusManager.clearFocus()
-
-                            // Не оставляем скрывающие результаты фильтры.
-                            query = ""
-                            category = ""
-                            tab = MainTab.WEIGH
+                    val hasAttention = attentionCount > 0
+                    CircleAction(
+                        icon = Icons.Outlined.Warning,
+                        description = if (hasAttention) "Требуют внимания: $attentionCount" else "Продуктов, требующих внимания, нет",
+                        tint = when {
+                            attentionOnly -> Color(0xFF1C2519)
+                            hasAttention -> Color(0xFFEDC58C)
+                            else -> Color(0xFF96A88B)
                         },
+                        bg = when {
+                            attentionOnly -> Color(0xFFEDC58C)
+                            hasAttention -> Color(0x0BEDBC77)
+                            else -> Color(0x06B5D9AB)
+                        },
+                        border = when {
+                            attentionOnly -> Color(0xFFEDC58C)
+                            hasAttention -> Color(0xFF6D5738)
+                            else -> Color(0xFF41523A)
+                        },
+                        badge = if (attentionCount > 99) "99+" else attentionCount.toString(),
+                        badgeBg = when {
+                            attentionOnly -> Color(0xFF243120)
+                            hasAttention -> Color(0xFFEDC58C)
+                            else -> Color(0xFF354330)
+                        },
+                        badgeInk = when {
+                            attentionOnly -> Color(0xFFF2D8B1)
+                            hasAttention -> Color(0xFF202719)
+                            else -> Color(0xFFCAD6C1)
+                        },
+                        onClick = { focus.clearFocus(); attentionOnly = !attentionOnly },
                     )
-
-                    HeaderAction(
+                    CircleAction(
                         icon = Icons.Outlined.Add,
-                        description = "Новая закладка",
-                        accent = true,
+                        description = "Добавить продукт",
+                        tint = Emerald,
+                        bg = Color(0x14B5D9AB),
+                        border = Color(0xFF536B47),
                         onClick = onAdd,
                     )
-
-                    HeaderAction(
+                    CircleAction(
                         icon = Icons.Outlined.Settings,
-                        description = "Настройки",
+                        description = "Настройки и резервные копии",
+                        tint = Color(0xFFB8C6AE),
+                        bg = Color(0x04B5D9AB),
+                        border = Color(0xFF3F5039),
                         onClick = onSettings,
                     )
                 }
 
+                Spacer(Modifier.height(18.dp))
+                SearchField(query, { query = it }, { focus.clearFocus() })
+                Spacer(Modifier.height(14.dp))
+
+                val tabShape = RoundedCornerShape(14.dp)
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(top = 6.dp),
-                    verticalAlignment = Alignment.Bottom,
+                        .clip(tabShape)
+                        .background(FcSearchBg)
+                        .border(1.dp, FcTabsLine, tabShape)
+                        .padding(4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
-                    Text(
-                        text = "Камера",
-                        modifier = Modifier.weight(1f),
-                        color = Ink,
-                        fontSize = 27.sp,
-                        fontWeight = FontWeight.SemiBold,
-                    )
-
-                    Text(
-                        text = todayLabel,
-                        modifier = Modifier.padding(
-                            start = 8.dp,
-                            bottom = 4.dp,
-                        ),
-                        color = Muted,
-                        fontSize = 12.sp,
-                    )
-                }
-
-                // Поиск отображается всегда, включая пустой запрос.
-                TextField(
-                    value = query,
-                    onValueChange = { query = it },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                    shape = RoundedCornerShape(12.dp),
-                    textStyle = MaterialTheme.typography.bodyMedium,
-                    placeholder = {
-                        Text(
-                            text = "Название, номер или сырьё",
-                            fontSize = 14.sp,
-                        )
-                    },
-                    leadingIcon = {
-                        Icon(
-                            imageVector = Icons.Outlined.Search,
-                            contentDescription = null,
-                        )
-                    },
-                    trailingIcon = {
-                        if (query.isNotEmpty()) {
-                            IconButton(
-                                onClick = { query = "" },
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Outlined.Close,
-                                    contentDescription = "Очистить поиск",
-                                )
-                            }
+                    MainTab.entries.forEach { t ->
+                        val selected = tab == t
+                        val count = when (t) {
+                            MainTab.PRODUCTS -> activeCount
+                            MainTab.WEIGH -> dueCount
+                            MainTab.ARCHIVE -> archiveCount
                         }
-                    },
-                    keyboardOptions = KeyboardOptions(
-                        imeAction = ImeAction.Search,
-                    ),
-                    keyboardActions = KeyboardActions(
-                        onSearch = {
-                            focusManager.clearFocus()
-                        },
-                    ),
-                    colors = TextFieldDefaults.colors(
-                        focusedTextColor = Ink,
-                        unfocusedTextColor = Ink,
-                        focusedContainerColor = Card,
-                        unfocusedContainerColor = Card,
-                        focusedIndicatorColor = Color.Transparent,
-                        unfocusedIndicatorColor = Color.Transparent,
-                        focusedLeadingIconColor = Muted,
-                        unfocusedLeadingIconColor = Muted,
-                        focusedTrailingIconColor = Muted,
-                        unfocusedTrailingIconColor = Muted,
-                        focusedPlaceholderColor = Muted,
-                        unfocusedPlaceholderColor = Muted,
-                        cursorColor = Emerald,
-                    ),
-                )
-
-                MainTabs(
-                    selected = tab,
-                    counts = counts,
-                    onSelect = {
-                        focusManager.clearFocus()
-                        tab = it
-                    },
-                )
-
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    ChoiceMenu(
-                        current = category,
-                        options = categoryOptions,
-                        onSelect = {
-                            focusManager.clearFocus()
-                            category = it
-                        },
-                        modifier = Modifier.weight(1f),
-                    )
-
-                    ChoiceMenu(
-                        current = sort,
-                        options = BatchSort.entries.map {
-                            it to it.label
-                        },
-                        onSelect = {
-                            focusManager.clearFocus()
-                            sort = it
-                        },
-                        modifier = Modifier.weight(1f),
-                    )
+                        val s = RoundedCornerShape(10.dp)
+                        Row(
+                            modifier = Modifier
+                                .weight(1f)
+                                .heightIn(min = 44.dp)
+                                .clip(s)
+                                .background(if (selected) FcTabActive else Color.Transparent)
+                                .clickable(role = Role.Tab) {
+                                    focus.clearFocus()
+                                    attentionOnly = false
+                                    tab = t
+                                },
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center,
+                        ) {
+                            Text(
+                                t.label,
+                                color = if (selected) FcTabActiveInk else Muted,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Medium,
+                                maxLines = 1,
+                            )
+                            Spacer(Modifier.width(7.dp))
+                            Text(
+                                count.toString(),
+                                color = if (selected) FcTabCountActiveInk else FcTabCountInk,
+                                fontSize = 10.sp,
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(5.dp))
+                                    .background(if (selected) FcTabCountActive else FcTabCount)
+                                    .padding(horizontal = 5.dp, vertical = 1.dp),
+                            )
+                        }
+                    }
                 }
 
-                Text(
-                    text = "Показано: ${filtered.size}",
-                    color = Muted,
-                    fontSize = 12.sp,
-                )
+                Spacer(Modifier.height(12.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    Text(
+                        listTitle,
+                        color = if (attentionOnly) Amber else Muted,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Medium,
+                        modifier = Modifier.weight(1f),
+                    )
+                    SortMenu(sort) { focus.clearFocus(); sort = it }
+                }
             }
-        }
+            Box(Modifier.fillMaxWidth().height(1.dp).background(Line))
 
-        if (filtered.isEmpty()) {
-            item(key = "empty") {
-                EmptyBatchState(
-                    tab = tab,
-                    hasFilters =
-                        query.isNotBlank() || category.isNotEmpty(),
-                    onClearFilters = {
-                        query = ""
-                        category = ""
-                    },
-                    onAdd = onAdd,
-                )
-            }
-        } else {
-            items(
-                items = filtered,
-                key = { "batch-${it.batch.id}" },
-            ) { row ->
-                BatchCard(
-    batch = row.batch,
-    onClick = {
-        focusManager.clearFocus()
-        onSelect(row.batch)
-    },
-    onWeigh = {
-        focusManager.clearFocus()
-        onWeighBatch(row.batch)
-    },
-)
+            LazyColumn(
+                state = listState,
+                modifier = Modifier.weight(1f).fillMaxWidth(),
+                contentPadding = PaddingValues(start = hPad, end = hPad, top = 14.dp, bottom = 24.dp),
+                verticalArrangement = Arrangement.spacedBy(13.dp),
+            ) {
+                if (filtered.isEmpty()) {
+                    item(key = "empty") {
+                        EmptyState(
+                            title = when {
+                                q.isNotEmpty() -> "Ничего не найдено"
+                                attentionOnly -> "Нет продуктов, требующих внимания"
+                                tab == MainTab.WEIGH -> "Взвешивать пока нечего"
+                                tab == MainTab.ARCHIVE -> "Архив пуст"
+                                else -> "Пока нет продуктов"
+                            },
+                            text = when {
+                                q.isNotEmpty() -> "Измените поисковый запрос."
+                                attentionOnly -> "Все партии в порядке."
+                                tab == MainTab.WEIGH -> "Здесь появятся партии, у которых подошёл срок замера."
+                                tab == MainTab.ARCHIVE -> "Завершённые партии появятся здесь."
+                                else -> "Добавьте первый продукт, чтобы начать журнал."
+                            },
+                            showAdd = q.isEmpty() && !attentionOnly && tab == MainTab.PRODUCTS,
+                            onAdd = onAdd,
+                        )
+                    }
+                } else {
+                    items(filtered, key = { it.first.id }) { row ->
+                        BatchCard(
+                            batch = row.first,
+                            onClick = { focus.clearFocus(); onSelect(row.first) },
+                            onWeigh = { focus.clearFocus(); onWeigh(row.first) },
+                            nowEpochMs = now,
+                        )
+                    }
+                    item(key = "footnote") {
+                        Text(
+                            "Нажмите на продукт, чтобы открыть подробности",
+                            color = Color(0xFF74856F),
+                            fontSize = 10.5.sp,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.fillMaxWidth().padding(top = 7.dp),
+                        )
+                    }
+                }
             }
         }
     }
 }
 
 @Composable
-private fun HeaderAction(
+private fun CircleAction(
     icon: ImageVector,
     description: String,
+    tint: Color,
+    bg: Color,
+    border: Color,
     onClick: () -> Unit,
-    count: Int = 0,
-    accent: Boolean = false,
+    badge: String? = null,
+    badgeBg: Color = Color.Transparent,
+    badgeInk: Color = Color.Transparent,
 ) {
-    Box(
-        modifier = Modifier.size(48.dp),
-    ) {
-        IconButton(
-            onClick = onClick,
+    Box(Modifier.size(48.dp)) {
+        Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(
-                    color = if (accent) Emerald else Card,
-                    shape = CircleShape,
-                ),
+                .clip(CircleShape)
+                .background(bg)
+                .border(1.dp, border, CircleShape)
+                .clickable(role = Role.Button, onClick = onClick),
+            contentAlignment = Alignment.Center,
         ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = if (count > 0) {
-                    "$description: $count"
-                } else {
-                    description
-                },
-                tint = when {
-                    accent -> Bg
-                    count > 0 -> Amber
-                    else -> Ink
-                },
-                modifier = Modifier.size(21.dp),
-            )
+            Icon(icon, contentDescription = description, tint = tint, modifier = Modifier.size(21.dp))
         }
-
-        if (count > 0) {
+        if (badge != null) {
+            val bs = RoundedCornerShape(12.dp)
             Box(
                 modifier = Modifier
                     .align(Alignment.TopEnd)
-                    .size(18.dp)
-                    .background(Amber, CircleShape),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    text = if (count > 9) "9+" else count.toString(),
-                    color = Bg,
-                    fontSize = 9.sp,
-                    fontWeight = FontWeight.Bold,
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun MainTabs(
-    selected: MainTab,
-    counts: Map<MainTab, Int>,
-    onSelect: (MainTab) -> Unit,
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
-            .background(Card)
-            .selectableGroup()
-            .padding(4.dp),
-    ) {
-        MainTab.entries.forEach { tab ->
-            val active = selected == tab
-
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .heightIn(min = 48.dp)
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(
-                        if (active) EmeraldSoft else Color.Transparent
-                    )
-                    .selectable(
-                        selected = active,
-                        role = Role.Tab,
-                        onClick = { onSelect(tab) },
-                    )
+                    .offset(x = 3.dp, y = (-4).dp)
+                    .defaultMinSize(minWidth = 18.dp, minHeight = 18.dp)
+                    .clip(bs)
+                    .background(badgeBg)
+                    .border(2.dp, Color(0xFF142018), bs)
                     .padding(horizontal = 4.dp),
                 contentAlignment = Alignment.Center,
             ) {
-                Text(
-                    text = "${tab.label} ${counts[tab] ?: 0}",
-                    color = if (active) Emerald else Muted,
-                    fontSize = 12.sp,
-                    fontWeight = if (active) {
-                        FontWeight.SemiBold
-                    } else {
-                        FontWeight.Normal
-                    },
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    textAlign = TextAlign.Center,
-                )
+                Text(badge, color = badgeInk, fontSize = 9.sp, fontWeight = FontWeight.Bold, maxLines = 1)
             }
         }
     }
 }
 
 @Composable
-private fun <T> ChoiceMenu(
-    current: T,
-    options: List<Pair<T, String>>,
-    onSelect: (T) -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    var expanded by remember {
-        mutableStateOf(false)
+private fun SearchField(query: String, onChange: (String) -> Unit, onDone: () -> Unit) {
+    var focused by remember { mutableStateOf(false) }
+    val shape = RoundedCornerShape(13.dp)
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(47.dp)
+            .clip(shape)
+            .background(FcSearchBg)
+            .border(1.dp, if (focused) FcSearchFocus else Line, shape)
+            .padding(start = 13.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(Icons.Outlined.Search, contentDescription = null, tint = FcSearchIcon, modifier = Modifier.size(18.dp))
+        Spacer(Modifier.width(9.dp))
+        BasicTextField(
+            value = query,
+            onValueChange = onChange,
+            singleLine = true,
+            textStyle = TextStyle(color = Ink, fontSize = 14.sp),
+            cursorBrush = SolidColor(Emerald),
+            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+            keyboardActions = KeyboardActions(onSearch = { onDone() }),
+            modifier = Modifier.weight(1f).onFocusChanged { focused = it.isFocused },
+            decorationBox = { inner ->
+                Box(contentAlignment = Alignment.CenterStart) {
+                    if (query.isEmpty()) Text("Поиск...", color = FcSearchHint, fontSize = 14.sp)
+                    inner()
+                }
+            },
+        )
+        if (query.isNotEmpty()) {
+            Box(
+                modifier = Modifier.size(44.dp).clickable(role = Role.Button) { onChange("") },
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(Icons.Outlined.Close, contentDescription = "Очистить поиск", tint = Muted, modifier = Modifier.size(18.dp))
+            }
+        } else {
+            Spacer(Modifier.width(13.dp))
+        }
     }
+}
 
-    val label = options
-        .firstOrNull { it.first == current }
-        ?.second
-        .orEmpty()
-
-    Box(modifier = modifier) {
-        TextButton(
-            onClick = { expanded = true },
+@Composable
+private fun SortMenu(current: BatchSort, onSelect: (BatchSort) -> Unit) {
+    var open by remember { mutableStateOf(false) }
+    Box {
+        Text(
+            "${current.label} ▾",
+            color = Muted,
+            fontSize = 11.sp,
             modifier = Modifier
-                .fillMaxWidth()
-                .heightIn(min = 48.dp),
-            shape = RoundedCornerShape(10.dp),
-            colors = ButtonDefaults.textButtonColors(
-                containerColor = Card,
-                contentColor = Muted,
-            ),
-            contentPadding = PaddingValues(horizontal = 10.dp),
-        ) {
-            Text(
-                text = label,
-                modifier = Modifier.weight(1f),
-                fontSize = 12.sp,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-
-            Icon(
-                imageVector = Icons.Outlined.ExpandMore,
-                contentDescription = null,
-                modifier = Modifier.size(18.dp),
-            )
-        }
-
-        DropdownMenu(
-            expanded = expanded,
-            onDismissRequest = { expanded = false },
-        ) {
-            options.forEach { (value, title) ->
+                .clip(RoundedCornerShape(8.dp))
+                .clickable(role = Role.DropdownList) { open = true }
+                .padding(horizontal = 8.dp, vertical = 12.dp),
+        )
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            BatchSort.entries.forEach { s ->
                 DropdownMenuItem(
-                    text = {
-                        Text(
-                            text = title,
-                            color = if (value == current) Emerald else Ink,
-                        )
-                    },
-                    onClick = {
-                        expanded = false
-                        onSelect(value)
-                    },
+                    text = { Text(s.label, color = if (s == current) Emerald else Ink) },
+                    onClick = { open = false; onSelect(s) },
                 )
             }
         }
@@ -610,64 +477,22 @@ private fun <T> ChoiceMenu(
 }
 
 @Composable
-private fun EmptyBatchState(
-    tab: MainTab,
-    hasFilters: Boolean,
-    onClearFilters: () -> Unit,
-    onAdd: () -> Unit,
-) {
-    val title = when {
-        hasFilters -> "Ничего не найдено"
-        tab == MainTab.WEIGH -> "Нет партий, требующих внимания"
-        tab == MainTab.ARCHIVE -> "Архив пуст"
-        else -> "Пока нет продуктов"
-    }
-
-    val subtitle = when {
-        hasFilters ->
-            "Измени поисковый запрос или выбранную категорию."
-
-        tab == MainTab.WEIGH ->
-            "Здесь появятся партии с отметкой проверки " +
-                "или достигнутой целью усушки."
-
-        tab == MainTab.ARCHIVE ->
-            "Завершённые партии появятся здесь."
-
-        else ->
-            "Добавь первую закладку, чтобы начать журнал."
-    }
-
+private fun EmptyState(title: String, text: String, showAdd: Boolean, onAdd: () -> Unit) {
+    val shape = RoundedCornerShape(18.dp)
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 32.dp),
+            .clip(shape)
+            .background(FcEmptyBg)
+            .border(1.dp, FcEmptyLine, shape)
+            .padding(horizontal = 15.dp, vertical = 30.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Text(
-            text = title,
-            color = Ink,
-            fontSize = 18.sp,
-            fontWeight = FontWeight.SemiBold,
-            textAlign = TextAlign.Center,
-        )
-
-        Text(
-            text = subtitle,
-            color = Muted,
-            fontSize = 14.sp,
-            textAlign = TextAlign.Center,
-        )
-
-        if (hasFilters) {
-            TextButton(onClick = onClearFilters) {
-                Text("Сбросить поиск и категорию")
-            }
-        } else if (tab == MainTab.PRODUCTS) {
-            Button(onClick = onAdd) {
-                Text("Новая закладка")
-            }
+        Text(title, color = Color(0xFFE0E9D9), fontSize = 14.sp, fontWeight = FontWeight.Medium, textAlign = TextAlign.Center)
+        Text(text, color = Color(0xFFA8B99C), fontSize = 12.sp, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 5.dp))
+        if (showAdd) {
+            Spacer(Modifier.height(17.dp))
+            FcPrimaryButton(text = "Добавить продукт", onClick = onAdd)
         }
     }
 }

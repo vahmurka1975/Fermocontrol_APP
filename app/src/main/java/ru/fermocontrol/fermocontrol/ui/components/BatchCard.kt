@@ -1,240 +1,238 @@
 package ru.fermocontrol.fermocontrol.ui.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.KeyboardArrowRight
+import androidx.compose.material3.Icon
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import ru.fermocontrol.fermocontrol.model.*
+import ru.fermocontrol.fermocontrol.model.Batch
+import ru.fermocontrol.fermocontrol.model.computeMetrics
+import ru.fermocontrol.fermocontrol.model.computeStatus
+import ru.fermocontrol.fermocontrol.model.nextActionText
+import ru.fermocontrol.fermocontrol.ui.fmtDateShort
+import ru.fermocontrol.fermocontrol.ui.fmtGrams
+import ru.fermocontrol.fermocontrol.ui.fmtPercentChange
 import ru.fermocontrol.fermocontrol.ui.theme.*
-import java.time.Instant
-import java.time.LocalDate
-import java.time.ZoneId
-import kotlin.math.roundToInt
 
-/**
- * Карточка партии — главный элемент списка «Продукты» (Design 04).
- */
+/** Карточка продукта: структура .product-card макета v0.4.1. */
 @Composable
 fun BatchCard(
     batch: Batch,
     onClick: () -> Unit,
     onWeigh: () -> Unit,
+    nowEpochMs: Long = System.currentTimeMillis(),
 ) {
-    val m = computeMetrics(batch)
-    val archived = batch.archived
+    val metrics = computeMetrics(batch, nowEpochMs)
+    val status = computeStatus(batch, nowEpochMs)
+    val warning = status.needsAttention
+    val shape = RoundedCornerShape(20.dp)
+    val lastLog = batch.logs.maxByOrNull { it.atEpochMs }
+    val start = batch.startWeightGrams
+    val rawLoss = if (start > 0.0) (start - metrics.currentWeightGrams) / start * 100.0 else 0.0
+
+    val dayLabel = if (metrics.daysElapsed == 0) "Закладка сегодня" else "День ${metrics.daysElapsed}"
+    val subtitle = listOf(batch.rawMaterial.ifBlank { batch.category }, dayLabel)
+        .filter { it.isNotBlank() }
+        .joinToString(" · ")
+    val caption = if (lastLog != null) "замер " + fmtDateShort(lastLog.atEpochMs)
+    else "начальный вес · без замеров"
 
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
-            .background(if (archived) BgElev else Card)
-            .clickable(onClick = onClick)
-            .padding(16.dp)
+            .clip(shape)
+            .background(Brush.linearGradient(listOf(FcCardTop, FcCardBottom)))
+            .border(1.dp, if (warning) FcCardWarnLine else FcCardLine, shape),
     ) {
-        // ── Верхняя строка: номер, название, сырьё · день ──
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            // Номер — квадрат (40×42), не кружок
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(role = Role.Button, onClick = onClick)
+                .padding(start = 18.dp, top = 18.dp, end = 18.dp, bottom = 15.dp),
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .size(width = 40.dp, height = 42.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(FcNumberBg)
+                        .border(1.dp, FcNumberLine, RoundedCornerShape(12.dp)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = batch.number.toString().padStart(2, '0'),
+                        color = FcNumberInk,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                }
+                Spacer(Modifier.width(12.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        text = batch.name,
+                        color = Ink,
+                        fontSize = 16.sp,
+                        lineHeight = 21.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        text = subtitle,
+                        color = Muted,
+                        fontSize = 11.5.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.padding(top = 3.dp),
+                    )
+                }
+                Icon(
+                    imageVector = Icons.Outlined.KeyboardArrowRight,
+                    contentDescription = null,
+                    tint = FcChevron,
+                    modifier = Modifier.size(17.dp),
+                )
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(top = 19.dp),
+                verticalAlignment = Alignment.Bottom,
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Column {
+                    Row(verticalAlignment = Alignment.Bottom) {
+                        Text(
+                            text = fmtGrams(metrics.currentWeightGrams),
+                            color = Ink,
+                            fontSize = 30.sp,
+                            lineHeight = 34.sp,
+                            fontWeight = FontWeight.Medium,
+                            letterSpacing = (-0.9).sp,
+                        )
+                        Text(
+                            text = "г",
+                            color = FcWeightUnit,
+                            fontSize = 15.sp,
+                            modifier = Modifier.padding(start = 3.dp, bottom = 4.dp),
+                        )
+                    }
+                    Text(
+                        text = caption,
+                        color = FcCaption,
+                        fontSize = 10.sp,
+                        modifier = Modifier.padding(top = 5.dp),
+                    )
+                }
+                Column(horizontalAlignment = Alignment.End) {
+                    Text(
+                        text = fmtPercentChange(rawLoss),
+                        color = FcLoss,
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Medium,
+                    )
+                    Text(
+                        text = "от начального веса",
+                        color = FcCaption,
+                        fontSize = 10.sp,
+                        modifier = Modifier.padding(top = 2.dp),
+                    )
+                }
+            }
+
             Box(
                 modifier = Modifier
-                    .size(width = 40.dp, height = 42.dp)
-                    .clip(RoundedCornerShape(9.dp))
-                    .background(if (archived) CardHover else EmeraldSoft),
-                contentAlignment = Alignment.Center
+                    .padding(top = 14.dp)
+                    .fillMaxWidth()
+                    .height(4.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(FcTrack),
             ) {
-                Text(
-                    text = batch.number.toString().padStart(2, '0'),
-                    color = if (archived) Muted else Emerald,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.SemiBold
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(metrics.progress.toFloat().coerceIn(0f, 1f))
+                        .fillMaxHeight()
+                        .background(if (warning) FcFillWarn else FcFill),
                 )
             }
-
-            Spacer(Modifier.width(12.dp))
-
-            Column(Modifier.weight(1f)) {
-                Text(
-                    text = batch.name,
-                    color = if (archived) Muted else Ink,
-                    fontSize = 17.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1
-                )
-                Text(
-                    text = buildString {
-                        append(batch.rawMaterial.ifBlank { batch.category })
-                        if (m.daysElapsed >= 0) append(" · День ${m.daysElapsed + 1}")
-                    },
-                    color = Muted,
-                    fontSize = 13.sp,
-                    maxLines = 1
-                )
-            }
-
-            Spacer(Modifier.width(8.dp))
-
-            // Потеря, % — текстом справа (как в Design 04)
-            Text(
-                text = percentSigned(m.lostPercent),
-                color = percentColor(m),
-                fontSize = 20.sp,
-                fontWeight = FontWeight.SemiBold
-            )
         }
 
-        Spacer(Modifier.height(14.dp))
+        Box(Modifier.fillMaxWidth().height(1.dp).background(FcFooterLine))
 
-        // ── Текущий вес — крупно, с единицей «г» ──
-        Row(verticalAlignment = Alignment.Bottom) {
-            Text(
-                text = formatWeight(m.currentWeightGrams),
-                color = if (archived) Muted else Ink,
-                fontSize = 28.sp,
-                fontWeight = FontWeight.Bold
-            )
-            Spacer(Modifier.width(4.dp))
-            Text(
-                text = "г",
-                color = Muted,
-                fontSize = 14.sp,
-                modifier = Modifier.padding(bottom = 4.dp)
-            )
-        }
-        Text(
-            text = "текущий вес",
-            color = Muted,
-            fontSize = 12.sp
-        )
-
-        Spacer(Modifier.height(12.dp))
-
-        // ── Прогресс к цели усушки (тонкая полоса 4dp) ──
-        Text(
-            text = if (archived) "в архиве" else "к цели усушки ${m.targetLossPercent.toPercentString()}% — ${(m.progress * 100).roundToInt()}%",
-            color = Muted,
-            fontSize = 12.sp
-        )
-        Spacer(Modifier.height(6.dp))
-        ProgressBarThin(progress = m.progress, warn = m.toTargetPercent <= 0.5 || needsAttention(m))
-
-        Spacer(Modifier.height(14.dp))
-
-        // ── Футер: статус + кнопка ──
         Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = 59.dp)
+                .padding(horizontal = 18.dp, vertical = 11.dp),
             verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.fillMaxWidth()
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            StatusDot(warn = needsAttention(m))
-            Spacer(Modifier.width(8.dp))
-            Text(
-                text = nextActionLabel(m),
-                color = if (needsAttention(m)) Amber else Muted,
-                fontSize = 13.sp,
-                modifier = Modifier.weight(1f)
-            )
+            Row(
+                modifier = Modifier.weight(1f),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(5.dp)
+                        .clip(CircleShape)
+                        .background(if (warning) Amber else FcDot),
+                )
+                Spacer(Modifier.width(7.dp))
+                Text(
+                    text = nextActionText(batch, status),
+                    color = if (warning) FcNextActionWarn else FcNextAction,
+                    fontSize = 11.5.sp,
+                    lineHeight = 16.sp,
+                )
+            }
 
-            if (!archived) {
-                Button(
-                    onClick = onWeigh,
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = if (needsAttention(m)) Amber else AmberSoft,
-                        contentColor = if (needsAttention(m)) Bg else Amber
-                    ),
-                    shape = RoundedCornerShape(9.dp),
-                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
+            val buttonShape = RoundedCornerShape(10.dp)
+            if (batch.archived) {
+                Box(
+                    modifier = Modifier
+                        .heightIn(min = 44.dp)
+                        .clip(buttonShape)
+                        .border(1.dp, Line, buttonShape)
+                        .clickable(role = Role.Button, onClick = onClick)
+                        .padding(horizontal = 12.dp),
+                    contentAlignment = Alignment.Center,
                 ) {
-                    Text("Взвесить", fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                    Text("Журнал", color = Muted, fontSize = 12.sp, fontWeight = FontWeight.Medium)
                 }
             } else {
-                Text(
-                    text = "Журнал",
-                    color = Muted,
-                    fontSize = 13.sp
-                )
+                val due = status.isDueWeigh
+                Box(
+                    modifier = Modifier
+                        .heightIn(min = 44.dp)
+                        .clip(buttonShape)
+                        .background(if (due) FcDueBg else FcWeighBg)
+                        .border(1.dp, if (due) FcDueBg else FcWeighLine, buttonShape)
+                        .clickable(role = Role.Button, onClick = onWeigh)
+                        .padding(horizontal = 12.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = "Взвесить",
+                        color = if (due) FcDueInk else FcWeighInk,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Medium,
+                    )
+                }
             }
         }
-    }
-}
-
-// ─────────────────────────────────────────────────────────────
-//  Вспомогательные элементы карточки
-// ─────────────────────────────────────────────────────────────
-
-@Composable
-private fun ProgressBarThin(progress: Double, warn: Boolean) {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(4.dp)
-            .clip(RoundedCornerShape(2.dp))
-            .background(Line)
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth(progress.toFloat().coerceIn(0f, 1f))
-                .fillMaxHeight()
-                .background(if (warn) Amber else Emerald)
-        )
-    }
-}
-
-@Composable
-private fun StatusDot(warn: Boolean) {
-    Box(
-        modifier = Modifier
-            .size(8.dp)
-            .clip(androidx.compose.foundation.shape.CircleShape)
-            .background(when {
-                warn -> Amber
-                else -> Muted
-            })
-    )
-}
-
-// ─────────────────────────────────────────────────────────────
-//  Форматирование и логика текстов
-// ─────────────────────────────────────────────────────────────
-
-private fun formatWeight(grams: Double): String {
-    val r = Math.round(grams)
-    return "%,d".format(r).replace(',', ' ')
-}
-
-private fun percentSigned(value: Double): String {
-    val sign = if (value < 0) "+" else "−"
-    return "$sign${Math.abs(value).toPercentString()}%"
-}
-
-@Composable
-private fun percentColor(m: Metrics): Color {
-    return when {
-        m.toTargetPercent <= 0.0 -> Emerald       // цель достигнута/перевыполнена
-        m.pacePercentPerDay != null && m.pacePercentPerDay > 0 && m.pacePercentPerDay >= 3.0 -> Amber
-        else -> Muted
-    }
-}
-
-private fun needsAttention(m: Metrics): Boolean {
-    // «пора взвесить»: до цели близко, либо темп упал/пересох
-    return m.toTargetPercent <= 0.5 ||
-        (m.pacePercentPerDay != null && m.pacePercentPerDay <= 0.0) ||
-        (m.estimatedDaysLeft != null && m.estimatedDaysLeft <= 1)
-}
-
-private fun nextActionLabel(m: Metrics): String {
-    return when {
-        m.daysElapsed == 0 -> "Закладка сегодня"
-        m.toTargetPercent <= 0.0 -> "Цель достигнута"
-        needsAttention(m) -> "Пора взвесить"
-        m.estimatedDaysLeft != null && m.estimatedDaysLeft > 0 -> "Взвешивание через ${m.estimatedDaysLeft} дн"
-        else -> "Следите за усушкой"
     }
 }

@@ -53,6 +53,7 @@ import ru.fermocontrol.fermocontrol.model.NewBatchDraft
 import ru.fermocontrol.fermocontrol.model.WeightLog
 import ru.fermocontrol.fermocontrol.ui.MainScreen
 import ru.fermocontrol.fermocontrol.ui.NewBatchDialog
+import ru.fermocontrol.fermocontrol.ui.WeighSheet
 import ru.fermocontrol.fermocontrol.ui.theme.FermocontrolTheme
 
 class MainActivity : ComponentActivity() {
@@ -104,15 +105,15 @@ class MainActivity : ComponentActivity() {
 
                         val weighingBatch = journal.weighingBatch
 
-                        if (weighingBatch != null) {
-                            JournalWeighDialog(
-                                batch = weighingBatch,
-                                saving = journal.saving,
-                                error = journal.weighError,
-                                onDismiss = journal::dismissWeigh,
-                                onSave = journal::saveWeight,
-                            )
-                        }
+if (weighingBatch != null) {
+    JournalWeighDialog(
+        batch = weighingBatch,
+        saving = journal.saving,
+        error = journal.weighError,
+        onDismiss = journal::dismissWeigh,
+        onSave = journal::saveWeight,
+    )
+}
                     }
                 }
             }
