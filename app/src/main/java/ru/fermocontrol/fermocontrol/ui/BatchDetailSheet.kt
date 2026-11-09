@@ -95,6 +95,7 @@ private val BtnMain = Color(0xFFBDDCAF)
 private val BtnMainText = Color(0xFF192A16)
 private val BtnSecBg = Color(0xFF223022)
 private val BtnSecLine = Color(0xFF42523B)
+private val DeleteInk = Color(0xFFE0A58F)
 
 private val RU: Locale = Locale.forLanguageTag("ru-RU")
 
@@ -109,10 +110,15 @@ fun BatchDetailSheet(
     onDismiss: () -> Unit,
     onWeigh: () -> Unit,
     onSetArchived: (Boolean) -> Unit,
+	onEdit: () -> Unit,
+    onDeleteLog: (WeightLog) -> Unit,
+    onDeleteBatch: () -> Unit,
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var confirmArchive by remember { mutableStateOf(false) }
     var viewerPhoto by remember { mutableStateOf<PhotoRef?>(null) }
+	var logToDelete by remember { mutableStateOf<WeightLog?>(null) }
+    var confirmDeleteBatch by remember { mutableStateOf(false) }
 
     val metrics = remember(batch) { computeMetrics(batch) }
     val attention = remember(batch, metrics) { batch.requiresAttention(metrics) }
@@ -143,12 +149,23 @@ fun BatchDetailSheet(
 
                 SectionTitle("Паспорт партии")
                 Passport(batch)
+                OutlinedButton(
+                    onClick = onEdit,
+                    enabled = !saving,
+                    shape = RoundedCornerShape(12.dp),
+                    border = BorderStroke(1.dp, BtnSecLine),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        containerColor = BtnSecBg,
+                        contentColor = Color(0xFFD5DFCD),
+                    ),
+                    modifier = Modifier.padding(top = 12.dp).heightIn(min = 44.dp),
+                ) { Text("Редактировать паспорт") }
 
                 SectionTitle("Фотографии")
                 PhotoSection(batch, logsAsc, photoFile) { viewerPhoto = it }
 
                 SectionTitle("История взвешиваний", "${logsAsc.size} зап.")
-                WeighHistory(batch, logsAsc, photoFile) { viewerPhoto = it }
+                WeighHistory(batch, logsAsc, photoFile, { logToDelete = it }) { viewerPhoto = it }
 
                 Text(
                     text = "Отметка «Требует проверки» — запись в журнале, " +
@@ -179,6 +196,19 @@ fun BatchDetailSheet(
                             modifier = Modifier.weight(1f).heightIn(min = 47.dp),
                         ) { Text("Взвесить", fontWeight = FontWeight.SemiBold) }
                     }
+					if (batch.archived) {
+                    OutlinedButton(
+                        onClick = { confirmDeleteBatch = true },
+                        enabled = !saving,
+                        shape = RoundedCornerShape(12.dp),
+                        border = BorderStroke(1.dp, Color(0xFF6D4B3F)),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            containerColor = Color.Transparent,
+                            contentColor = DeleteInk,
+                        ),
+                        modifier = Modifier.fillMaxWidth().padding(top = 9.dp).heightIn(min = 47.dp),
+                    ) { Text("Удалить партию") }
+					}
                     OutlinedButton(
                         onClick = { confirmArchive = true },
                         enabled = !saving,
@@ -227,7 +257,55 @@ fun BatchDetailSheet(
             },
         )
     }
+logToDelete?.let { log ->
+        AlertDialog(
+            onDismissRequest = { logToDelete = null },
+            containerColor = Color(0xFF1C291F),
+            titleContentColor = Ink,
+            textContentColor = Muted,
+            title = { Text("Удалить без возврата?") },
+            text = {
+                Text(
+                    "Взвешивание ${fmtWeight(log.weightGrams)} от ${fmtDate(log.atEpochMs)} " +
+                        "будет удалено вместе с фото. Восстановить запись нельзя.",
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    logToDelete = null
+                    onDeleteLog(log)
+                }) { Text("Удалить", color = DeleteInk) }
+            },
+            dismissButton = {
+                TextButton(onClick = { logToDelete = null }) { Text("Отмена", color = Muted) }
+            },
+        )
+    }
 
+    if (confirmDeleteBatch) {
+        AlertDialog(
+            onDismissRequest = { confirmDeleteBatch = false },
+            containerColor = Color(0xFF1C291F),
+            titleContentColor = Ink,
+            textContentColor = Muted,
+            title = { Text("Удалить без возврата?") },
+            text = {
+                Text(
+                    "Партия №${batch.number} «${batch.name}» будет удалена вместе со всеми " +
+                        "взвешиваниями и фотографиями. Восстановить её нельзя.",
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmDeleteBatch = false
+                    onDeleteBatch()
+                }) { Text("Удалить", color = DeleteInk) }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmDeleteBatch = false }) { Text("Отмена", color = Muted) }
+            },
+        )
+    }
     viewerPhoto?.let { ref ->
         FullscreenPhoto(
             file = photoFile(ref.fileName),
@@ -536,6 +614,7 @@ private fun WeighHistory(
     batch: Batch,
     logsAsc: List<WeightLog>,
     photoFile: (String) -> File,
+	onDelete: (WeightLog) -> Unit,
     onOpen: (PhotoRef) -> Unit,
 ) {
     if (logsAsc.isEmpty()) {
@@ -576,6 +655,13 @@ private fun WeighHistory(
                     )
                 }
                 log.photoFileName?.let { name ->
+				    Text(
+                    "Удалить запись", color = DeleteInk, fontSize = 11.sp,
+                    modifier = Modifier.padding(top = 9.dp).clip(RoundedCornerShape(9.dp))
+                        .border(1.dp, Color(0xFF6D4B3F), RoundedCornerShape(9.dp))
+                        .clickable { onDelete(log) }
+                        .padding(horizontal = 10.dp, vertical = 10.dp),
+                )
                     val ref = PhotoRef(name, "Взвешивание · ${fmtDate(log.atEpochMs)}")
                     Text(
                         "Открыть фото", color = Color(0xFFCADCBE), fontSize = 11.sp,

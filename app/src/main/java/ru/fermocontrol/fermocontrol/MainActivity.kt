@@ -35,6 +35,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import ru.fermocontrol.fermocontrol.data.BatchRepository
 import ru.fermocontrol.fermocontrol.data.PhotoStore
 import ru.fermocontrol.fermocontrol.model.Batch
@@ -89,12 +90,25 @@ class MainActivity : ComponentActivity() {
                             BatchDetailSheet(
                                 batch = detailBatch,
                                 saving = journal.saving,
-                                error = journal.archiveError,
+                                error = journal.actionError,
                                 photoFile = journal.photos::file,
                                 onDismiss = journal::closeDetail,
                                 onWeigh = { journal.openWeigh(detailBatch) },
                                 onSetArchived = { archived -> journal.setArchived(archived) },
+                                onEdit = journal::openEdit,
+                                onDeleteLog = journal::deleteLog,
+                                onDeleteBatch = journal::deleteBatch,
                             )
+
+                            if (journal.editOpen) {
+                                NewBatchDialog(
+                                    saving = journal.saving,
+                                    error = journal.editError,
+                                    onDismiss = journal::dismissEdit,
+                                    onSave = journal::saveEdit,
+                                    initial = detailBatch,
+                                )
+                            }
                         }
 
                         if (journal.newBatchOpen) {
@@ -112,7 +126,7 @@ class MainActivity : ComponentActivity() {
                                 batch = weighingBatch,
                                 saving = journal.saving,
                                 error = journal.weighError,
-								photoStore = journal.photos,
+                                photoStore = journal.photos,
                                 onDismiss = journal::dismissWeigh,
                                 onSave = journal::saveWeight,
                             )
@@ -136,7 +150,7 @@ class JournalViewModel(application: Application) :
     AndroidViewModel(application) {
 
     private val repository = BatchRepository(application)
-	    val photos = PhotoStore(application)
+    val photos = PhotoStore(application)
 
     // Область переживает поворот экрана вместе с ViewModel.
     private val scope = CoroutineScope(
@@ -161,10 +175,18 @@ class JournalViewModel(application: Application) :
     var weighError by mutableStateOf<String?>(null)
         private set
 
-    var archiveError by mutableStateOf<String?>(null)
+    // Ошибки действий на карточке: архив, удаление записи, удаление партии.
+    var actionError by mutableStateOf<String?>(null)
+        private set
+
+    // Ошибка формы редактирования паспорта.
+    var editError by mutableStateOf<String?>(null)
         private set
 
     var newBatchOpen by mutableStateOf(false)
+        private set
+
+    var editOpen by mutableStateOf(false)
         private set
 
     // Храним идентификатор, а актуальную партию берём из batches.
@@ -207,12 +229,76 @@ class JournalViewModel(application: Application) :
         }
     }
 
+    // ───────────── Общая запись журнала ─────────────
+
+    /**
+     * Сначала записывает весь журнал на диск и только потом обновляет экран.
+     * Файлы фотографий удаляются после успешной записи, их сбой не считается
+     * ошибкой сохранения.
+     */
+    private fun commit(
+        updated: List<Batch>,
+        failText: String,
+        setError: (String?) -> Unit,
+        onSaved: () -> Unit = {},
+        afterSave: suspend () -> Unit = {},
+    ) {
+        // Устанавливаем до запуска корутины, чтобы исключить повторное нажатие.
+        saving = true
+        setError(null)
+
+        scope.launch {
+            try {
+                repository.save(updated)
+
+                batches = updated
+                onSaved()
+
+                try {
+                    afterSave()
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (error: Exception) {
+                    Log.w("Fermocontrol", "Cannot clean up files", error)
+                }
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (error: Exception) {
+                Log.e("Fermocontrol", failText, error)
+
+                setError(
+                    failText + ": " +
+                        (error.localizedMessage ?: "ошибка записи")
+                )
+            } finally {
+                saving = false
+            }
+        }
+    }
+
+    private suspend fun removePhotos(names: List<String>) {
+        if (names.isEmpty()) return
+
+        withContext(Dispatchers.IO) {
+            names.forEach { name ->
+                try {
+                    photos.delete(name)
+                } catch (error: Exception) {
+                    Log.w("Fermocontrol", "Cannot delete photo $name", error)
+                }
+            }
+        }
+    }
+
+    // ───────────── Новая партия ─────────────
+
     fun openNewBatch() {
         if (
             loading ||
             saving ||
             loadError != null ||
-            weighingBatchId != null
+            weighingBatchId != null ||
+            editOpen
         ) {
             return
         }
@@ -267,7 +353,7 @@ class JournalViewModel(application: Application) :
                     rawMaterial = draft.rawMaterial,
                     spices = draft.spices,
                     casing = draft.casing,
-					catalogId = draft.catalogId,
+                    catalogId = draft.catalogId,
                     startWeightGrams = draft.startWeightGrams,
                     targetLossPercent = draft.targetLossPercent,
                     temperatureC = draft.temperatureC,
@@ -299,12 +385,15 @@ class JournalViewModel(application: Application) :
         }
     }
 
+    // ───────────── Взвешивание ─────────────
+
     fun openWeigh(batch: Batch) {
         if (
             loading ||
             saving ||
             loadError != null ||
             newBatchOpen ||
+            editOpen ||
             weighingBatchId != null
         ) {
             return
@@ -356,7 +445,9 @@ class JournalViewModel(application: Application) :
             var storedPhoto: String? = null
 
             try {
-                storedPhoto = photoUri?.let { photos.saveFrom(it) }
+                storedPhoto = photoUri?.let { uri ->
+                    withContext(Dispatchers.IO) { photos.saveFrom(uri) }
+                }
 
                 val log = WeightLog(
                     atEpochMs = System.currentTimeMillis(),
@@ -395,12 +486,14 @@ class JournalViewModel(application: Application) :
                     (error.localizedMessage ?: "ошибка записи") +
                     "\nФорма оставлена открытой."
             } finally {
+                saving = false
                 // Журнал запись не принял, поэтому убираем файл.
                 storedPhoto?.let(photos::delete)
-                saving = false
             }
         }
     }
+
+    // ───────────── Карточка партии ─────────────
 
     fun openDetail(batch: Batch) {
         if (
@@ -414,7 +507,7 @@ class JournalViewModel(application: Application) :
 
         val actual = batches.firstOrNull { it.id == batch.id } ?: return
 
-        archiveError = null
+        actionError = null
         detailBatchId = actual.id
     }
 
@@ -422,7 +515,9 @@ class JournalViewModel(application: Application) :
         if (saving) return
 
         detailBatchId = null
-        archiveError = null
+        editOpen = false
+        actionError = null
+        editError = null
     }
 
     fun setArchived(archived: Boolean) {
@@ -431,34 +526,131 @@ class JournalViewModel(application: Application) :
         val batch = detailBatch ?: return
         if (batch.archived == archived) return
 
-        saving = true
-        archiveError = null
+        commit(
+            updated = batches.map {
+                if (it.id == batch.id) it.copy(archived = archived) else it
+            },
+            failText = "Не удалось изменить архив",
+            setError = { actionError = it },
+        )
+    }
 
-        scope.launch {
-            try {
-                val updated = batches.map { existing ->
-                    if (existing.id == batch.id) {
-                        existing.copy(archived = archived)
-                    } else {
-                        existing
-                    }
-                }
+    // ───────────── Редактирование паспорта ─────────────
 
-                // Сначала запись на диск, потом обновление экрана.
-                repository.save(updated)
-                batches = updated
-            } catch (cancelled: CancellationException) {
-                throw cancelled
-            } catch (error: Exception) {
-                Log.e("Fermocontrol", "Cannot save archive state", error)
-
-                archiveError =
-                    "Не удалось изменить архив: " +
-                    (error.localizedMessage ?: "ошибка записи")
-            } finally {
-                saving = false
-            }
+    fun openEdit() {
+        if (
+            loading ||
+            saving ||
+            loadError != null ||
+            newBatchOpen ||
+            weighingBatchId != null ||
+            detailBatch == null
+        ) {
+            return
         }
+
+        editError = null
+        editOpen = true
+    }
+
+    fun dismissEdit() {
+        if (saving) return
+
+        editOpen = false
+        editError = null
+    }
+
+    fun saveEdit(draft: NewBatchDraft) {
+        if (loading || saving || loadError != null || !editOpen) return
+
+        val batch = detailBatch ?: return
+
+        if (draft.name.isBlank()) {
+            editError = "Укажите название продукта."
+            return
+        }
+
+        // Стартовый вес меняется только до первого взвешивания:
+        // на нём построены усушка и график.
+        val startWeight = if (batch.logs.isEmpty()) {
+            draft.startWeightGrams
+        } else {
+            batch.startWeightGrams
+        }
+
+        if (!startWeight.isFinite() || startWeight <= 0.0) {
+            editError = "Введите стартовый вес больше нуля."
+            return
+        }
+
+        val edited = batch.copy(
+            name = draft.name,
+            category = draft.category,
+            rawMaterial = draft.rawMaterial,
+            spices = draft.spices,
+            casing = draft.casing,
+            catalogId = draft.catalogId,
+            startWeightGrams = startWeight,
+            targetLossPercent = draft.targetLossPercent,
+            temperatureC = draft.temperatureC,
+            humidityPercent = draft.humidityPercent,
+            note = draft.note,
+        )
+
+        commit(
+            updated = batches.map { if (it.id == batch.id) edited else it },
+            failText = "Не удалось сохранить изменения",
+            setError = { editError = it },
+            onSaved = { editOpen = false },
+        )
+    }
+
+    // ───────────── Удаление ─────────────
+
+    fun deleteLog(log: WeightLog) {
+        if (loading || saving || loadError != null) return
+
+        val batch = detailBatch ?: return
+        val index = batch.logs.indexOf(log)
+        if (index < 0) return
+
+        commit(
+            updated = batches.map {
+                if (it.id == batch.id) {
+                    it.copy(logs = it.logs.filterIndexed { i, _ -> i != index })
+                } else {
+                    it
+                }
+            },
+            failText = "Не удалось удалить запись",
+            setError = { actionError = it },
+            afterSave = { removePhotos(listOfNotNull(log.photoFileName)) },
+        )
+    }
+
+    fun deleteBatch() {
+        if (loading || saving || loadError != null) return
+
+        val batch = detailBatch ?: return
+
+        if (!batch.archived) {
+            actionError = "Удалить можно только архивную партию."
+            return
+        }
+
+        val files = listOfNotNull(batch.photoFileName) +
+            batch.logs.mapNotNull { it.photoFileName }
+
+        commit(
+            updated = batches.filter { it.id != batch.id },
+            failText = "Не удалось удалить партию",
+            setError = { actionError = it },
+            onSaved = {
+                detailBatchId = null
+                editOpen = false
+            },
+            afterSave = { removePhotos(files) },
+        )
     }
 
     override fun onCleared() {

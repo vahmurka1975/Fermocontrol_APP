@@ -13,6 +13,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import ru.fermocontrol.fermocontrol.model.Batch
 import ru.fermocontrol.fermocontrol.model.Catalog
 import ru.fermocontrol.fermocontrol.model.NewBatchDraft
 import ru.fermocontrol.fermocontrol.ui.components.CollapsibleSection
@@ -39,18 +40,27 @@ fun NewBatchDialog(
     error: String?,
     onDismiss: () -> Unit,
     onSave: (NewBatchDraft) -> Unit,
+    initial: Batch? = null,
 ) {
-    var catalogId by rememberSaveable { mutableStateOf("") }
-    var name by rememberSaveable { mutableStateOf("") }
-    var weight by rememberSaveable { mutableStateOf("") }
-    var target by rememberSaveable { mutableStateOf("35") }
-    var category by rememberSaveable { mutableStateOf(Catalog.categories.first()) }
-    var basis by rememberSaveable { mutableStateOf(Catalog.rawMaterials.first()) }
-    var spices by rememberSaveable { mutableStateOf("") }
-    var casing by rememberSaveable { mutableStateOf(Catalog.casings.first()) }
-    var temp by rememberSaveable { mutableStateOf("") }
-    var humidity by rememberSaveable { mutableStateOf("") }
-    var note by rememberSaveable { mutableStateOf("") }
+    val editing = initial != null
+    val weightLocked = initial != null && initial.logs.isNotEmpty()
+    var catalogId by rememberSaveable { mutableStateOf(initial?.catalogId.orEmpty()) }
+    var name by rememberSaveable { mutableStateOf(initial?.name.orEmpty()) }
+    var weight by rememberSaveable { mutableStateOf(initial?.let { formatNum(it.startWeightGrams) } ?: "") }
+    var target by rememberSaveable { mutableStateOf(initial?.let { formatNum(it.targetLossPercent) } ?: "35") }
+    var category by rememberSaveable {
+        mutableStateOf(initial?.category.orEmpty().ifBlank { Catalog.categories.first() })
+    }
+    var basis by rememberSaveable {
+        mutableStateOf(initial?.rawMaterial.orEmpty().ifBlank { Catalog.rawMaterials.first() })
+    }
+    var spices by rememberSaveable { mutableStateOf(initial?.spices.orEmpty()) }
+    var casing by rememberSaveable {
+        mutableStateOf(initial?.casing.orEmpty().ifBlank { Catalog.casings.first() })
+    }
+    var temp by rememberSaveable { mutableStateOf(initial?.temperatureC?.let { formatNum(it) }.orEmpty()) }
+    var humidity by rememberSaveable { mutableStateOf(initial?.humidityPercent?.let { formatNum(it) }.orEmpty()) }
+    var note by rememberSaveable { mutableStateOf(initial?.note.orEmpty()) }
     var submitted by rememberSaveable { mutableStateOf(false) }
 
     val weightV = parseNum(weight)
@@ -86,8 +96,9 @@ fun NewBatchDialog(
     }
 
     FcSheet(
-        title = "Новый продукт",
-        subtitle = "Начните с веса. Остальные параметры можно заполнить сразу.",
+        title = if (editing) "Редактировать паспорт" else "Новый продукт",
+        subtitle = initial?.let { "Партия №${it.number}" }
+            ?: "Начните с веса. Остальные параметры можно заполнить сразу.",
         onDismiss = onDismiss,
         dismissible = !saving,
     ) {
@@ -120,7 +131,7 @@ fun NewBatchDialog(
                     onValueChange = { weight = it },
                     modifier = m,
                     placeholder = "1600",
-                    enabled = !saving,
+                    enabled = !saving && !weightLocked,
                     keyboardType = KeyboardType.Decimal,
                     error = if (submitted) weightErr else null,
                 )
@@ -137,7 +148,15 @@ fun NewBatchDialog(
                 )
             },
         )
-
+        if (weightLocked) {
+            Text(
+                "Стартовый вес нельзя менять после первого взвешивания.",
+                color = Muted,
+                fontSize = 11.5.sp,
+                lineHeight = 19.sp,
+                modifier = Modifier.padding(bottom = 10.dp),
+            )
+        }
         CollapsibleSection("Паспорт партии и климат") {
             FieldPair(
                 first = { m ->
@@ -202,16 +221,22 @@ fun NewBatchDialog(
             )
         }
 
-        Text(
-            "Номер продукта назначится автоматически.",
-            color = Muted,
-            fontSize = 11.5.sp,
-            lineHeight = 19.sp,
-            modifier = Modifier.padding(bottom = 10.dp),
-        )
+        if (!editing) {
+            Text(
+                "Номер продукта назначится автоматически.",
+                color = Muted,
+                fontSize = 11.5.sp,
+                lineHeight = 19.sp,
+                modifier = Modifier.padding(bottom = 10.dp),
+            )
+        }
 
         FcPrimaryButton(
-            text = if (saving) "Сохранение…" else "Добавить продукт",
+            text = when {
+                saving -> "Сохранение…"
+                editing -> "Сохранить изменения"
+                else -> "Добавить продукт"
+            },
             enabled = !saving,
         ) {
             submitted = true
