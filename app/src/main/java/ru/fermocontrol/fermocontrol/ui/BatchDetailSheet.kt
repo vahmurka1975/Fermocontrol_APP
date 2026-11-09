@@ -29,6 +29,7 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.BottomSheetDefaults
 import androidx.compose.material3.Button
@@ -165,7 +166,7 @@ fun BatchDetailSheet(
                 PhotoSection(batch, logsAsc, photoFile) { viewerPhoto = it }
 
                 SectionTitle("История взвешиваний", "${logsAsc.size} зап.")
-                WeighHistory(batch, logsAsc, photoFile, { logToDelete = it }) { viewerPhoto = it }
+                WeighHistory(batch, logsAsc, !saving, { logToDelete = it }) { viewerPhoto = it }
 
                 Text(
                     text = "Отметка «Требует проверки» — запись в журнале, " +
@@ -184,45 +185,52 @@ fun BatchDetailSheet(
                         modifier = Modifier.padding(bottom = 8.dp))
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
-                    if (!batch.archived) {
-                        Button(
-                            onClick = onWeigh,
-                            enabled = !saving,
-                            shape = RoundedCornerShape(12.dp),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = BtnMain,
-                                contentColor = BtnMainText,
-                            ),
-                            modifier = Modifier.weight(1f).heightIn(min = 47.dp),
-                        ) { Text("Взвесить", fontWeight = FontWeight.SemiBold) }
-                    }
-					if (batch.archived) {
-                    OutlinedButton(
-                        onClick = { confirmDeleteBatch = true },
-                        enabled = !saving,
-                        shape = RoundedCornerShape(12.dp),
-                        border = BorderStroke(1.dp, Color(0xFF6D4B3F)),
-                        colors = ButtonDefaults.outlinedButtonColors(
-                            containerColor = Color.Transparent,
-                            contentColor = DeleteInk,
-                        ),
-                        modifier = Modifier.fillMaxWidth().padding(top = 9.dp).heightIn(min = 47.dp),
-                    ) { Text("Удалить партию") }
-					}
-                    OutlinedButton(
-                        onClick = { confirmArchive = true },
-                        enabled = !saving,
-                        shape = RoundedCornerShape(12.dp),
-                        border = BorderStroke(1.dp, BtnSecLine),
-                        colors = ButtonDefaults.outlinedButtonColors(
-                            containerColor = BtnSecBg,
-                            contentColor = Color(0xFFD5DFCD),
-                        ),
-                        modifier = Modifier
-                            .then(if (batch.archived) Modifier.weight(1f) else Modifier)
-                            .heightIn(min = 47.dp),
-                    ) { Text(if (batch.archived) "Вернуть из архива" else "В архив") }
-                }
+    if (batch.archived) {
+        OutlinedButton(
+            onClick = { confirmDeleteBatch = true },
+            enabled = !saving,
+            shape = RoundedCornerShape(12.dp),
+            border = BorderStroke(1.dp, Color(0xFF6D4B3F)),
+            colors = ButtonDefaults.outlinedButtonColors(
+                containerColor = Color.Transparent,
+                contentColor = DeleteInk,
+            ),
+            contentPadding = PaddingValues(horizontal = 8.dp),
+            modifier = Modifier.weight(1f).heightIn(min = 47.dp),
+        ) { Text("Удалить партию", fontSize = 13.sp, maxLines = 1) }
+    } else {
+        Button(
+            onClick = onWeigh,
+            enabled = !saving,
+            shape = RoundedCornerShape(12.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = BtnMain,
+                contentColor = BtnMainText,
+            ),
+            modifier = Modifier.weight(1f).heightIn(min = 47.dp),
+        ) { Text("Взвесить", fontWeight = FontWeight.SemiBold) }
+    }
+    OutlinedButton(
+        onClick = { confirmArchive = true },
+        enabled = !saving,
+        shape = RoundedCornerShape(12.dp),
+        border = BorderStroke(1.dp, BtnSecLine),
+        colors = ButtonDefaults.outlinedButtonColors(
+            containerColor = BtnSecBg,
+            contentColor = Color(0xFFD5DFCD),
+        ),
+        contentPadding = if (batch.archived) PaddingValues(horizontal = 8.dp)
+            else ButtonDefaults.ContentPadding,
+        modifier = (if (batch.archived) Modifier.weight(1f) else Modifier)
+            .heightIn(min = 47.dp),
+    ) {
+        Text(
+            if (batch.archived) "Вернуть из архива" else "В архив",
+            fontSize = if (batch.archived) 13.sp else 14.sp,
+            maxLines = 1,
+        )
+    }
+}
             }
         }
     }
@@ -613,8 +621,8 @@ private fun PhotoTile(ref: PhotoRef, file: File, modifier: Modifier, onClick: ()
 private fun WeighHistory(
     batch: Batch,
     logsAsc: List<WeightLog>,
-    photoFile: (String) -> File,
-	onDelete: (WeightLog) -> Unit,
+    enabled: Boolean,
+    onDelete: (WeightLog) -> Unit,
     onOpen: (PhotoRef) -> Unit,
 ) {
     if (logsAsc.isEmpty()) {
@@ -654,26 +662,43 @@ private fun WeighHistory(
                             .padding(horizontal = 6.dp, vertical = 2.dp),
                     )
                 }
-                log.photoFileName?.let { name ->
-				    Text(
-                    "Удалить запись", color = DeleteInk, fontSize = 11.sp,
-                    modifier = Modifier.padding(top = 9.dp).clip(RoundedCornerShape(9.dp))
-                        .border(1.dp, Color(0xFF6D4B3F), RoundedCornerShape(9.dp))
-                        .clickable { onDelete(log) }
-                        .padding(horizontal = 10.dp, vertical = 10.dp),
-                )
-                    val ref = PhotoRef(name, "Взвешивание · ${fmtDate(log.atEpochMs)}")
-                    Text(
-                        "Открыть фото", color = Color(0xFFCADCBE), fontSize = 11.sp,
-                        modifier = Modifier.padding(top = 9.dp).clip(RoundedCornerShape(9.dp))
-                            .border(1.dp, Color(0xFF485D3E), RoundedCornerShape(9.dp))
-                            .clickable { onOpen(ref) }
-                            .padding(horizontal = 10.dp, vertical = 10.dp),
-                    )
+                Row(
+                    modifier = Modifier.padding(top = 9.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    log.photoFileName?.let { name ->
+                        HistoryAction("Открыть фото", Color(0xFFCADCBE), Color(0xFF485D3E), true) {
+                            onOpen(PhotoRef(name, "Взвешивание · ${fmtDate(log.atEpochMs)}"))
+                        }
+                    }
+                    HistoryAction("Удалить запись", DeleteInk, Color(0xFF6D4B3F), enabled) {
+                        onDelete(log)
+                    }
                 }
             }
         }
     }
+}
+
+@Composable
+private fun HistoryAction(
+    text: String,
+    ink: Color,
+    line: Color,
+    enabled: Boolean,
+    onClick: () -> Unit,
+) {
+    val shape = RoundedCornerShape(9.dp)
+    Text(
+        text,
+        color = if (enabled) ink else ink.copy(alpha = 0.4f),
+        fontSize = 11.sp,
+        modifier = Modifier
+            .clip(shape)
+            .border(1.dp, line, shape)
+            .clickable(enabled = enabled, onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 12.dp),
+    )
 }
 
 @Composable

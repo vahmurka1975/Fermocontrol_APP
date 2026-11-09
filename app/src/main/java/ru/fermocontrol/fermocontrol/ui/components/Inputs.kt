@@ -29,6 +29,10 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import kotlinx.coroutines.delay
 import ru.fermocontrol.fermocontrol.ui.theme.*
 
 /** Поле макета: подпись сверху, фон #1C291F, рамка #3C4A37, скругление 12. */
@@ -45,8 +49,18 @@ fun LabeledInput(
     minHeight: Dp = 46.dp,
     error: String? = null,
     hint: String? = null,
+	autoFocus: Boolean = false,
 ) {
     var focused by remember { mutableStateOf(false) }
+	val focusRequester = remember { FocusRequester() }
+    val keyboard = LocalSoftwareKeyboardController.current
+    LaunchedEffect(autoFocus) {
+        if (autoFocus) {
+            delay(200) // лист должен успеть отрисоваться, иначе requestFocus падает
+            focusRequester.requestFocus()
+            keyboard?.show()
+        }
+    }
     val shape = RoundedCornerShape(12.dp)
     Column(modifier.padding(bottom = 12.dp)) {
         Text(
@@ -73,7 +87,8 @@ fun LabeledInput(
                     if (error != null) Danger else if (focused) FcFieldFocus else FcFieldLine,
                     shape,
                 )
-                .onFocusChanged { focused = it.isFocused }
+                .focusRequester(focusRequester)
+				.onFocusChanged { focused = it.isFocused }
                 .padding(horizontal = 12.dp, vertical = 13.dp),
             decorationBox = { inner ->
                 Box(

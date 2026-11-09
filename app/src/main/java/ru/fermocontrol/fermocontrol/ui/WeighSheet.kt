@@ -185,10 +185,11 @@ fun WeighSheet(
             label = "Текущий вес на весах, г",
             value = weightText,
             onValueChange = { weightText = it },
-            placeholder = "1168",
+            placeholder = "Прошлый: ${fmtGrams(prevWeight)} г",
             enabled = !saving,
             keyboardType = KeyboardType.Decimal,
             error = if (invalidInput) "Введите вес в граммах, больше 0" else null,
+            autoFocus = true,
         )
 
         // Живой расчёт прогресса
