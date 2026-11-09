@@ -5,6 +5,20 @@ package ru.fermocontrol.fermocontrol.ui
 import android.graphics.BitmapFactory
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
+import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.platform.LocalConfiguration
+import kotlin.math.ceil
+import kotlin.math.floor
+import kotlin.math.min
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -145,7 +159,6 @@ fun BatchDetailSheet(
                 MetricsGrid(batch, metrics)
                 ProgressLine(metrics.progress, attention)
 
-                SectionTitle("Траектория усушки", "% от стартового веса")
                 TrajectoryChart(batch, logsAsc, metrics)
 
                 SectionTitle("Паспорт партии")
@@ -472,60 +485,355 @@ private fun SectionTitle(title: String, hint: String? = null) {
     }
 }
 
+// ───────────────────────── График «Динамика массы» ─────────────────────────
+// Повторяет trajectoryForecastDay / buildTrajectorySvg / buildTrajectoryChart из макета v0.4.1.
+// Размеры в dp соответствуют px макета.
+
+private const val CHART_DAY_MS = 86_400_000.0
+private val ChartCardBg = Color(0xFF1A241E)
+private val ChartLineColor = Color(0xFF303E34)
+
+private data class ChartPoint(val day: Double, val weight: Double)
+
+private class ChartModel(
+    val points: List<ChartPoint>,
+    val targetWeight: Double,
+    val targetPct: Double,
+    val forecastDay: Double?,
+    val etaDate: String?,
+    val currentDay: Double,
+    val measuredDay: Double,
+    val totalDays: Int,
+    val lastLogMs: Long?,
+    val archived: Boolean,
+    val reached: Boolean,
+    val fast: Boolean,
+    val reason: String,
+)
+
+private fun buildChartModel(batch: Batch, logsAsc: List<WeightLog>, m: Metrics, nowMs: Long): ChartModel {
+    val start = batch.startWeightGrams
+    val created = batch.createdAtEpochMs
+    val last = logsAsc.lastOrNull()
+    val prev = logsAsc.getOrNull(logsAsc.size - 2)
+    val prevMs = prev?.atEpochMs ?: created
+    val prevW = prev?.weightGrams ?: start
+    val current = last?.weightGrams ?: start
+    val lastMs = last?.atEpochMs ?: created
+    val archived = batch.archived
+    val endMs = if (archived) lastMs else nowMs
+    val totalDays = max(0L, floor((endMs - created) / CHART_DAY_MS).toLong()).toInt()
+    val targetWeight = Math.round(start * (1 - batch.targetLossPercent / 100.0) * 10.0) / 10.0
+    val remain = max(0.0, Math.round((current - targetWeight) * 10.0) / 10.0)
+
+    val segDays = (lastMs - prevMs) / CHART_DAY_MS
+    val pace: Double? = if (last != null && segDays >= 1.0 / 24 && start > 0) {
+        (-(current - prevW) / start * 100.0) / segDays
+    } else null
+
+    // Пороги макета по умолчанию: напоминание о взвешивании — 3 сут, быстрая усушка — 1,5 %/сут.
+    val clock = !archived && lastMs > nowMs
+    val daysSince = max(0L, floor((nowMs - lastMs) / CHART_DAY_MS).toLong())
+    val due = !archived && !clock && daysSince >= 3
+    val fast = !archived && pace != null && pace > 1.5
+    val gain = !archived && last != null && current > prevW
+    val inspection = !archived && last?.needsCheck == true
+    val reached = m.targetLossPercent > 0.0 && m.lostPercent >= m.targetLossPercent
+
+    var etaDate: String? = null
+    var forecastDay: Double? = null
+    if (!archived && !due && !fast && !clock && !inspection && remain > 0 && pace != null && pace > 0) {
+        val perDay = pace * start / 100.0
+        val projectedMs = lastMs + remain / perDay * CHART_DAY_MS
+        val remainingDays = ceil((projectedMs - nowMs) / CHART_DAY_MS)
+        if (remainingDays > 0 && remainingDays < 366) {
+            etaDate = fmtShortDate(projectedMs.toLong())
+            val day = max(0.0, (lastMs - created) / CHART_DAY_MS) + remain / perDay
+            if (day.isFinite()) forecastDay = day
+        }
+    }
+
+    val reason = when {
+        clock -> "Проверьте часы и дату замера"
+        inspection -> "Сначала проверьте наблюдения"
+        fast -> "Сначала подтвердите темп свежим замером"
+        due -> "Нужен свежий замер"
+        gain -> "Проверьте увеличение веса"
+        last == null -> "Добавьте первое взвешивание"
+        else -> "Нужны замеры со снижением веса и интервалом не менее часа"
+    }
+    val points = listOf(ChartPoint(0.0, start)) + logsAsc.map {
+        ChartPoint(max(0.0, (it.atEpochMs - created) / CHART_DAY_MS), it.weightGrams)
+    }
+    return ChartModel(
+        points = points, targetWeight = targetWeight, targetPct = batch.targetLossPercent,
+        forecastDay = forecastDay, etaDate = etaDate,
+        currentDay = max(0.0, (endMs - created) / CHART_DAY_MS),
+        measuredDay = max(0.0, (lastMs - created) / CHART_DAY_MS),
+        totalDays = totalDays, lastLogMs = last?.atEpochMs, archived = archived,
+        reached = reached, fast = fast, reason = reason,
+    )
+}
+
 @Composable
 private fun TrajectoryChart(batch: Batch, logsAsc: List<WeightLog>, m: Metrics) {
+    val nowMs = remember(batch) { System.currentTimeMillis() }
+    val c = remember(batch, logsAsc, m, nowMs) { buildChartModel(batch, logsAsc, m, nowMs) }
+    val narrow = LocalConfiguration.current.screenWidthDp <= 400
+    val forecast = c.forecastDay
+
+    val status = when {
+        c.archived -> "Партия в архиве"
+        c.reached -> "Плановая усушка достигнута"
+        forecast != null -> "Ориентир: ~" + c.etaDate
+        else -> c.reason
+    }
+    val finishLabel = when {
+        c.archived -> "Завершение партии"
+        c.reached -> "Цель по массе"
+        else -> "Расчётный финиш"
+    }
+    val finishValue = when {
+        c.archived -> "День ${c.totalDays}"
+        c.reached -> "Достигнута"
+        forecast != null -> "~День ${ceil(forecast).toLong()}"
+        else -> "Пока не рассчитан"
+    }
+    val finishNote = when {
+        c.archived -> c.lastLogMs?.let { fmtShortDate(it) } ?: fmtShortDate(batch.createdAtEpochMs)
+        c.reached -> "Это не подтверждение безопасности"
+        forecast != null -> "~${c.etaDate} · при сохранении темпа"
+        else -> c.reason
+    }
+    val measuredNote = c.lastLogMs
+        ?.let { "Замер: ${fmtShortDate(it)} · день ${fmtOne(c.measuredDay)}" }
+        ?: "Пока записан только начальный вес"
+
     val shape = RoundedCornerShape(18.dp)
     Column(
-        Modifier.fillMaxWidth().clip(shape)
+        Modifier.padding(top = 20.dp).fillMaxWidth().clip(shape)
             .background(Color(0xFF1C281F)).border(1.dp, Color(0xFF3C5034), shape)
             .padding(14.dp),
     ) {
-        if (logsAsc.isEmpty()) {
-            Text(
-                "График появится после первого взвешивания.",
-                color = Muted, fontSize = 12.sp, lineHeight = 18.sp,
-            )
-            return@Column
-        }
-
-        val start = batch.startWeightGrams
-        val points = listOf(0.0 to 0.0) + logsAsc.map { log ->
-            val days = max(0.0, (log.atEpochMs - batch.createdAtEpochMs) / 86_400_000.0)
-            val loss = if (start > 0) max(0.0, (start - log.weightGrams) / start * 100.0) else 0.0
-            days to loss
-        }
-        val maxDays = max(1.0, points.maxOf { it.first })
-        val maxLoss = max(m.targetLossPercent, points.maxOf { it.second }) * 1.1 + 0.001
-
-        Canvas(Modifier.fillMaxWidth().aspectRatio(540f / 185f)) {
-            val w = size.width
-            val h = size.height
-            fun x(d: Double) = (d / maxDays * w).toFloat()
-            fun y(p: Double) = (h - p / maxLoss * h).toFloat()
-
-            // Цель усушки — пунктир.
-            drawLine(
-                color = Green.copy(alpha = 0.6f),
-                start = Offset(0f, y(m.targetLossPercent)),
-                end = Offset(w, y(m.targetLossPercent)),
-                strokeWidth = 2f,
-                pathEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 8f)),
-            )
-            val path = Path()
-            points.forEachIndexed { i, (d, p) ->
-                if (i == 0) path.moveTo(x(d), y(p)) else path.lineTo(x(d), y(p))
+        // Заголовок и статус.
+        val etaColor = if (c.fast) Amber else Green
+        if (narrow) {
+            Column(Modifier.fillMaxWidth().padding(bottom = 10.dp)) {
+                Text("ДИНАМИКА МАССЫ", color = Muted, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.3.sp)
+                Text(status, color = etaColor, fontSize = 11.sp, fontWeight = FontWeight.Bold,
+                    lineHeight = 17.6.sp, modifier = Modifier.padding(top = 5.dp))
             }
-            drawPath(path, Green, style = Stroke(width = 5f))
-            points.forEach { (d, p) -> drawCircle(Green, radius = 6f, center = Offset(x(d), y(p))) }
+        } else {
+            Row(Modifier.fillMaxWidth().padding(bottom = 10.dp), Arrangement.SpaceBetween, Alignment.Top) {
+                Text("ДИНАМИКА МАССЫ", color = Muted, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.3.sp)
+                Text(status, color = etaColor, fontSize = 11.sp, fontWeight = FontWeight.Bold,
+                    lineHeight = 17.6.sp, textAlign = TextAlign.End,
+                    modifier = Modifier.weight(1f, fill = false).padding(start = 8.dp))
+            }
         }
-        Spacer(Modifier.height(8.dp))
+
+        // Полоса «Цель по массе».
+        val stripShape = RoundedCornerShape(10.dp)
+        Row(
+            Modifier.padding(top = 4.dp, bottom = 12.dp).fillMaxWidth().clip(stripShape)
+                .border(1.dp, Green.copy(alpha = 0.25f), stripShape)
+                .padding(horizontal = 11.dp, vertical = 9.dp),
+            Arrangement.SpaceBetween, Alignment.CenterVertically,
+        ) {
+            Text("Цель по массе", color = Color(0xFFB4C5A9), fontSize = 11.sp)
+            Text("−${fmtPct(c.targetPct).removeSuffix("%")}% · ${fmtGramsLocal(c.targetWeight)} г",
+                color = Green, fontSize = 11.sp, fontWeight = FontWeight.Medium,
+                modifier = Modifier.padding(start = 12.dp))
+        }
+
+        // Подписи осей.
+        Row(Modifier.fillMaxWidth().padding(bottom = 5.dp), Arrangement.SpaceBetween) {
+            Text("Масса, г", color = Muted, fontSize = 10.sp)
+            Text("Дни от закладки", color = Muted, fontSize = 10.sp)
+        }
+
+        TrajectoryCanvas(c)
+
+        // Вехи: текущий день и расчётный финиш.
+        val m1: @Composable (Modifier) -> Unit = {
+            Milestone(if (c.archived) "На момент завершения" else "Текущий день · сегодня",
+                "День ${c.totalDays}", measuredNote, false, it)
+        }
+        val m2: @Composable (Modifier) -> Unit = {
+            Milestone(finishLabel, finishValue, finishNote, forecast != null, it)
+        }
+        if (narrow) {
+            Column(Modifier.fillMaxWidth().padding(top = 10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                m1(Modifier.fillMaxWidth()); m2(Modifier.fillMaxWidth())
+            }
+        } else {
+            Row(Modifier.fillMaxWidth().padding(top = 10.dp).height(IntrinsicSize.Min),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                m1(Modifier.weight(1f).fillMaxHeight()); m2(Modifier.weight(1f).fillMaxHeight())
+            }
+        }
+
+        ChartLegend(showForecast = forecast != null, showToday = !c.archived)
+
         Text(
-            "Сплошная линия — факт, пунктир — цель ${fmtPct(m.targetLossPercent)}. " +
-                "По горизонтали — сутки с закладки (0–${maxDays.roundToLong()}).",
+            (if (forecast != null)
+                "Прогноз считается от даты последнего замера по темпу последнего интервала. Темп может меняться; дата приблизительная."
+            else "Пунктирный прогноз не строится без подходящих свежих замеров.") +
+                " День «сегодня» не означает, что продукт взвешен сегодня.",
             color = Color(0xFF91A287), fontSize = 10.sp, lineHeight = 16.sp,
+            modifier = Modifier.padding(top = 11.dp),
         )
     }
 }
+
+@Composable
+private fun Milestone(label: String, value: String, note: String, forecast: Boolean, modifier: Modifier) {
+    val shape = RoundedCornerShape(11.dp)
+    Column(modifier.clip(shape).background(Color(0xFF17221A)).border(1.dp, ChartLineColor, shape).padding(11.dp)) {
+        Text(label, color = Muted, fontSize = 10.sp)
+        Text(value, color = if (forecast) Amber else Color(0xFFE0EAD8), fontSize = 16.sp,
+            fontWeight = FontWeight.Medium, lineHeight = 22.4.sp, modifier = Modifier.padding(top = 4.dp))
+        Text(note, color = Color(0xFF9AAA90), fontSize = 10.sp, lineHeight = 16.sp,
+            modifier = Modifier.padding(top = 4.dp))
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun ChartLegend(showForecast: Boolean, showToday: Boolean) {
+    FlowRow(
+        modifier = Modifier.fillMaxWidth().padding(top = 13.dp),
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        LegendItem("Замеры", Green, null, 2.5f)
+        if (showForecast) LegendItem("Прогноз", Amber, floatArrayOf(4f, 4f), 2.5f)
+        LegendItem("Целевой вес", Green.copy(alpha = 0.7f), floatArrayOf(2f, 3f), 2.5f)
+        if (showToday) LegendItem("Сегодня", Muted, floatArrayOf(2f, 3f), 2.5f)
+    }
+}
+
+@Composable
+private fun LegendItem(text: String, color: Color, dash: FloatArray?, thickness: Float) {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        Canvas(Modifier.size(16.dp, 3.dp)) {
+            val d = density
+            drawLine(
+                color, Offset(0f, size.height / 2), Offset(size.width, size.height / 2),
+                strokeWidth = thickness * d,
+                pathEffect = dash?.let { PathEffect.dashPathEffect(floatArrayOf(it[0] * d, it[1] * d)) },
+            )
+        }
+        Text(text, color = Muted, fontSize = 10.sp, lineHeight = 15.sp)
+    }
+}
+
+@Composable
+private fun TrajectoryCanvas(c: ChartModel) {
+    BoxWithConstraints(Modifier.fillMaxWidth()) {
+        val w = maxWidth.value.toDouble()
+        val h = if (w < 380) 210.0 else 225.0
+        val tickCount = if (w < 400) 3 else 5
+        val lastPt = c.points.last()
+        val maxExtent = max(lastPt.day, max(c.currentDay, c.forecastDay ?: 0.0))
+        val step = max(1, ceil(max(7.0, maxExtent * 1.1) / (tickCount - 1)).toInt())
+        val maxDay = (step * (tickCount - 1)).toDouble()
+        val weights = c.points.map { it.weight }
+        val lowest = min(c.targetWeight, weights.minOf { it })
+        val highest = max(c.targetWeight, weights.maxOf { it })
+        val margin = max(1.0, max((highest - lowest) * 0.10, highest * 0.025))
+        val minW = max(0.0, lowest - margin)
+        val maxW = highest + margin
+        val yWeights = listOf(maxW, (maxW + minW) / 2, minW)
+        val labelLength = yWeights.maxOf { fmtGramsLocal(it).length }
+        val padL = min(100.0, max(48.0, ceil(labelLength * 6.6 + 11)))
+        val padR = 12.0
+        val padT = 15.0
+        val padB = 30.0
+        val plotW = w - padL - padR
+        val plotH = h - padT - padB
+
+        Canvas(Modifier.fillMaxWidth().height(h.dp)) {
+            val d = density
+            fun px(v: Double) = (v * d).toFloat()
+            fun xOf(day: Double) = px(padL + day / maxDay * plotW)
+            fun yOf(wt: Double) = px(padT + (maxW - wt) / max(1.0, maxW - minW) * plotH)
+            fun label(s: String, x: Float, y: Float, align: android.graphics.Paint.Align) {
+                val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+                    color = Muted.toArgb(); textSize = 11f * d; textAlign = align
+                }
+                drawIntoCanvas { it.nativeCanvas.drawText(s, x, y, paint) }
+            }
+            val bottom = px(padT + plotH)
+            val right = px(w - padR)
+
+            // Сетка и подписи массы.
+            yWeights.forEach { wt ->
+                val y = yOf(wt)
+                drawLine(ChartLineColor, Offset(px(padL), y), Offset(right, y), strokeWidth = d)
+                label(fmtGramsLocal(wt), px(padL - 8), y + 4f * d, android.graphics.Paint.Align.RIGHT)
+            }
+            // Линия «сегодня».
+            if (!c.archived) {
+                val x = xOf(c.currentDay)
+                drawLine(Muted.copy(alpha = 0.45f), Offset(x, px(padT)), Offset(x, bottom), strokeWidth = d,
+                    pathEffect = PathEffect.dashPathEffect(floatArrayOf(2f * d, 4f * d)))
+            }
+            // Заливка под линией.
+            val area = Path().apply {
+                moveTo(px(padL), bottom)
+                c.points.forEach { lineTo(xOf(it.day), yOf(it.weight)) }
+                lineTo(xOf(lastPt.day), bottom)
+                close()
+            }
+            val top = c.points.minOf { yOf(it.weight) }
+            drawPath(area, Brush.verticalGradient(
+                listOf(Green.copy(alpha = 0.16f), Green.copy(alpha = 0f)),
+                startY = top, endY = max(bottom, top + 1f)))
+            // Целевой вес.
+            val yTarget = yOf(c.targetWeight)
+            drawLine(Green.copy(alpha = 0.65f), Offset(px(padL), yTarget), Offset(right, yTarget),
+                strokeWidth = 1.4f * d, pathEffect = PathEffect.dashPathEffect(floatArrayOf(3f * d, 4f * d)))
+            // Факт.
+            val line = Path().apply {
+                c.points.forEachIndexed { i, p ->
+                    if (i == 0) moveTo(xOf(p.day), yOf(p.weight)) else lineTo(xOf(p.day), yOf(p.weight))
+                }
+            }
+            drawPath(line, Green, style = Stroke(width = 2.3f * d, cap = StrokeCap.Round, join = StrokeJoin.Round))
+            // Прогноз.
+            c.forecastDay?.let { fd ->
+                drawLine(Amber, Offset(xOf(lastPt.day), yOf(lastPt.weight)), Offset(xOf(fd), yTarget),
+                    strokeWidth = 2f * d, pathEffect = PathEffect.dashPathEffect(floatArrayOf(5f * d, 5f * d)))
+                drawCircle(ChartCardBg, 4f * d, Offset(xOf(fd), yTarget))
+                drawCircle(Amber, 4f * d, Offset(xOf(fd), yTarget), style = Stroke(2f * d))
+            }
+            // Точки замеров.
+            c.points.forEachIndexed { i, p ->
+                val isLast = i == c.points.lastIndex
+                if (c.points.size > 80 && i != 0 && !isLast) return@forEachIndexed
+                val r = (if (isLast) 4f else 2.8f) * d
+                val ctr = Offset(xOf(p.day), yOf(p.weight))
+                drawCircle(if (isLast) Green else ChartCardBg, r, ctr)
+                drawCircle(Green, r, ctr, style = Stroke(1.8f * d))
+            }
+            // Подписи дней.
+            for (i in 0 until tickCount) {
+                val align = when (i) {
+                    0 -> android.graphics.Paint.Align.LEFT
+                    tickCount - 1 -> android.graphics.Paint.Align.RIGHT
+                    else -> android.graphics.Paint.Align.CENTER
+                }
+                label((i * step).toString(), xOf((i * step).toDouble()), px(h - 10), align)
+            }
+        }
+    }
+}
+
+private fun fmtGramsLocal(v: Double): String =
+    String.format(RU, "%,.${if (v == floor(v)) 0 else 1}f", v)
+private fun fmtOne(v: Double): String = String.format(RU, "%.1f", v)
+private fun fmtShortDate(ms: Long): String = SimpleDateFormat("d MMM", RU).format(Date(ms))
 
 @Composable
 private fun Passport(batch: Batch) {
