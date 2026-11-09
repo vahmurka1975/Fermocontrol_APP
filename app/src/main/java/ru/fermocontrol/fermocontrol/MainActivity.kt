@@ -267,6 +267,7 @@ class JournalViewModel(application: Application) :
                     rawMaterial = draft.rawMaterial,
                     spices = draft.spices,
                     casing = draft.casing,
+					catalogId = draft.catalogId,
                     startWeightGrams = draft.startWeightGrams,
                     targetLossPercent = draft.targetLossPercent,
                     temperatureC = draft.temperatureC,

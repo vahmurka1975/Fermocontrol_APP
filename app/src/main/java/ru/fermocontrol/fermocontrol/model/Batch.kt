@@ -11,6 +11,7 @@ data class Batch(
     val rawMaterial: String = "",
     val spices: String = "",
     val casing: String = "",
+	val catalogId: String? = null,
     val startWeightGrams: Double,
     val targetLossPercent: Double,
     val temperatureC: Double? = null,

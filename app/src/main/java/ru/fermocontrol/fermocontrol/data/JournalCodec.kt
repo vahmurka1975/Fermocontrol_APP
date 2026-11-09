@@ -69,6 +69,7 @@ object JournalCodec {
             batch.temperatureC?.let { put("temperatureC", it) }
             batch.humidityPercent?.let { put("humidityPercent", it) }
             batch.photoFileName?.let { put("photoFileName", it) }
+			batch.catalogId?.let { put("catalogId", it) }
             put("logs", logs)
         }
     }
@@ -98,6 +99,7 @@ object JournalCodec {
             rawMaterial = obj.textOrEmpty("rawMaterial"),
             spices = obj.textOrEmpty("spices"),
             casing = obj.textOrEmpty("casing"),
+			catalogId = obj.nullableText("catalogId"),
             startWeightGrams = obj.getDouble("startWeightGrams"),
             targetLossPercent = obj.getDouble("targetLossPercent"),
             temperatureC = obj.nullableDouble("temperatureC"),

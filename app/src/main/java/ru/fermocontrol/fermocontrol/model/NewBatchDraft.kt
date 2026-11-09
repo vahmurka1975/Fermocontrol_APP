@@ -8,6 +8,7 @@ data class NewBatchDraft(
     val rawMaterial: String = "",
     val spices: String = "",
     val casing: String = "",
+	val catalogId: String? = null,
     val temperatureC: Double? = null,
     val humidityPercent: Double? = null,
     val note: String = "",

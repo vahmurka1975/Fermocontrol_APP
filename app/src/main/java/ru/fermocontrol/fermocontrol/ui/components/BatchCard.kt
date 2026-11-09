@@ -7,7 +7,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.KeyboardArrowRight
+import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -102,11 +102,9 @@ fun BatchCard(
                     )
                 }
                 Icon(
-                    imageVector = Icons.Outlined.KeyboardArrowRight,
-                    contentDescription = null,
-                    tint = FcChevron,
-                    modifier = Modifier.size(17.dp),
-                )
+    imageVector = Icons.AutoMirrored.Outlined.KeyboardArrowRight,
+    contentDescription = null
+)
             }
 
             Row(

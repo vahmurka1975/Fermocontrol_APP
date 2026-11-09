@@ -13,6 +13,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import ru.fermocontrol.fermocontrol.model.Catalog
 import ru.fermocontrol.fermocontrol.model.NewBatchDraft
 import ru.fermocontrol.fermocontrol.ui.components.CollapsibleSection
 import ru.fermocontrol.fermocontrol.ui.components.FcPrimaryButton
@@ -23,12 +24,13 @@ import ru.fermocontrol.fermocontrol.ui.components.LabeledInput
 import ru.fermocontrol.fermocontrol.ui.theme.Danger
 import ru.fermocontrol.fermocontrol.ui.theme.Muted
 
-private val CATEGORIES = listOf("Сыровяление", "Ферментация овощей", "Сыроделие", "Другое")
-private val BASES = listOf("Говядина", "Свинина", "Птица", "Рыба", "Сыр", "Овощи")
-private val CASINGS = listOf("Айцел Премиум", "Коллагеновая", "Натуральная", "Чудо-рукав", "Без оболочки")
+private const val CUSTOM_LABEL = "Свой продукт"
 
 private fun parseNum(value: String): Double? =
     value.trim().replace(',', '.').toDoubleOrNull()?.takeIf { it.isFinite() }
+
+private fun formatNum(value: Double): String =
+    if (value % 1.0 == 0.0) value.toInt().toString() else value.toString()
 
 /** Панель «Новый продукт» по макету v0.4.1: сначала вес, остальное в раскрываемом разделе. */
 @Composable
@@ -38,13 +40,14 @@ fun NewBatchDialog(
     onDismiss: () -> Unit,
     onSave: (NewBatchDraft) -> Unit,
 ) {
+    var catalogId by rememberSaveable { mutableStateOf("") }
     var name by rememberSaveable { mutableStateOf("") }
     var weight by rememberSaveable { mutableStateOf("") }
     var target by rememberSaveable { mutableStateOf("35") }
-    var category by rememberSaveable { mutableStateOf(CATEGORIES.first()) }
-    var basis by rememberSaveable { mutableStateOf(BASES.first()) }
+    var category by rememberSaveable { mutableStateOf(Catalog.categories.first()) }
+    var basis by rememberSaveable { mutableStateOf(Catalog.rawMaterials.first()) }
     var spices by rememberSaveable { mutableStateOf("") }
-    var casing by rememberSaveable { mutableStateOf(CASINGS.first()) }
+    var casing by rememberSaveable { mutableStateOf(Catalog.casings.first()) }
     var temp by rememberSaveable { mutableStateOf("") }
     var humidity by rememberSaveable { mutableStateOf("") }
     var note by rememberSaveable { mutableStateOf("") }
@@ -62,6 +65,26 @@ fun NewBatchDialog(
     val humErr = if (humidity.isNotBlank() && (humV == null || humV < 0.0 || humV > 100.0)) "От 0 до 100 %" else null
     val valid = listOf(nameErr, weightErr, targetErr, tempErr, humErr).all { it == null }
 
+    val pickedItem = Catalog.byId(catalogId)
+    val pickOptions = listOf(CUSTOM_LABEL) + Catalog.items.map { it.name }
+
+    fun pick(label: String) {
+        val item = Catalog.items.firstOrNull { it.name == label }
+        if (item == null) {
+            catalogId = ""
+            return
+        }
+        // Название подставляем, только если пользователь его не менял.
+        val previous = pickedItem?.name
+        if (name.isBlank() || name == previous) name = item.name
+
+        catalogId = item.id
+        category = item.category
+        basis = item.rawMaterial
+        target = formatNum(item.targetLossPercent)
+        casing = item.casing
+    }
+
     FcSheet(
         title = "Новый продукт",
         subtitle = "Начните с веса. Остальные параметры можно заполнить сразу.",
@@ -71,6 +94,14 @@ fun NewBatchDialog(
         if (error != null) {
             Text(error, color = Danger, fontSize = 12.sp, modifier = Modifier.padding(bottom = 12.dp))
         }
+
+        FcSelect(
+            "Позиция из каталога",
+            pickedItem?.name ?: CUSTOM_LABEL,
+            pickOptions,
+            { pick(it) },
+            Modifier,
+        )
 
         LabeledInput(
             label = "Название продукта",
@@ -109,8 +140,18 @@ fun NewBatchDialog(
 
         CollapsibleSection("Паспорт партии и климат") {
             FieldPair(
-                first = { m -> FcSelect("Категория", category, CATEGORIES, { category = it }, m) },
-                second = { m -> FcSelect("Сырьё", basis, BASES, { basis = it }, m) },
+                first = { m ->
+                    FcSelect(
+                        "Категория", category, Catalog.categories,
+                        {
+                            category = it
+                            // Позиция другой категории больше не соответствует выбору.
+                            if (pickedItem != null && pickedItem.category != it) catalogId = ""
+                        },
+                        m,
+                    )
+                },
+                second = { m -> FcSelect("Сырьё", basis, Catalog.rawMaterials, { basis = it }, m) },
             )
             FieldPair(
                 first = { m ->
@@ -123,7 +164,7 @@ fun NewBatchDialog(
                         enabled = !saving,
                     )
                 },
-                second = { m -> FcSelect("Оболочка", casing, CASINGS, { casing = it }, m) },
+                second = { m -> FcSelect("Оболочка", casing, Catalog.casings, { casing = it }, m) },
             )
             FieldPair(
                 first = { m ->
@@ -184,6 +225,7 @@ fun NewBatchDialog(
                         rawMaterial = basis,
                         spices = spices.trim(),
                         casing = casing,
+                        catalogId = catalogId.ifEmpty { null },
                         temperatureC = tempV,
                         humidityPercent = humV,
                         note = note.trim(),
