@@ -24,7 +24,6 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -40,6 +39,7 @@ fun FcSheet(
     dismissible: Boolean = true,
     content: @Composable ColumnScope.() -> Unit,
 ) {
+    val p = LocalAppPalette.current
     Dialog(
         onDismissRequest = { if (dismissible) onDismiss() },
         properties = DialogProperties(
@@ -68,8 +68,8 @@ fun FcSheet(
                     .fillMaxWidth()
                     .heightIn(max = maxHeight * 0.92f)
                     .clip(shape)
-                    .background(FcSheetBg)
-                    .border(1.dp, FcSheetLine, shape)
+                    .background(p.sheet)
+                    .border(1.dp, p.cardLine, shape)
                     .clickable(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null,
@@ -84,13 +84,13 @@ fun FcSheet(
                             .padding(top = 0.dp, bottom = 19.dp)
                             .size(width = 33.dp, height = 4.dp)
                             .clip(RoundedCornerShape(5.dp))
-                            .background(FcSheetHandle),
+                            .background(p.chipLine),
                     )
                 }
                 Row(verticalAlignment = Alignment.Top) {
                     Text(
                         text = title,
-                        color = Ink,
+                        color = p.ink,
                         fontSize = 22.sp,
                         lineHeight = 27.sp,
                         fontWeight = FontWeight.Medium,
@@ -101,15 +101,15 @@ fun FcSheet(
                         modifier = Modifier
                             .size(44.dp)
                             .clip(RoundedCornerShape(12.dp))
-                            .border(1.dp, Line, RoundedCornerShape(12.dp))
+                            .border(1.dp, p.divider, RoundedCornerShape(12.dp))
                             .clickable(role = Role.Button, enabled = dismissible, onClick = onDismiss),
                         contentAlignment = Alignment.Center,
                     ) {
-                        Icon(Icons.Outlined.Close, contentDescription = "Закрыть", tint = Ink, modifier = Modifier.size(20.dp))
+                        Icon(Icons.Outlined.Close, contentDescription = "Закрыть", tint = p.ink, modifier = Modifier.size(20.dp))
                     }
                 }
                 if (subtitle != null) {
-                    Text(subtitle, color = Muted, fontSize = 12.sp, lineHeight = 18.sp, modifier = Modifier.padding(top = 2.dp))
+                    Text(subtitle, color = p.muted, fontSize = 12.sp, lineHeight = 18.sp, modifier = Modifier.padding(top = 2.dp))
                 }
                 Spacer(Modifier.height(20.dp))
                 content()
@@ -130,34 +130,35 @@ fun FcTextField(
     enabled: Boolean = true,
     error: String? = null,
 ) {
+    val p = LocalAppPalette.current
     var focused by remember { mutableStateOf(false) }
     val shape = RoundedCornerShape(12.dp)
     Column(modifier.padding(bottom = 12.dp)) {
-        Text(label, color = FcLabel, fontSize = 12.sp, fontWeight = FontWeight.Medium, modifier = Modifier.padding(bottom = 6.dp))
+        Text(label, color = p.label, fontSize = 12.sp, fontWeight = FontWeight.Medium, modifier = Modifier.padding(bottom = 6.dp))
         BasicTextField(
             value = value,
             onValueChange = onValueChange,
             enabled = enabled,
             singleLine = singleLine,
-            textStyle = TextStyle(color = Ink, fontSize = 14.sp),
-            cursorBrush = SolidColor(Emerald),
+            textStyle = TextStyle(color = p.ink, fontSize = 14.sp),
+            cursorBrush = SolidColor(p.accent),
             keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
             modifier = Modifier
                 .fillMaxWidth()
                 .heightIn(min = if (singleLine) 46.dp else 78.dp)
                 .clip(shape)
-                .background(FcField)
-                .border(1.dp, if (error != null) Danger else if (focused) FcFieldFocus else FcFieldLine, shape)
+                .background(p.field)
+                .border(1.dp, if (error != null) p.danger else if (focused) p.selectedLine else p.fieldLine, shape)
                 .onFocusChanged { focused = it.isFocused }
                 .padding(horizontal = 12.dp, vertical = 13.dp),
             decorationBox = { inner ->
                 Box(contentAlignment = if (singleLine) Alignment.CenterStart else Alignment.TopStart) {
-                    if (value.isEmpty()) Text(placeholder, color = FcFieldPlaceholder, fontSize = 14.sp)
+                    if (value.isEmpty()) Text(placeholder, color = p.muted, fontSize = 14.sp)
                     inner()
                 }
             },
         )
-        if (error != null) Text(error, color = Danger, fontSize = 11.sp, modifier = Modifier.padding(top = 5.dp))
+        if (error != null) Text(error, color = p.danger, fontSize = 11.sp, modifier = Modifier.padding(top = 5.dp))
     }
 }
 
@@ -169,29 +170,34 @@ fun FcSelect(
     onSelect: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val p = LocalAppPalette.current
     var open by remember { mutableStateOf(false) }
     val shape = RoundedCornerShape(12.dp)
     Column(modifier.padding(bottom = 12.dp)) {
-        Text(label, color = FcLabel, fontSize = 12.sp, fontWeight = FontWeight.Medium, modifier = Modifier.padding(bottom = 6.dp))
+        Text(label, color = p.label, fontSize = 12.sp, fontWeight = FontWeight.Medium, modifier = Modifier.padding(bottom = 6.dp))
         Box {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .heightIn(min = 46.dp)
                     .clip(shape)
-                    .background(FcField)
-                    .border(1.dp, FcFieldLine, shape)
+                    .background(p.field)
+                    .border(1.dp, p.fieldLine, shape)
                     .clickable(role = Role.DropdownList) { open = true }
                     .padding(horizontal = 12.dp, vertical = 13.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(value, color = Ink, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-                Icon(Icons.Outlined.KeyboardArrowDown, contentDescription = null, tint = Muted, modifier = Modifier.size(18.dp))
+                Text(value, color = p.ink, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                Icon(Icons.Outlined.KeyboardArrowDown, contentDescription = null, tint = p.muted, modifier = Modifier.size(18.dp))
             }
-            DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            DropdownMenu(
+                expanded = open,
+                onDismissRequest = { open = false },
+                modifier = Modifier.background(p.field),
+            ) {
                 options.forEach { option ->
                     DropdownMenuItem(
-                        text = { Text(option, color = if (option == value) Emerald else Ink) },
+                        text = { Text(option, color = if (option == value) p.accent else p.ink) },
                         onClick = { open = false; onSelect(option) },
                     )
                 }
@@ -202,17 +208,18 @@ fun FcSelect(
 
 @Composable
 fun FcPrimaryButton(text: String, enabled: Boolean = true, onClick: () -> Unit) {
+    val p = LocalAppPalette.current
     val shape = RoundedCornerShape(12.dp)
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .heightIn(min = 47.dp)
             .clip(shape)
-            .background(if (enabled) FcBtn else FcBtn.copy(alpha = 0.5f))
-            .border(1.dp, FcBtnLine.copy(alpha = if (enabled) 1f else 0.5f), shape)
+            .background(if (enabled) p.secondary else p.secondary.copy(alpha = 0.5f))
+            .border(1.dp, p.secondaryLine.copy(alpha = if (enabled) 1f else 0.5f), shape)
             .clickable(enabled = enabled, role = Role.Button, onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
-        Text(text, color = FcBtnInk, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+        Text(text, color = p.onSecondary, fontSize = 14.sp, fontWeight = FontWeight.Medium)
     }
 }

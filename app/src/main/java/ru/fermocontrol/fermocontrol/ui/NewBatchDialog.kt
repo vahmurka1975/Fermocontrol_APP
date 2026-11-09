@@ -22,8 +22,7 @@ import ru.fermocontrol.fermocontrol.ui.components.FcSelect
 import ru.fermocontrol.fermocontrol.ui.components.FcSheet
 import ru.fermocontrol.fermocontrol.ui.components.FieldPair
 import ru.fermocontrol.fermocontrol.ui.components.LabeledInput
-import ru.fermocontrol.fermocontrol.ui.theme.Danger
-import ru.fermocontrol.fermocontrol.ui.theme.Muted
+import ru.fermocontrol.fermocontrol.ui.theme.LocalAppPalette
 
 private const val CUSTOM_LABEL = "Свой продукт"
 
@@ -36,13 +35,14 @@ private fun formatNum(value: Double): String =
 /** Панель «Новый продукт» по макету v0.4.1: сначала вес, остальное в раскрываемом разделе. */
 @Composable
 fun NewBatchDialog(
-    saving: Boolean,
+	saving: Boolean,
     error: String?,
     onDismiss: () -> Unit,
     onSave: (NewBatchDraft) -> Unit,
     initial: Batch? = null,
 ) {
-    val editing = initial != null
+    val p = LocalAppPalette.current
+	val editing = initial != null
     val weightLocked = initial != null && initial.logs.isNotEmpty()
     var catalogId by rememberSaveable { mutableStateOf(initial?.catalogId.orEmpty()) }
     var name by rememberSaveable { mutableStateOf(initial?.name.orEmpty()) }
@@ -103,7 +103,7 @@ fun NewBatchDialog(
         dismissible = !saving,
     ) {
         if (error != null) {
-            Text(error, color = Danger, fontSize = 12.sp, modifier = Modifier.padding(bottom = 12.dp))
+            Text(error, color = p.danger, fontSize = 12.sp, modifier = Modifier.padding(bottom = 12.dp))
         }
 
         FcSelect(
@@ -151,7 +151,7 @@ fun NewBatchDialog(
         if (weightLocked) {
             Text(
                 "Стартовый вес нельзя менять после первого взвешивания.",
-                color = Muted,
+                color = p.muted,
                 fontSize = 11.5.sp,
                 lineHeight = 19.sp,
                 modifier = Modifier.padding(bottom = 10.dp),
@@ -224,7 +224,7 @@ fun NewBatchDialog(
         if (!editing) {
             Text(
                 "Номер продукта назначится автоматически.",
-                color = Muted,
+                color = p.muted,
                 fontSize = 11.5.sp,
                 lineHeight = 19.sp,
                 modifier = Modifier.padding(bottom = 10.dp),

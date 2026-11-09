@@ -37,7 +37,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
@@ -57,7 +56,14 @@ import ru.fermocontrol.fermocontrol.ui.components.FcSelect
 import ru.fermocontrol.fermocontrol.ui.components.FcSheet
 import ru.fermocontrol.fermocontrol.ui.components.FieldPair
 import ru.fermocontrol.fermocontrol.ui.components.LabeledInput
-import ru.fermocontrol.fermocontrol.ui.theme.*
+import ru.fermocontrol.fermocontrol.ui.theme.Amber
+import ru.fermocontrol.fermocontrol.ui.theme.AmberLine
+import ru.fermocontrol.fermocontrol.ui.theme.AmberSoft
+import ru.fermocontrol.fermocontrol.ui.theme.LocalAppPalette
+import ru.fermocontrol.fermocontrol.ui.theme.WarnCheckBg
+import ru.fermocontrol.fermocontrol.ui.theme.WarnCheckInk
+import ru.fermocontrol.fermocontrol.ui.theme.WarnCheckLine
+import ru.fermocontrol.fermocontrol.ui.theme.WarnInk
 
 private val SMELLS = listOf(
     "Не указан", "Чистый вяленый аромат", "Пряный, ореховый",
@@ -94,6 +100,7 @@ fun WeighSheet(
         photoUri: Uri?,
     ) -> Unit,
 ) {
+    val p = LocalAppPalette.current
     var weightText by rememberSaveable(batch.id) { mutableStateOf("") }
     var smell by rememberSaveable(batch.id) { mutableStateOf(SMELLS.first()) }
     var surface by rememberSaveable(batch.id) { mutableStateOf(SURFACES.first()) }
@@ -178,7 +185,7 @@ fun WeighSheet(
         dismissible = !saving,
     ) {
         if (error != null) {
-            Text(error, color = Danger, fontSize = 12.sp, modifier = Modifier.padding(bottom = 12.dp))
+            Text(error, color = p.danger, fontSize = 12.sp, modifier = Modifier.padding(bottom = 12.dp))
         }
 
         LabeledInput(
@@ -199,17 +206,17 @@ fun WeighSheet(
                 .fillMaxWidth()
                 .padding(bottom = 14.dp)
                 .clip(box)
-                .background(Color(0xFF1B271E))
-                .border(1.dp, Color(0xFF3B4D35), box)
+                .background(p.card)
+                .border(1.dp, p.cardLine, box)
                 .padding(13.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text("ЖИВОЙ РАСЧЁТ ПРОГРЕССА", color = Muted, fontSize = 9.sp,
+                Text("ЖИВОЙ РАСЧЁТ ПРОГРЕССА", color = p.muted, fontSize = 9.sp,
                     letterSpacing = 0.6.sp, fontWeight = FontWeight.SemiBold)
                 Text(
                     if (entered != null) "после записи" else "сейчас",
-                    color = Muted, fontSize = 9.sp,
+                    color = p.muted, fontSize = 9.sp,
                 )
             }
             LiveCell(
@@ -243,14 +250,14 @@ fun WeighSheet(
                 val s = RoundedCornerShape(10.dp)
                 Text(
                     text = messages.joinToString(" "),
-                    color = if (amber) Color(0xFFE4C28F) else Color(0xFFBFD9B1),
+                    color = if (amber) WarnInk else p.strong,
                     fontSize = 11.sp,
                     lineHeight = 17.6.sp,
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(s)
-                        .background(if (amber) AmberSoft else EmeraldSoft)
-                        .border(1.dp, if (amber) AmberLine else EmeraldLine, s)
+                        .background(if (amber) AmberSoft else p.accent.copy(alpha = 0.09f))
+                        .border(1.dp, if (amber) AmberLine else p.accent.copy(alpha = 0.25f), s)
                         .padding(10.dp),
                 )
             }
@@ -258,7 +265,7 @@ fun WeighSheet(
 
         Text(
             "ОСМОТР И ЗАМЕТКИ · ПО ЖЕЛАНИЮ",
-            color = Color(0xFFB2C5A5),
+            color = p.label,
             fontSize = 10.sp,
             letterSpacing = 1.sp,
             fontWeight = FontWeight.SemiBold,
@@ -276,8 +283,8 @@ fun WeighSheet(
                 .fillMaxWidth()
                 .padding(bottom = 14.dp)
                 .clip(cbShape)
-                .background(Color(0x07EDBC77))
-                .border(1.dp, Color(0xFF5D5036), cbShape)
+                .background(WarnCheckBg)
+                .border(1.dp, WarnCheckLine, cbShape)
                 .toggleable(value = needsCheck, enabled = !saving, role = Role.Checkbox) { needsCheck = it }
                 .padding(12.dp),
             verticalAlignment = Alignment.Top,
@@ -286,14 +293,18 @@ fun WeighSheet(
                 checked = needsCheck,
                 onCheckedChange = null,
                 enabled = !saving,
-                colors = CheckboxDefaults.colors(checkedColor = Amber, checkmarkColor = Bg),
+                colors = CheckboxDefaults.colors(
+                    checkedColor = Amber,
+                    checkmarkColor = p.background,
+                    uncheckedColor = p.muted,
+                ),
                 modifier = Modifier.size(19.dp),
             )
             Column(Modifier.padding(start = 10.dp)) {
-                Text("Требует проверки", color = Color(0xFFD9C7AA), fontSize = 12.sp)
+                Text("Требует проверки", color = WarnCheckInk, fontSize = 12.sp)
                 Text(
                     "Отдельная отметка в журнале, не заключение о безопасности.",
-                    color = Muted, fontSize = 12.sp, lineHeight = 19.sp,
+                    color = p.muted, fontSize = 12.sp, lineHeight = 19.sp,
                 )
             }
         }
@@ -301,7 +312,7 @@ fun WeighSheet(
         // Фото взвешивания
         Text(
             "ФОТО · ПО ЖЕЛАНИЮ",
-            color = Color(0xFFB2C5A5),
+            color = p.label,
             fontSize = 10.sp,
             letterSpacing = 1.sp,
             fontWeight = FontWeight.SemiBold,
@@ -337,8 +348,8 @@ fun WeighSheet(
                     .fillMaxWidth()
                     .padding(bottom = 10.dp)
                     .clip(pShape)
-                    .background(Color(0xFF1B271E))
-                    .border(1.dp, Color(0xFF3B4D35), pShape)
+                    .background(p.card)
+                    .border(1.dp, p.cardLine, pShape)
                     .padding(10.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -346,7 +357,7 @@ fun WeighSheet(
                     modifier = Modifier
                         .size(64.dp)
                         .clip(RoundedCornerShape(10.dp))
-                        .background(Color(0xFF142017)),
+                        .background(p.field),
                     contentAlignment = Alignment.Center,
                 ) {
                     val image = preview
@@ -360,20 +371,20 @@ fun WeighSheet(
                     }
                 }
                 Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
-                    Text("Фото приложено", color = Color(0xFFD9E4CF), fontSize = 12.sp)
+                    Text("Фото приложено", color = p.strong, fontSize = 12.sp)
                     Text(
                         "Сохранится вместе с записью.",
-                        color = Muted, fontSize = 11.sp, lineHeight = 17.sp,
+                        color = p.muted, fontSize = 11.sp, lineHeight = 17.sp,
                     )
                 }
                 TextButton(onClick = { photoUri = null }, enabled = !saving) {
-                    Text("Убрать", color = Muted)
+                    Text("Убрать", color = p.muted)
                 }
             }
         }
 
         photoError?.let {
-            Text(it, color = Danger, fontSize = 12.sp, modifier = Modifier.padding(bottom = 10.dp))
+            Text(it, color = p.danger, fontSize = 12.sp, modifier = Modifier.padding(bottom = 10.dp))
         }
 
         Spacer(Modifier.height(4.dp))
@@ -403,14 +414,15 @@ private fun PhotoButton(
     modifier: Modifier,
     onClick: () -> Unit,
 ) {
+    val p = LocalAppPalette.current
     OutlinedButton(
         onClick = onClick,
         enabled = enabled,
         shape = RoundedCornerShape(12.dp),
-        border = BorderStroke(1.dp, Color(0xFF42523B)),
+        border = BorderStroke(1.dp, p.secondaryLine),
         colors = ButtonDefaults.outlinedButtonColors(
-            containerColor = Color(0xFF223022),
-            contentColor = Color(0xFFD5DFCD),
+            containerColor = p.secondary,
+            contentColor = p.onSecondary,
         ),
         modifier = modifier,
     ) { Text(text, fontSize = 13.sp) }
@@ -418,23 +430,24 @@ private fun PhotoButton(
 
 @Composable
 private fun LiveCell(label: String, value: String, sub: String, warn: Boolean = false) {
+    val p = LocalAppPalette.current
     val shape = RoundedCornerShape(11.dp)
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .clip(shape)
-            .background(Color(0xFF172219))
-            .border(1.dp, if (warn) AmberLine else Color(0xFF34442F), shape)
+            .background(p.field)
+            .border(1.dp, if (warn) AmberLine else p.divider, shape)
             .padding(horizontal = 11.dp, vertical = 9.dp),
     ) {
-        Text(label, color = Muted, fontSize = 10.sp)
+        Text(label, color = p.muted, fontSize = 10.sp)
         Row(
             modifier = Modifier.padding(top = 2.dp),
             verticalAlignment = Alignment.Bottom,
             horizontalArrangement = Arrangement.spacedBy(7.dp),
         ) {
-            Text(value, color = if (warn) Amber else Ink, fontSize = 16.sp, fontWeight = FontWeight.Medium)
-            Text(sub, color = Muted, fontSize = 10.sp, modifier = Modifier.padding(bottom = 2.dp))
+            Text(value, color = if (warn) Amber else p.ink, fontSize = 16.sp, fontWeight = FontWeight.Medium)
+            Text(sub, color = p.muted, fontSize = 10.sp, modifier = Modifier.padding(bottom = 2.dp))
         }
     }
 }

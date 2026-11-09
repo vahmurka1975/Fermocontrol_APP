@@ -84,8 +84,29 @@ class PhotoStore(context: Context) {
     fun delete(name: String) {
         file(name).delete()
     }
+    
+	/** Допустимы только имена, которые создаёт saveFrom. Остальное при восстановлении отбрасывается. */
+    fun isValidName(name: String): Boolean = PHOTO_NAME.matches(name)
 
-    private fun decodeOriented(uri: Uri, maxSide: Int): Bitmap {
+    /** Кладёт готовый JPEG из резервной копии в хранилище. */
+    fun restoreFrom(name: String, input: InputStream) {
+        require(isValidName(name)) { "Недопустимое имя фото" }
+        photoDir.mkdirs()
+        val tmp = File(photoDir, "$name.tmp")
+        try {
+            FileOutputStream(tmp).use { out ->
+                input.copyTo(out)
+                out.flush()
+                out.fd.sync()
+            }
+            if (!tmp.renameTo(file(name))) throw IOException("Не удалось сохранить фото из копии")
+        } catch (error: Exception) {
+            tmp.delete()
+            throw error
+        }
+    }
+    
+	private fun decodeOriented(uri: Uri, maxSide: Int): Bitmap {
         val resolver = app.contentResolver
 
         fun open(): InputStream = try {
@@ -155,5 +176,6 @@ class PhotoStore(context: Context) {
         const val SAVE_MAX_SIDE = 1600
         const val PREVIEW_MAX_SIDE = 480
         const val DAY_MS = 86_400_000L
+		val PHOTO_NAME = Regex("p_[0-9a-fA-F-]{36}\\.jpg")
     }
 }

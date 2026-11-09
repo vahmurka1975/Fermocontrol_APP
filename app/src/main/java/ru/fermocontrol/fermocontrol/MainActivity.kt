@@ -8,25 +8,34 @@ import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.ViewModelProvider
 import kotlinx.coroutines.CancellationException
@@ -38,16 +47,34 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import ru.fermocontrol.fermocontrol.data.BatchRepository
 import ru.fermocontrol.fermocontrol.data.PhotoStore
+import ru.fermocontrol.fermocontrol.data.SettingsStore
 import ru.fermocontrol.fermocontrol.model.Batch
 import ru.fermocontrol.fermocontrol.model.NewBatchDraft
 import ru.fermocontrol.fermocontrol.model.WeightLog
 import ru.fermocontrol.fermocontrol.ui.BatchDetailSheet
+import ru.fermocontrol.fermocontrol.ui.CloudProvider
 import ru.fermocontrol.fermocontrol.ui.MainScreen
 import ru.fermocontrol.fermocontrol.ui.NewBatchDialog
+import ru.fermocontrol.fermocontrol.ui.SettingsActions
+import ru.fermocontrol.fermocontrol.ui.SettingsSheet
+import ru.fermocontrol.fermocontrol.ui.SettingsUiState
 import ru.fermocontrol.fermocontrol.ui.WeighSheet
+import ru.fermocontrol.fermocontrol.ui.theme.AppPalettes
 import ru.fermocontrol.fermocontrol.ui.theme.FermocontrolTheme
+import ru.fermocontrol.fermocontrol.ui.theme.LocalAppPalette
+import ru.fermocontrol.fermocontrol.ui.theme.paletteById
+import ru.fermocontrol.fermocontrol.data.BackupManager
+import ru.fermocontrol.fermocontrol.ui.rememberBackupActions
 
 class MainActivity : ComponentActivity() {
+
+    private val backupManager by lazy {
+        BackupManager(
+            application,
+            BatchRepository(application),
+            PhotoStore(application),
+        )
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -56,7 +83,18 @@ class MainActivity : ComponentActivity() {
         val journal = ViewModelProvider(this)[JournalViewModel::class.java]
 
         setContent {
-            FermocontrolTheme {
+            val palette = paletteById(journal.paletteId)
+
+            FermocontrolTheme(palette = palette) {
+                val context = LocalContext.current
+                val backup = rememberBackupActions(
+                    manager = backupManager,
+                    onMessage = {
+                        Toast.makeText(context, it, Toast.LENGTH_LONG).show()
+                    },
+                    onRestored = { journal.reload() },
+                )
+
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background,
@@ -79,7 +117,7 @@ class MainActivity : ComponentActivity() {
                             onSelect = journal::openDetail,
                             onWeigh = journal::openWeigh,
                             onAdd = journal::openNewBatch,
-                            onSettings = { pending("Настройки") },
+                            onSettings = journal::openSettings,
                             onProfile = { pending("Профиль") },
                         )
                     }
@@ -131,10 +169,50 @@ class MainActivity : ComponentActivity() {
                                 onSave = journal::saveWeight,
                             )
                         }
+
+                        if (journal.settingsOpen) {
+                            SettingsHost(
+                                state = SettingsUiState(
+                                    cloud = journal.cloud,
+                                    activeCount = journal.batches.count { !it.archived },
+                                    archiveCount = journal.batches.count { it.archived },
+                                    logCount = journal.batches.sumOf { it.logs.size },
+                                    storageStatus = "Журнал хранится в памяти приложения.",
+                                    updateStatus = journal.updateStatus,
+                                    versionTag = versionTag(),
+                                    interval = journal.interval,
+                                    pace = journal.pace,
+                                    paletteId = journal.paletteId,
+                                ),
+                                actions = SettingsActions(
+                                    onClose = journal::closeSettings,
+                                    onCloudChange = journal::changeCloud,
+                                    onConnectCloud = { pending("Подключение облака") },
+                                    onExport = { backup.saveBackup() },
+                                    onImport = { backup.restoreBackup() },
+                                    onShare = { backup.shareBackup() },
+                                    onCsv = { backup.saveCsv() },
+                                    onCheckUpdates = journal::checkUpdates,
+                                    onIntervalChange = journal::changeInterval,
+                                    onPaceChange = journal::changePace,
+                                    onPaletteChange = journal::changePalette,
+                                    onGuide = { pending("Как читать показатели") },
+                                    onResetDemo = { pending("Демо-данные") },
+                                ),
+                                onDismiss = journal::closeSettings,
+                            )
+                        }
                     }
                 }
             }
         }
+    }
+
+    private fun versionTag(): String {
+        val name = runCatching {
+            packageManager.getPackageInfo(packageName, 0).versionName
+        }.getOrNull()
+        return "v" + (name ?: "?")
     }
 
     private fun pending(feature: String) {
@@ -146,11 +224,40 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SettingsHost(
+    state: SettingsUiState,
+    actions: SettingsActions,
+    onDismiss: () -> Unit,
+) {
+    val p = LocalAppPalette.current
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        containerColor = p.sheet,
+        shape = RoundedCornerShape(topStart = 25.dp, topEnd = 25.dp),
+        dragHandle = {
+            Box(
+                Modifier
+                    .padding(top = 10.dp, bottom = 14.dp)
+                    .size(33.dp, 4.dp)
+                    .clip(CircleShape)
+                    .background(p.chipLine),
+            )
+        },
+    ) {
+        SettingsSheet(state, actions)
+    }
+}
+
 class JournalViewModel(application: Application) :
     AndroidViewModel(application) {
 
-    private val repository = BatchRepository(application)
+    val repository = BatchRepository(application)
     val photos = PhotoStore(application)
+    private val settingsStore = SettingsStore(application)
 
     // Область переживает поворот экрана вместе с ViewModel.
     private val scope = CoroutineScope(
@@ -187,6 +294,31 @@ class JournalViewModel(application: Application) :
         private set
 
     var editOpen by mutableStateOf(false)
+        private set
+
+    // ───────────── Состояние настроек ─────────────
+
+    var settingsOpen by mutableStateOf(false)
+        private set
+
+    var paletteId by mutableStateOf(settingsStore.paletteId)
+        private set
+
+    var cloud by mutableStateOf(
+        runCatching { CloudProvider.valueOf(settingsStore.cloud) }
+            .getOrDefault(CloudProvider.Yandex)
+    )
+        private set
+
+    var interval by mutableStateOf(settingsStore.interval)
+        private set
+
+    var pace by mutableStateOf(settingsStore.pace)
+        private set
+
+    var updateStatus by mutableStateOf(
+        "Сервер обновлений и установка Android-сборок не подключены."
+    )
         private set
 
     // Храним идентификатор, а актуальную партию берём из batches.
@@ -651,6 +783,52 @@ class JournalViewModel(application: Application) :
             },
             afterSave = { removePhotos(files) },
         )
+    }
+
+    // ───────────── Настройки ─────────────
+
+    fun openSettings() {
+        if (
+            loading || saving || loadError != null ||
+            newBatchOpen || weighingBatchId != null || detailBatchId != null
+        ) {
+            return
+        }
+
+        settingsOpen = true
+    }
+
+    fun closeSettings() {
+        settingsOpen = false
+    }
+
+    fun changePalette(id: String) {
+        // Неизвестный id в настройки не записываем.
+        if (AppPalettes.none { it.id == id }) return
+
+        paletteId = id
+        settingsStore.paletteId = id
+    }
+
+    fun changeCloud(provider: CloudProvider) {
+        cloud = provider
+        settingsStore.cloud = provider.name
+    }
+
+    fun changeInterval(days: Int) {
+        if (days !in 1..30) return
+        interval = days
+        settingsStore.interval = days
+    }
+
+    fun changePace(percentPerDay: Double) {
+        if (!percentPerDay.isFinite() || percentPerDay !in 0.1..20.0) return
+        pace = percentPerDay
+        settingsStore.pace = percentPerDay
+    }
+
+    fun checkUpdates() {
+        updateStatus = "Проверка недоступна: сервер обновлений не подключён."
     }
 
     override fun onCleared() {

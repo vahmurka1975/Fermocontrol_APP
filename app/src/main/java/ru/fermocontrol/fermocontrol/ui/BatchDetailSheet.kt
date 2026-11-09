@@ -5,20 +5,6 @@ package ru.fermocontrol.fermocontrol.ui
 import android.graphics.BitmapFactory
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.layout.BoxWithConstraints
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.foundation.layout.IntrinsicSize
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.StrokeJoin
-import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
-import androidx.compose.ui.graphics.nativeCanvas
-import androidx.compose.ui.graphics.toArgb
-import androidx.compose.ui.platform.LocalConfiguration
-import kotlin.math.ceil
-import kotlin.math.floor
-import kotlin.math.min
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -27,10 +13,14 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -43,7 +33,6 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.BottomSheetDefaults
 import androidx.compose.material3.Button
@@ -64,15 +53,22 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.PathEffect
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -86,31 +82,24 @@ import ru.fermocontrol.fermocontrol.model.Metrics
 import ru.fermocontrol.fermocontrol.model.WeightLog
 import ru.fermocontrol.fermocontrol.model.computeMetrics
 import ru.fermocontrol.fermocontrol.model.requiresAttention
+import ru.fermocontrol.fermocontrol.ui.theme.Amber
+import ru.fermocontrol.fermocontrol.ui.theme.LocalAppPalette
+import ru.fermocontrol.fermocontrol.ui.theme.WarnDelta
+import ru.fermocontrol.fermocontrol.ui.theme.WarnFill
+import ru.fermocontrol.fermocontrol.ui.theme.WarnLine
+import ru.fermocontrol.fermocontrol.ui.theme.WarnPanel
+import ru.fermocontrol.fermocontrol.ui.theme.WarnPillInk
+import ru.fermocontrol.fermocontrol.ui.theme.WarnPillLine
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import kotlin.math.abs
+import kotlin.math.ceil
+import kotlin.math.floor
 import kotlin.math.max
+import kotlin.math.min
 import kotlin.math.roundToLong
-
-// Палитра «Design 04» из макета.
-private val SheetBg = Color(0xFF162019)
-private val Ink = Color(0xFFF0F2E9)
-private val Muted = Color(0xFFA1ADA2)
-private val Green = Color(0xFFB5D9AB)
-private val Amber = Color(0xFFEDBC77)
-private val CardBg = Color(0xFF1B271D)
-private val CardLine = Color(0xFF33472E)
-private val MetricBg = Color(0xFF202D22)
-private val MetricLine = Color(0xFF3A4B34)
-private val WarnBg = Color(0xFF2A2C20)
-private val WarnLine = Color(0xFF6D5738)
-private val BtnMain = Color(0xFFBDDCAF)
-private val BtnMainText = Color(0xFF192A16)
-private val BtnSecBg = Color(0xFF223022)
-private val BtnSecLine = Color(0xFF42523B)
-private val DeleteInk = Color(0xFFE0A58F)
 
 private val RU: Locale = Locale.forLanguageTag("ru-RU")
 
@@ -125,14 +114,15 @@ fun BatchDetailSheet(
     onDismiss: () -> Unit,
     onWeigh: () -> Unit,
     onSetArchived: (Boolean) -> Unit,
-	onEdit: () -> Unit,
+    onEdit: () -> Unit,
     onDeleteLog: (WeightLog) -> Unit,
     onDeleteBatch: () -> Unit,
 ) {
+    val p = LocalAppPalette.current
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var confirmArchive by remember { mutableStateOf(false) }
     var viewerPhoto by remember { mutableStateOf<PhotoRef?>(null) }
-	var logToDelete by remember { mutableStateOf<WeightLog?>(null) }
+    var logToDelete by remember { mutableStateOf<WeightLog?>(null) }
     var confirmDeleteBatch by remember { mutableStateOf(false) }
 
     val metrics = remember(batch) { computeMetrics(batch) }
@@ -142,10 +132,10 @@ fun BatchDetailSheet(
     ModalBottomSheet(
         onDismissRequest = { if (!saving) onDismiss() },
         sheetState = sheetState,
-        containerColor = SheetBg,
-        contentColor = Ink,
+        containerColor = p.sheet,
+        contentColor = p.ink,
         shape = RoundedCornerShape(topStart = 25.dp, topEnd = 25.dp),
-        dragHandle = { BottomSheetDefaults.DragHandle(color = Color(0xFF43513D)) },
+        dragHandle = { BottomSheetDefaults.DragHandle(color = p.chipLine) },
     ) {
         Column(Modifier.fillMaxWidth().navigationBarsPadding()) {
             Column(
@@ -167,10 +157,10 @@ fun BatchDetailSheet(
                     onClick = onEdit,
                     enabled = !saving,
                     shape = RoundedCornerShape(12.dp),
-                    border = BorderStroke(1.dp, BtnSecLine),
+                    border = BorderStroke(1.dp, p.secondaryLine),
                     colors = ButtonDefaults.outlinedButtonColors(
-                        containerColor = BtnSecBg,
-                        contentColor = Color(0xFFD5DFCD),
+                        containerColor = p.secondary,
+                        contentColor = p.onSecondary,
                     ),
                     modifier = Modifier.padding(top = 12.dp).heightIn(min = 44.dp),
                 ) { Text("Редактировать паспорт") }
@@ -184,7 +174,7 @@ fun BatchDetailSheet(
                 Text(
                     text = "Отметка «Требует проверки» — запись в журнале, " +
                         "а не заключение о безопасности продукта.",
-                    color = Color(0xFF94A68A),
+                    color = p.kicker,
                     fontSize = 11.sp,
                     lineHeight = 19.sp,
                     modifier = Modifier.padding(vertical = 15.dp),
@@ -192,58 +182,58 @@ fun BatchDetailSheet(
             }
 
             // Неподвижная нижняя панель действий.
-            Column(Modifier.fillMaxWidth().background(SheetBg).padding(horizontal = 20.dp, vertical = 12.dp)) {
+            Column(Modifier.fillMaxWidth().background(p.sheet).padding(horizontal = 20.dp, vertical = 12.dp)) {
                 if (error != null) {
                     Text(error, color = Amber, fontSize = 12.sp, lineHeight = 18.sp,
                         modifier = Modifier.padding(bottom = 8.dp))
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
-    if (batch.archived) {
-        OutlinedButton(
-            onClick = { confirmDeleteBatch = true },
-            enabled = !saving,
-            shape = RoundedCornerShape(12.dp),
-            border = BorderStroke(1.dp, Color(0xFF6D4B3F)),
-            colors = ButtonDefaults.outlinedButtonColors(
-                containerColor = Color.Transparent,
-                contentColor = DeleteInk,
-            ),
-            contentPadding = PaddingValues(horizontal = 8.dp),
-            modifier = Modifier.weight(1f).heightIn(min = 47.dp),
-        ) { Text("Удалить партию", fontSize = 13.sp, maxLines = 1) }
-    } else {
-        Button(
-            onClick = onWeigh,
-            enabled = !saving,
-            shape = RoundedCornerShape(12.dp),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = BtnMain,
-                contentColor = BtnMainText,
-            ),
-            modifier = Modifier.weight(1f).heightIn(min = 47.dp),
-        ) { Text("Взвесить", fontWeight = FontWeight.SemiBold) }
-    }
-    OutlinedButton(
-        onClick = { confirmArchive = true },
-        enabled = !saving,
-        shape = RoundedCornerShape(12.dp),
-        border = BorderStroke(1.dp, BtnSecLine),
-        colors = ButtonDefaults.outlinedButtonColors(
-            containerColor = BtnSecBg,
-            contentColor = Color(0xFFD5DFCD),
-        ),
-        contentPadding = if (batch.archived) PaddingValues(horizontal = 8.dp)
-            else ButtonDefaults.ContentPadding,
-        modifier = (if (batch.archived) Modifier.weight(1f) else Modifier)
-            .heightIn(min = 47.dp),
-    ) {
-        Text(
-            if (batch.archived) "Вернуть из архива" else "В архив",
-            fontSize = if (batch.archived) 13.sp else 14.sp,
-            maxLines = 1,
-        )
-    }
-}
+                    if (batch.archived) {
+                        OutlinedButton(
+                            onClick = { confirmDeleteBatch = true },
+                            enabled = !saving,
+                            shape = RoundedCornerShape(12.dp),
+                            border = BorderStroke(1.dp, p.danger.copy(alpha = 0.5f)),
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                containerColor = Color.Transparent,
+                                contentColor = p.danger,
+                            ),
+                            contentPadding = PaddingValues(horizontal = 8.dp),
+                            modifier = Modifier.weight(1f).heightIn(min = 47.dp),
+                        ) { Text("Удалить партию", fontSize = 13.sp, maxLines = 1) }
+                    } else {
+                        Button(
+                            onClick = onWeigh,
+                            enabled = !saving,
+                            shape = RoundedCornerShape(12.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = p.accent,
+                                contentColor = p.onAccent,
+                            ),
+                            modifier = Modifier.weight(1f).heightIn(min = 47.dp),
+                        ) { Text("Взвесить", fontWeight = FontWeight.SemiBold) }
+                    }
+                    OutlinedButton(
+                        onClick = { confirmArchive = true },
+                        enabled = !saving,
+                        shape = RoundedCornerShape(12.dp),
+                        border = BorderStroke(1.dp, p.secondaryLine),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            containerColor = p.secondary,
+                            contentColor = p.onSecondary,
+                        ),
+                        contentPadding = if (batch.archived) PaddingValues(horizontal = 8.dp)
+                        else ButtonDefaults.ContentPadding,
+                        modifier = (if (batch.archived) Modifier.weight(1f) else Modifier)
+                            .heightIn(min = 47.dp),
+                    ) {
+                        Text(
+                            if (batch.archived) "Вернуть из архива" else "В архив",
+                            fontSize = if (batch.archived) 13.sp else 14.sp,
+                            maxLines = 1,
+                        )
+                    }
+                }
             }
         }
     }
@@ -252,9 +242,9 @@ fun BatchDetailSheet(
         val toArchive = !batch.archived
         AlertDialog(
             onDismissRequest = { confirmArchive = false },
-            containerColor = Color(0xFF1C291F),
-            titleContentColor = Ink,
-            textContentColor = Muted,
+            containerColor = p.card,
+            titleContentColor = p.ink,
+            textContentColor = p.muted,
             title = { Text(if (toArchive) "Отправить в архив?" else "Вернуть из архива?") },
             text = {
                 Text(
@@ -269,21 +259,22 @@ fun BatchDetailSheet(
                 TextButton(onClick = {
                     confirmArchive = false
                     onSetArchived(toArchive)
-                }) { Text(if (toArchive) "В архив" else "Вернуть", color = Green) }
+                }) { Text(if (toArchive) "В архив" else "Вернуть", color = p.accent) }
             },
             dismissButton = {
                 TextButton(onClick = { confirmArchive = false }) {
-                    Text("Отмена", color = Muted)
+                    Text("Отмена", color = p.muted)
                 }
             },
         )
     }
-logToDelete?.let { log ->
+
+    logToDelete?.let { log ->
         AlertDialog(
             onDismissRequest = { logToDelete = null },
-            containerColor = Color(0xFF1C291F),
-            titleContentColor = Ink,
-            textContentColor = Muted,
+            containerColor = p.card,
+            titleContentColor = p.ink,
+            textContentColor = p.muted,
             title = { Text("Удалить без возврата?") },
             text = {
                 Text(
@@ -295,10 +286,10 @@ logToDelete?.let { log ->
                 TextButton(onClick = {
                     logToDelete = null
                     onDeleteLog(log)
-                }) { Text("Удалить", color = DeleteInk) }
+                }) { Text("Удалить", color = p.danger) }
             },
             dismissButton = {
-                TextButton(onClick = { logToDelete = null }) { Text("Отмена", color = Muted) }
+                TextButton(onClick = { logToDelete = null }) { Text("Отмена", color = p.muted) }
             },
         )
     }
@@ -306,9 +297,9 @@ logToDelete?.let { log ->
     if (confirmDeleteBatch) {
         AlertDialog(
             onDismissRequest = { confirmDeleteBatch = false },
-            containerColor = Color(0xFF1C291F),
-            titleContentColor = Ink,
-            textContentColor = Muted,
+            containerColor = p.card,
+            titleContentColor = p.ink,
+            textContentColor = p.muted,
             title = { Text("Удалить без возврата?") },
             text = {
                 Text(
@@ -320,13 +311,14 @@ logToDelete?.let { log ->
                 TextButton(onClick = {
                     confirmDeleteBatch = false
                     onDeleteBatch()
-                }) { Text("Удалить", color = DeleteInk) }
+                }) { Text("Удалить", color = p.danger) }
             },
             dismissButton = {
-                TextButton(onClick = { confirmDeleteBatch = false }) { Text("Отмена", color = Muted) }
+                TextButton(onClick = { confirmDeleteBatch = false }) { Text("Отмена", color = p.muted) }
             },
         )
     }
+
     viewerPhoto?.let { ref ->
         FullscreenPhoto(
             file = photoFile(ref.fileName),
@@ -340,6 +332,7 @@ logToDelete?.let { log ->
 
 @Composable
 private fun DetailHeader(batch: Batch, onClose: () -> Unit) {
+    val p = LocalAppPalette.current
     Row(
         modifier = Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 14.dp),
         verticalAlignment = Alignment.Top,
@@ -348,11 +341,11 @@ private fun DetailHeader(batch: Batch, onClose: () -> Unit) {
         Column(Modifier.weight(1f)) {
             Text(
                 "ПАРТИЯ №${batch.number.toString().padStart(2, '0')}",
-                color = Color(0xFF9FB390), fontSize = 10.sp, letterSpacing = 1.3.sp,
+                color = p.kicker, fontSize = 10.sp, letterSpacing = 1.3.sp,
             )
             Spacer(Modifier.height(8.dp))
             Text(
-                batch.name, color = Ink, fontSize = 22.sp,
+                batch.name, color = p.ink, fontSize = 22.sp,
                 fontWeight = FontWeight.Medium, lineHeight = 27.sp,
             )
         }
@@ -360,19 +353,20 @@ private fun DetailHeader(batch: Batch, onClose: () -> Unit) {
             modifier = Modifier
                 .size(44.dp)
                 .clip(RoundedCornerShape(12.dp))
-                .border(1.dp, Color(0xFF303E34), RoundedCornerShape(12.dp))
+                .border(1.dp, p.divider, RoundedCornerShape(12.dp))
                 .clickable(onClick = onClose),
             contentAlignment = Alignment.Center,
-        ) { Text("×", color = Ink, fontSize = 22.sp) }
+        ) { Text("×", color = p.ink, fontSize = 22.sp) }
     }
 }
 
 @Composable
 private fun DetailIntro(batch: Batch, m: Metrics, attention: Boolean) {
+    val p = LocalAppPalette.current
     val (label, color) = when {
-        batch.archived -> "В архиве" to Muted
+        batch.archived -> "В архиве" to p.muted
         attention -> "Требует внимания" to Amber
-        else -> "Идёт созревание" to Green
+        else -> "Идёт созревание" to p.accent
     }
     Row(
         modifier = Modifier.fillMaxWidth().padding(bottom = 18.dp),
@@ -387,7 +381,7 @@ private fun DetailIntro(batch: Batch, m: Metrics, attention: Boolean) {
         )
         Text(
             "Закладка ${fmtDay(batch.createdAtEpochMs)} · день ${m.daysElapsed}",
-            color = Muted, fontSize = 11.sp,
+            color = p.muted, fontSize = 11.sp,
         )
     }
 }
@@ -433,55 +427,58 @@ private fun MetricCard(
     warning: Boolean = false,
     small: Boolean = false,
 ) {
+    val p = LocalAppPalette.current
     val shape = RoundedCornerShape(15.dp)
     Column(
         modifier = modifier
             .heightIn(min = 110.dp)
             .clip(shape)
-            .background(if (warning) WarnBg else MetricBg)
-            .border(1.dp, if (warning) WarnLine else MetricLine, shape)
+            .background(if (warning) WarnPanel else p.card)
+            .border(1.dp, if (warning) WarnLine else p.cardLine, shape)
             .padding(13.dp),
     ) {
-        Text(label, color = Color(0xFFB1C0A7), fontSize = 10.5.sp)
+        Text(label, color = p.soft, fontSize = 10.5.sp)
         Text(
             value,
-            color = if (warning) Amber else Color(0xFFD8E8CF),
+            color = if (warning) Amber else p.strong,
             fontSize = if (small) 16.sp else 26.sp,
             fontWeight = FontWeight.Medium,
             modifier = Modifier.padding(top = if (small) 11.dp else 5.dp, bottom = 3.dp),
         )
-        Text(sub, color = Color(0xFF92A586), fontSize = 10.sp, lineHeight = 15.sp)
+        Text(sub, color = p.muted, fontSize = 10.sp, lineHeight = 15.sp)
     }
 }
 
 @Composable
 private fun ProgressLine(progress: Double, warning: Boolean) {
+    val p = LocalAppPalette.current
     Box(
         Modifier
             .padding(top = 16.dp)
             .fillMaxWidth()
             .height(4.dp)
             .clip(RoundedCornerShape(8.dp))
-            .background(Color(0xFF303E32)),
+            .background(p.divider),
     ) {
         Box(
             Modifier
                 .fillMaxHeight()
                 .fillMaxWidth(progress.toFloat().coerceIn(0f, 1f))
-                .background(if (warning) Color(0xFFC9B080) else Color(0xFFA5C995)),
+                .background(if (warning) WarnFill else p.accent),
         )
     }
 }
 
 @Composable
 private fun SectionTitle(title: String, hint: String? = null) {
+    val p = LocalAppPalette.current
     Row(
         modifier = Modifier.fillMaxWidth().padding(top = 23.dp, bottom = 10.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(title, color = Color(0xFFE0E6D9), fontSize = 14.sp, fontWeight = FontWeight.Medium)
-        if (hint != null) Text(hint, color = Color(0xFF8FA180), fontSize = 10.sp)
+        Text(title, color = p.ink, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+        if (hint != null) Text(hint, color = p.muted, fontSize = 10.sp)
     }
 }
 
@@ -490,8 +487,6 @@ private fun SectionTitle(title: String, hint: String? = null) {
 // Размеры в dp соответствуют px макета.
 
 private const val CHART_DAY_MS = 86_400_000.0
-private val ChartCardBg = Color(0xFF1A241E)
-private val ChartLineColor = Color(0xFF303E34)
 
 private data class ChartPoint(val day: Double, val weight: Double)
 
@@ -577,6 +572,7 @@ private fun buildChartModel(batch: Batch, logsAsc: List<WeightLog>, m: Metrics, 
 
 @Composable
 private fun TrajectoryChart(batch: Batch, logsAsc: List<WeightLog>, m: Metrics) {
+    val p = LocalAppPalette.current
     val nowMs = remember(batch) { System.currentTimeMillis() }
     val c = remember(batch, logsAsc, m, nowMs) { buildChartModel(batch, logsAsc, m, nowMs) }
     val narrow = LocalConfiguration.current.screenWidthDp <= 400
@@ -612,20 +608,20 @@ private fun TrajectoryChart(batch: Batch, logsAsc: List<WeightLog>, m: Metrics) 
     val shape = RoundedCornerShape(18.dp)
     Column(
         Modifier.padding(top = 20.dp).fillMaxWidth().clip(shape)
-            .background(Color(0xFF1C281F)).border(1.dp, Color(0xFF3C5034), shape)
+            .background(p.card).border(1.dp, p.cardLine, shape)
             .padding(14.dp),
     ) {
         // Заголовок и статус.
-        val etaColor = if (c.fast) Amber else Green
+        val etaColor = if (c.fast) Amber else p.accent
         if (narrow) {
             Column(Modifier.fillMaxWidth().padding(bottom = 10.dp)) {
-                Text("ДИНАМИКА МАССЫ", color = Muted, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.3.sp)
+                Text("ДИНАМИКА МАССЫ", color = p.muted, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.3.sp)
                 Text(status, color = etaColor, fontSize = 11.sp, fontWeight = FontWeight.Bold,
                     lineHeight = 17.6.sp, modifier = Modifier.padding(top = 5.dp))
             }
         } else {
             Row(Modifier.fillMaxWidth().padding(bottom = 10.dp), Arrangement.SpaceBetween, Alignment.Top) {
-                Text("ДИНАМИКА МАССЫ", color = Muted, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.3.sp)
+                Text("ДИНАМИКА МАССЫ", color = p.muted, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.3.sp)
                 Text(status, color = etaColor, fontSize = 11.sp, fontWeight = FontWeight.Bold,
                     lineHeight = 17.6.sp, textAlign = TextAlign.End,
                     modifier = Modifier.weight(1f, fill = false).padding(start = 8.dp))
@@ -636,20 +632,20 @@ private fun TrajectoryChart(batch: Batch, logsAsc: List<WeightLog>, m: Metrics) 
         val stripShape = RoundedCornerShape(10.dp)
         Row(
             Modifier.padding(top = 4.dp, bottom = 12.dp).fillMaxWidth().clip(stripShape)
-                .border(1.dp, Green.copy(alpha = 0.25f), stripShape)
+                .border(1.dp, p.accent.copy(alpha = 0.25f), stripShape)
                 .padding(horizontal = 11.dp, vertical = 9.dp),
             Arrangement.SpaceBetween, Alignment.CenterVertically,
         ) {
-            Text("Цель по массе", color = Color(0xFFB4C5A9), fontSize = 11.sp)
+            Text("Цель по массе", color = p.soft, fontSize = 11.sp)
             Text("−${fmtPct(c.targetPct).removeSuffix("%")}% · ${fmtGramsLocal(c.targetWeight)} г",
-                color = Green, fontSize = 11.sp, fontWeight = FontWeight.Medium,
+                color = p.accent, fontSize = 11.sp, fontWeight = FontWeight.Medium,
                 modifier = Modifier.padding(start = 12.dp))
         }
 
         // Подписи осей.
         Row(Modifier.fillMaxWidth().padding(bottom = 5.dp), Arrangement.SpaceBetween) {
-            Text("Масса, г", color = Muted, fontSize = 10.sp)
-            Text("Дни от закладки", color = Muted, fontSize = 10.sp)
+            Text("Масса, г", color = p.muted, fontSize = 10.sp)
+            Text("Дни от закладки", color = p.muted, fontSize = 10.sp)
         }
 
         TrajectoryCanvas(c)
@@ -680,7 +676,7 @@ private fun TrajectoryChart(batch: Batch, logsAsc: List<WeightLog>, m: Metrics) 
                 "Прогноз считается от даты последнего замера по темпу последнего интервала. Темп может меняться; дата приблизительная."
             else "Пунктирный прогноз не строится без подходящих свежих замеров.") +
                 " День «сегодня» не означает, что продукт взвешен сегодня.",
-            color = Color(0xFF91A287), fontSize = 10.sp, lineHeight = 16.sp,
+            color = p.kicker, fontSize = 10.sp, lineHeight = 16.sp,
             modifier = Modifier.padding(top = 11.dp),
         )
     }
@@ -688,12 +684,13 @@ private fun TrajectoryChart(batch: Batch, logsAsc: List<WeightLog>, m: Metrics) 
 
 @Composable
 private fun Milestone(label: String, value: String, note: String, forecast: Boolean, modifier: Modifier) {
+    val p = LocalAppPalette.current
     val shape = RoundedCornerShape(11.dp)
-    Column(modifier.clip(shape).background(Color(0xFF17221A)).border(1.dp, ChartLineColor, shape).padding(11.dp)) {
-        Text(label, color = Muted, fontSize = 10.sp)
-        Text(value, color = if (forecast) Amber else Color(0xFFE0EAD8), fontSize = 16.sp,
+    Column(modifier.clip(shape).background(p.field).border(1.dp, p.divider, shape).padding(11.dp)) {
+        Text(label, color = p.muted, fontSize = 10.sp)
+        Text(value, color = if (forecast) Amber else p.ink, fontSize = 16.sp,
             fontWeight = FontWeight.Medium, lineHeight = 22.4.sp, modifier = Modifier.padding(top = 4.dp))
-        Text(note, color = Color(0xFF9AAA90), fontSize = 10.sp, lineHeight = 16.sp,
+        Text(note, color = p.body, fontSize = 10.sp, lineHeight = 16.sp,
             modifier = Modifier.padding(top = 4.dp))
     }
 }
@@ -701,20 +698,22 @@ private fun Milestone(label: String, value: String, note: String, forecast: Bool
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun ChartLegend(showForecast: Boolean, showToday: Boolean) {
+    val p = LocalAppPalette.current
     FlowRow(
         modifier = Modifier.fillMaxWidth().padding(top = 13.dp),
         horizontalArrangement = Arrangement.spacedBy(14.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        LegendItem("Замеры", Green, null, 2.5f)
+        LegendItem("Замеры", p.accent, null, 2.5f)
         if (showForecast) LegendItem("Прогноз", Amber, floatArrayOf(4f, 4f), 2.5f)
-        LegendItem("Целевой вес", Green.copy(alpha = 0.7f), floatArrayOf(2f, 3f), 2.5f)
-        if (showToday) LegendItem("Сегодня", Muted, floatArrayOf(2f, 3f), 2.5f)
+        LegendItem("Целевой вес", p.accent.copy(alpha = 0.7f), floatArrayOf(2f, 3f), 2.5f)
+        if (showToday) LegendItem("Сегодня", p.muted, floatArrayOf(2f, 3f), 2.5f)
     }
 }
 
 @Composable
 private fun LegendItem(text: String, color: Color, dash: FloatArray?, thickness: Float) {
+    val p = LocalAppPalette.current
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         Canvas(Modifier.size(16.dp, 3.dp)) {
             val d = density
@@ -724,12 +723,13 @@ private fun LegendItem(text: String, color: Color, dash: FloatArray?, thickness:
                 pathEffect = dash?.let { PathEffect.dashPathEffect(floatArrayOf(it[0] * d, it[1] * d)) },
             )
         }
-        Text(text, color = Muted, fontSize = 10.sp, lineHeight = 15.sp)
+        Text(text, color = p.muted, fontSize = 10.sp, lineHeight = 15.sp)
     }
 }
 
 @Composable
 private fun TrajectoryCanvas(c: ChartModel) {
+    val p = LocalAppPalette.current
     BoxWithConstraints(Modifier.fillMaxWidth()) {
         val w = maxWidth.value.toDouble()
         val h = if (w < 380) 210.0 else 225.0
@@ -760,7 +760,7 @@ private fun TrajectoryCanvas(c: ChartModel) {
             fun yOf(wt: Double) = px(padT + (maxW - wt) / max(1.0, maxW - minW) * plotH)
             fun label(s: String, x: Float, y: Float, align: android.graphics.Paint.Align) {
                 val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
-                    color = Muted.toArgb(); textSize = 11f * d; textAlign = align
+                    color = p.muted.toArgb(); textSize = 11f * d; textAlign = align
                 }
                 drawIntoCanvas { it.nativeCanvas.drawText(s, x, y, paint) }
             }
@@ -770,13 +770,13 @@ private fun TrajectoryCanvas(c: ChartModel) {
             // Сетка и подписи массы.
             yWeights.forEach { wt ->
                 val y = yOf(wt)
-                drawLine(ChartLineColor, Offset(px(padL), y), Offset(right, y), strokeWidth = d)
+                drawLine(p.divider, Offset(px(padL), y), Offset(right, y), strokeWidth = d)
                 label(fmtGramsLocal(wt), px(padL - 8), y + 4f * d, android.graphics.Paint.Align.RIGHT)
             }
             // Линия «сегодня».
             if (!c.archived) {
                 val x = xOf(c.currentDay)
-                drawLine(Muted.copy(alpha = 0.45f), Offset(x, px(padT)), Offset(x, bottom), strokeWidth = d,
+                drawLine(p.muted.copy(alpha = 0.45f), Offset(x, px(padT)), Offset(x, bottom), strokeWidth = d,
                     pathEffect = PathEffect.dashPathEffect(floatArrayOf(2f * d, 4f * d)))
             }
             // Заливка под линией.
@@ -788,34 +788,34 @@ private fun TrajectoryCanvas(c: ChartModel) {
             }
             val top = c.points.minOf { yOf(it.weight) }
             drawPath(area, Brush.verticalGradient(
-                listOf(Green.copy(alpha = 0.16f), Green.copy(alpha = 0f)),
+                listOf(p.accent.copy(alpha = 0.16f), p.accent.copy(alpha = 0f)),
                 startY = top, endY = max(bottom, top + 1f)))
             // Целевой вес.
             val yTarget = yOf(c.targetWeight)
-            drawLine(Green.copy(alpha = 0.65f), Offset(px(padL), yTarget), Offset(right, yTarget),
+            drawLine(p.accent.copy(alpha = 0.65f), Offset(px(padL), yTarget), Offset(right, yTarget),
                 strokeWidth = 1.4f * d, pathEffect = PathEffect.dashPathEffect(floatArrayOf(3f * d, 4f * d)))
             // Факт.
             val line = Path().apply {
-                c.points.forEachIndexed { i, p ->
-                    if (i == 0) moveTo(xOf(p.day), yOf(p.weight)) else lineTo(xOf(p.day), yOf(p.weight))
+                c.points.forEachIndexed { i, pt ->
+                    if (i == 0) moveTo(xOf(pt.day), yOf(pt.weight)) else lineTo(xOf(pt.day), yOf(pt.weight))
                 }
             }
-            drawPath(line, Green, style = Stroke(width = 2.3f * d, cap = StrokeCap.Round, join = StrokeJoin.Round))
+            drawPath(line, p.accent, style = Stroke(width = 2.3f * d, cap = StrokeCap.Round, join = StrokeJoin.Round))
             // Прогноз.
             c.forecastDay?.let { fd ->
                 drawLine(Amber, Offset(xOf(lastPt.day), yOf(lastPt.weight)), Offset(xOf(fd), yTarget),
                     strokeWidth = 2f * d, pathEffect = PathEffect.dashPathEffect(floatArrayOf(5f * d, 5f * d)))
-                drawCircle(ChartCardBg, 4f * d, Offset(xOf(fd), yTarget))
+                drawCircle(p.card, 4f * d, Offset(xOf(fd), yTarget))
                 drawCircle(Amber, 4f * d, Offset(xOf(fd), yTarget), style = Stroke(2f * d))
             }
             // Точки замеров.
-            c.points.forEachIndexed { i, p ->
+            c.points.forEachIndexed { i, pt ->
                 val isLast = i == c.points.lastIndex
                 if (c.points.size > 80 && i != 0 && !isLast) return@forEachIndexed
                 val r = (if (isLast) 4f else 2.8f) * d
-                val ctr = Offset(xOf(p.day), yOf(p.weight))
-                drawCircle(if (isLast) Green else ChartCardBg, r, ctr)
-                drawCircle(Green, r, ctr, style = Stroke(1.8f * d))
+                val ctr = Offset(xOf(pt.day), yOf(pt.weight))
+                drawCircle(if (isLast) p.accent else p.card, r, ctr)
+                drawCircle(p.accent, r, ctr, style = Stroke(1.8f * d))
             }
             // Подписи дней.
             for (i in 0 until tickCount) {
@@ -837,6 +837,7 @@ private fun fmtShortDate(ms: Long): String = SimpleDateFormat("d MMM", RU).forma
 
 @Composable
 private fun Passport(batch: Batch) {
+    val p = LocalAppPalette.current
     val rows = listOf(
         "Категория" to batch.category,
         "Сырьё" to batch.rawMaterial,
@@ -852,13 +853,13 @@ private fun Passport(batch: Batch) {
                 Modifier.fillMaxWidth().padding(vertical = 12.dp),
                 horizontalArrangement = Arrangement.spacedBy(18.dp),
             ) {
-                Text(label, color = Color(0xFFA1B396), fontSize = 12.sp, modifier = Modifier.weight(1f))
+                Text(label, color = p.body, fontSize = 12.sp, modifier = Modifier.weight(1f))
                 Text(
-                    value.ifBlank { "—" }, color = Color(0xFFE0E9D8), fontSize = 12.sp,
+                    value.ifBlank { "—" }, color = p.ink, fontSize = 12.sp,
                     textAlign = TextAlign.End, lineHeight = 19.sp, modifier = Modifier.weight(1f),
                 )
             }
-            Box(Modifier.fillMaxWidth().height(1.dp).background(Color(0xFF31432C)))
+            Box(Modifier.fillMaxWidth().height(1.dp).background(p.divider))
         }
     }
 }
@@ -870,6 +871,7 @@ private fun PhotoSection(
     photoFile: (String) -> File,
     onOpen: (PhotoRef) -> Unit,
 ) {
+    val p = LocalAppPalette.current
     val photos = buildList {
         batch.photoFileName?.let { add(PhotoRef(it, "Исходное фото · ${fmtDay(batch.createdAtEpochMs)}")) }
         logsAsc.forEach { log ->
@@ -880,14 +882,14 @@ private fun PhotoSection(
         val shape = RoundedCornerShape(15.dp)
         Column(
             Modifier.fillMaxWidth().clip(shape)
-                .background(Color(0xFF202C20))
-                .border(1.dp, Color(0xFF465A3A), shape)
+                .background(p.card)
+                .border(1.dp, p.cardLine, shape)
                 .padding(18.dp),
         ) {
-            Text("Фотографий пока нет", color = Color(0xFFC4D3B8), fontSize = 12.sp)
+            Text("Фотографий пока нет", color = p.strong, fontSize = 12.sp)
             Text(
                 "Фото сохраняются вместе с партией и взвешиванием.",
-                color = Color(0xFF92A484), fontSize = 11.sp, lineHeight = 17.sp,
+                color = p.muted, fontSize = 11.sp, lineHeight = 17.sp,
                 modifier = Modifier.padding(top = 5.dp),
             )
         }
@@ -907,20 +909,21 @@ private fun PhotoSection(
 
 @Composable
 private fun PhotoTile(ref: PhotoRef, file: File, modifier: Modifier, onClick: () -> Unit) {
+    val p = LocalAppPalette.current
     val shape = RoundedCornerShape(13.dp)
     val bitmap = rememberPhoto(file, 480)
     Column(
-        modifier.clip(shape).background(Color(0xFF202C20))
-            .border(1.dp, MetricLine, shape).clickable(onClick = onClick),
+        modifier.clip(shape).background(p.card)
+            .border(1.dp, p.cardLine, shape).clickable(onClick = onClick),
     ) {
-        Box(Modifier.fillMaxWidth().height(155.dp).background(Color(0xFF142017)), Alignment.Center) {
+        Box(Modifier.fillMaxWidth().height(155.dp).background(p.field), Alignment.Center) {
             if (bitmap != null) {
                 Image(bitmap, ref.caption, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
             } else {
-                Text("Нет файла", color = Muted, fontSize = 11.sp)
+                Text("Нет файла", color = p.muted, fontSize = 11.sp)
             }
         }
-        Text(ref.caption, color = Color(0xFFB3C4A7), fontSize = 10.sp,
+        Text(ref.caption, color = p.soft, fontSize = 10.sp,
             lineHeight = 16.sp, modifier = Modifier.padding(9.dp))
     }
 }
@@ -933,8 +936,9 @@ private fun WeighHistory(
     onDelete: (WeightLog) -> Unit,
     onOpen: (PhotoRef) -> Unit,
 ) {
+    val p = LocalAppPalette.current
     if (logsAsc.isEmpty()) {
-        Text("Взвешиваний ещё не было.", color = Muted, fontSize = 12.sp)
+        Text("Взвешиваний ещё не было.", color = p.muted, fontSize = 12.sp)
         return
     }
     val shape = RoundedCornerShape(13.dp)
@@ -944,29 +948,29 @@ private fun WeighHistory(
             val prev = if (i == 0) batch.startWeightGrams else logsAsc[i - 1].weightGrams
             val delta = log.weightGrams - prev
             Column(
-                Modifier.fillMaxWidth().clip(shape).background(CardBg)
-                    .border(1.dp, CardLine, shape).padding(13.dp),
+                Modifier.fillMaxWidth().clip(shape).background(p.card)
+                    .border(1.dp, p.cardLine, shape).padding(13.dp),
             ) {
                 Row(
                     Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Text(fmtWeight(log.weightGrams), color = Ink, fontSize = 15.sp, fontWeight = FontWeight.Medium)
+                    Text(fmtWeight(log.weightGrams), color = p.ink, fontSize = 15.sp, fontWeight = FontWeight.Medium)
                     Text(
                         "${signed(delta)} г к прошлому",
-                        color = if (delta > 0) Color(0xFFE0B67D) else Color(0xFFB6D4A5),
+                        color = if (delta > 0) WarnDelta else p.accent,
                         fontSize = 11.sp,
                     )
                 }
-                Text(fmtDate(log.atEpochMs), color = Color(0xFF9FAF94), fontSize = 10.sp)
+                Text(fmtDate(log.atEpochMs), color = p.body, fontSize = 10.sp)
                 if (log.smellNote.isNotBlank()) NoteLine("Запах", log.smellNote)
                 if (log.surfaceNote.isNotBlank()) NoteLine("Поверхность", log.surfaceNote)
                 if (log.needsCheck) {
                     Text(
-                        "Требует проверки", color = Color(0xFFE7C797), fontSize = 10.sp,
+                        "Требует проверки", color = WarnPillInk, fontSize = 10.sp,
                         modifier = Modifier.padding(top = 6.dp)
-                            .border(1.dp, Color(0xFF705E40), RoundedCornerShape(6.dp))
+                            .border(1.dp, WarnPillLine, RoundedCornerShape(6.dp))
                             .padding(horizontal = 6.dp, vertical = 2.dp),
                     )
                 }
@@ -975,11 +979,11 @@ private fun WeighHistory(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     log.photoFileName?.let { name ->
-                        HistoryAction("Открыть фото", Color(0xFFCADCBE), Color(0xFF485D3E), true) {
+                        HistoryAction("Открыть фото", p.action, p.chipLine, true) {
                             onOpen(PhotoRef(name, "Взвешивание · ${fmtDate(log.atEpochMs)}"))
                         }
                     }
-                    HistoryAction("Удалить запись", DeleteInk, Color(0xFF6D4B3F), enabled) {
+                    HistoryAction("Удалить запись", p.danger, p.danger.copy(alpha = 0.5f), enabled) {
                         onDelete(log)
                     }
                 }
@@ -1011,7 +1015,8 @@ private fun HistoryAction(
 
 @Composable
 private fun NoteLine(label: String, text: String) {
-    Text("$label: $text", color = Color(0xFFA0B192), fontSize = 11.sp,
+    val p = LocalAppPalette.current
+    Text("$label: $text", color = p.body, fontSize = 11.sp,
         lineHeight = 18.sp, modifier = Modifier.padding(top = 3.dp))
 }
 
@@ -1019,6 +1024,7 @@ private fun NoteLine(label: String, text: String) {
 
 @Composable
 private fun FullscreenPhoto(file: File, caption: String, onClose: () -> Unit) {
+    val p = LocalAppPalette.current
     val bitmap = rememberPhoto(file, 2400)
     var scale by remember { mutableStateOf(1f) }
     var offset by remember { mutableStateOf(Offset.Zero) }
@@ -1050,7 +1056,7 @@ private fun FullscreenPhoto(file: File, caption: String, onClose: () -> Unit) {
                         ),
                 )
             } else {
-                Text("Файл фотографии не найден", color = Muted,
+                Text("Файл фотографии не найден", color = p.muted,
                     modifier = Modifier.align(Alignment.Center))
             }
             Text(
@@ -1061,7 +1067,7 @@ private fun FullscreenPhoto(file: File, caption: String, onClose: () -> Unit) {
                     .padding(top = 5.dp),
             )
             Text(
-                caption, color = Color(0xFFDDE5D6), fontSize = 12.sp,
+                caption, color = p.strong, fontSize = 12.sp,
                 modifier = Modifier.align(Alignment.BottomStart).navigationBarsPadding().padding(16.dp),
             )
         }

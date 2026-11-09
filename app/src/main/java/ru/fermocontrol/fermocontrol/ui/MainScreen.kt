@@ -5,6 +5,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -41,11 +42,16 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
 import ru.fermocontrol.fermocontrol.model.Batch
+import ru.fermocontrol.fermocontrol.model.BatchStatus
 import ru.fermocontrol.fermocontrol.model.computeStatus
 import ru.fermocontrol.fermocontrol.ui.components.BatchCard
 import ru.fermocontrol.fermocontrol.ui.components.FcPrimaryButton
-import ru.fermocontrol.fermocontrol.ui.theme.*
-import androidx.compose.foundation.lazy.items
+import ru.fermocontrol.fermocontrol.ui.theme.Amber
+import ru.fermocontrol.fermocontrol.ui.theme.LocalAppPalette
+import ru.fermocontrol.fermocontrol.ui.theme.WarnBgSoft
+import ru.fermocontrol.fermocontrol.ui.theme.WarnInk
+import ru.fermocontrol.fermocontrol.ui.theme.WarnLine
+import ru.fermocontrol.fermocontrol.ui.theme.WarnTint
 
 private enum class MainTab(val label: String) {
     PRODUCTS("Продукты"),
@@ -70,6 +76,7 @@ fun MainScreen(
     onSettings: () -> Unit = {},
     onProfile: () -> Unit = {},
 ) {
+    val p = LocalAppPalette.current
     var tab by rememberSaveable { mutableStateOf(MainTab.PRODUCTS) }
     var sort by rememberSaveable { mutableStateOf(BatchSort.NUMBER) }
     var query by rememberSaveable { mutableStateOf("") }
@@ -111,7 +118,7 @@ fun MainScreen(
         when (sort) {
             BatchSort.NUMBER -> matching.sortedBy { it.first.number }
             BatchSort.ATTENTION -> matching.sortedWith(
-                compareBy<Pair<Batch, ru.fermocontrol.fermocontrol.model.BatchStatus>> { !it.second.needsAttention }
+                compareBy<Pair<Batch, BatchStatus>> { !it.second.needsAttention }
                     .thenBy { it.first.number }
             )
             BatchSort.NEW -> matching.sortedByDescending { it.first.createdAtEpochMs }
@@ -128,7 +135,7 @@ fun MainScreen(
     }
 
     BoxWithConstraints(
-        modifier = Modifier.fillMaxSize().background(Bg),
+        modifier = Modifier.fillMaxSize().background(p.background),
         contentAlignment = Alignment.TopCenter,
     ) {
         val narrow = maxWidth < 390.dp
@@ -144,7 +151,7 @@ fun MainScreen(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(Brush.verticalGradient(listOf(FcHeaderTop, Bg)))
+                    .background(Brush.verticalGradient(listOf(p.sheet, p.background)))
                     .padding(start = hPad, end = hPad, top = 20.dp),
             ) {
                 Row(
@@ -153,18 +160,19 @@ fun MainScreen(
                 ) {
                     Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
                         if (!narrow) {
+                            val logoShape = RoundedCornerShape(13.dp, 13.dp, 16.dp, 16.dp)
                             Box(
                                 modifier = Modifier
                                     .size(width = 37.dp, height = 41.dp)
-                                    .clip(RoundedCornerShape(13.dp, 13.dp, 16.dp, 16.dp))
-                                    .background(Color(0xFF213021))
-                                    .border(1.dp, Color(0xFF53664C), RoundedCornerShape(13.dp, 13.dp, 16.dp, 16.dp)),
+                                    .clip(logoShape)
+                                    .background(p.selected)
+                                    .border(1.dp, p.chipLine, logoShape),
                                 contentAlignment = Alignment.Center,
                             ) {
                                 Box(
                                     Modifier
                                         .size(width = 16.dp, height = 20.dp)
-                                        .border(1.5.dp, Emerald, RoundedCornerShape(4.dp))
+                                        .border(1.5.dp, p.accent, RoundedCornerShape(4.dp))
                                 )
                             }
                             Spacer(Modifier.width(11.dp))
@@ -172,7 +180,7 @@ fun MainScreen(
                         Column {
                             Text(
                                 "ФермоКонтроль",
-                                color = Ink,
+                                color = p.ink,
                                 fontSize = if (narrow) 16.sp else 19.sp,
                                 fontWeight = FontWeight.SemiBold,
                                 letterSpacing = (-0.6).sp,
@@ -180,7 +188,7 @@ fun MainScreen(
                             )
                             Text(
                                 "ЖУРНАЛ СОЗРЕВАНИЯ",
-                                color = Muted,
+                                color = p.muted,
                                 fontSize = 9.sp,
                                 letterSpacing = 1.9.sp,
                                 maxLines = 1,
@@ -193,47 +201,47 @@ fun MainScreen(
                         icon = Icons.Outlined.Warning,
                         description = if (hasAttention) "Требуют внимания: $attentionCount" else "Продуктов, требующих внимания, нет",
                         tint = when {
-                            attentionOnly -> Color(0xFF1C2519)
-                            hasAttention -> Color(0xFFEDC58C)
-                            else -> Color(0xFF96A88B)
+                            attentionOnly -> p.background
+                            hasAttention -> WarnTint
+                            else -> p.body
                         },
                         bg = when {
-                            attentionOnly -> Color(0xFFEDC58C)
-                            hasAttention -> Color(0x0BEDBC77)
-                            else -> Color(0x06B5D9AB)
+                            attentionOnly -> WarnTint
+                            hasAttention -> WarnBgSoft
+                            else -> p.accent.copy(alpha = 0.03f)
                         },
                         border = when {
-                            attentionOnly -> Color(0xFFEDC58C)
-                            hasAttention -> Color(0xFF6D5738)
-                            else -> Color(0xFF41523A)
+                            attentionOnly -> WarnTint
+                            hasAttention -> WarnLine
+                            else -> p.chipLine
                         },
                         badge = if (attentionCount > 99) "99+" else attentionCount.toString(),
                         badgeBg = when {
-                            attentionOnly -> Color(0xFF243120)
-                            hasAttention -> Color(0xFFEDC58C)
-                            else -> Color(0xFF354330)
+                            attentionOnly -> p.chip
+                            hasAttention -> WarnTint
+                            else -> p.chip
                         },
                         badgeInk = when {
-                            attentionOnly -> Color(0xFFF2D8B1)
-                            hasAttention -> Color(0xFF202719)
-                            else -> Color(0xFFCAD6C1)
+                            attentionOnly -> WarnInk
+                            hasAttention -> p.background
+                            else -> p.strong
                         },
                         onClick = { focus.clearFocus(); attentionOnly = !attentionOnly },
                     )
                     CircleAction(
                         icon = Icons.Outlined.Add,
                         description = "Добавить продукт",
-                        tint = Emerald,
-                        bg = Color(0x14B5D9AB),
-                        border = Color(0xFF536B47),
+                        tint = p.accent,
+                        bg = p.accent.copy(alpha = 0.08f),
+                        border = p.selectedLine,
                         onClick = onAdd,
                     )
                     CircleAction(
                         icon = Icons.Outlined.Settings,
                         description = "Настройки и резервные копии",
-                        tint = Color(0xFFB8C6AE),
-                        bg = Color(0x04B5D9AB),
-                        border = Color(0xFF3F5039),
+                        tint = p.action,
+                        bg = p.accent.copy(alpha = 0.015f),
+                        border = p.chipLine,
                         onClick = onSettings,
                     )
                 }
@@ -247,8 +255,8 @@ fun MainScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(tabShape)
-                        .background(FcSearchBg)
-                        .border(1.dp, FcTabsLine, tabShape)
+                        .background(p.field)
+                        .border(1.dp, p.cardLine, tabShape)
                         .padding(4.dp),
                     horizontalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
@@ -265,7 +273,7 @@ fun MainScreen(
                                 .weight(1f)
                                 .heightIn(min = 44.dp)
                                 .clip(s)
-                                .background(if (selected) FcTabActive else Color.Transparent)
+                                .background(if (selected) p.selected else Color.Transparent)
                                 .clickable(role = Role.Tab) {
                                     focus.clearFocus()
                                     attentionOnly = false
@@ -276,7 +284,7 @@ fun MainScreen(
                         ) {
                             Text(
                                 t.label,
-                                color = if (selected) FcTabActiveInk else Muted,
+                                color = if (selected) p.ink else p.muted,
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Medium,
                                 maxLines = 1,
@@ -284,11 +292,11 @@ fun MainScreen(
                             Spacer(Modifier.width(7.dp))
                             Text(
                                 count.toString(),
-                                color = if (selected) FcTabCountActiveInk else FcTabCountInk,
+                                color = if (selected) p.onSecondary else p.soft,
                                 fontSize = 10.sp,
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(5.dp))
-                                    .background(if (selected) FcTabCountActive else FcTabCount)
+                                    .background(if (selected) p.secondary else p.chip)
                                     .padding(horizontal = 5.dp, vertical = 1.dp),
                             )
                         }
@@ -303,7 +311,7 @@ fun MainScreen(
                 ) {
                     Text(
                         listTitle,
-                        color = if (attentionOnly) Amber else Muted,
+                        color = if (attentionOnly) Amber else p.muted,
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Medium,
                         modifier = Modifier.weight(1f),
@@ -311,7 +319,7 @@ fun MainScreen(
                     SortMenu(sort) { focus.clearFocus(); sort = it }
                 }
             }
-            Box(Modifier.fillMaxWidth().height(1.dp).background(Line))
+            Box(Modifier.fillMaxWidth().height(1.dp).background(p.divider))
 
             LazyColumn(
                 state = listState,
@@ -352,7 +360,7 @@ fun MainScreen(
                     item(key = "footnote") {
                         Text(
                             "Нажмите на продукт, чтобы открыть подробности",
-                            color = Color(0xFF74856F),
+                            color = p.muted,
                             fontSize = 10.5.sp,
                             textAlign = TextAlign.Center,
                             modifier = Modifier.fillMaxWidth().padding(top = 7.dp),
@@ -376,6 +384,7 @@ private fun CircleAction(
     badgeBg: Color = Color.Transparent,
     badgeInk: Color = Color.Transparent,
 ) {
+    val p = LocalAppPalette.current
     Box(Modifier.size(48.dp)) {
         Box(
             modifier = Modifier
@@ -397,7 +406,7 @@ private fun CircleAction(
                     .defaultMinSize(minWidth = 18.dp, minHeight = 18.dp)
                     .clip(bs)
                     .background(badgeBg)
-                    .border(2.dp, Color(0xFF142018), bs)
+                    .border(2.dp, p.background, bs)
                     .padding(horizontal = 4.dp),
                 contentAlignment = Alignment.Center,
             ) {
@@ -409,6 +418,7 @@ private fun CircleAction(
 
 @Composable
 private fun SearchField(query: String, onChange: (String) -> Unit, onDone: () -> Unit) {
+    val p = LocalAppPalette.current
     var focused by remember { mutableStateOf(false) }
     val shape = RoundedCornerShape(13.dp)
     Row(
@@ -416,25 +426,25 @@ private fun SearchField(query: String, onChange: (String) -> Unit, onDone: () ->
             .fillMaxWidth()
             .height(47.dp)
             .clip(shape)
-            .background(FcSearchBg)
-            .border(1.dp, if (focused) FcSearchFocus else Line, shape)
+            .background(p.field)
+            .border(1.dp, if (focused) p.selectedLine else p.divider, shape)
             .padding(start = 13.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(Icons.Outlined.Search, contentDescription = null, tint = FcSearchIcon, modifier = Modifier.size(18.dp))
+        Icon(Icons.Outlined.Search, contentDescription = null, tint = p.muted, modifier = Modifier.size(18.dp))
         Spacer(Modifier.width(9.dp))
         BasicTextField(
             value = query,
             onValueChange = onChange,
             singleLine = true,
-            textStyle = TextStyle(color = Ink, fontSize = 14.sp),
-            cursorBrush = SolidColor(Emerald),
+            textStyle = TextStyle(color = p.ink, fontSize = 14.sp),
+            cursorBrush = SolidColor(p.accent),
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
             keyboardActions = KeyboardActions(onSearch = { onDone() }),
             modifier = Modifier.weight(1f).onFocusChanged { focused = it.isFocused },
             decorationBox = { inner ->
                 Box(contentAlignment = Alignment.CenterStart) {
-                    if (query.isEmpty()) Text("Поиск...", color = FcSearchHint, fontSize = 14.sp)
+                    if (query.isEmpty()) Text("Поиск...", color = p.muted, fontSize = 14.sp)
                     inner()
                 }
             },
@@ -444,7 +454,7 @@ private fun SearchField(query: String, onChange: (String) -> Unit, onDone: () ->
                 modifier = Modifier.size(44.dp).clickable(role = Role.Button) { onChange("") },
                 contentAlignment = Alignment.Center,
             ) {
-                Icon(Icons.Outlined.Close, contentDescription = "Очистить поиск", tint = Muted, modifier = Modifier.size(18.dp))
+                Icon(Icons.Outlined.Close, contentDescription = "Очистить поиск", tint = p.muted, modifier = Modifier.size(18.dp))
             }
         } else {
             Spacer(Modifier.width(13.dp))
@@ -454,11 +464,12 @@ private fun SearchField(query: String, onChange: (String) -> Unit, onDone: () ->
 
 @Composable
 private fun SortMenu(current: BatchSort, onSelect: (BatchSort) -> Unit) {
+    val p = LocalAppPalette.current
     var open by remember { mutableStateOf(false) }
     Box {
         Text(
             "${current.label} ▾",
-            color = Muted,
+            color = p.muted,
             fontSize = 11.sp,
             modifier = Modifier
                 .clip(RoundedCornerShape(8.dp))
@@ -468,7 +479,7 @@ private fun SortMenu(current: BatchSort, onSelect: (BatchSort) -> Unit) {
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
             BatchSort.entries.forEach { s ->
                 DropdownMenuItem(
-                    text = { Text(s.label, color = if (s == current) Emerald else Ink) },
+                    text = { Text(s.label, color = if (s == current) p.accent else p.ink) },
                     onClick = { open = false; onSelect(s) },
                 )
             }
@@ -478,18 +489,19 @@ private fun SortMenu(current: BatchSort, onSelect: (BatchSort) -> Unit) {
 
 @Composable
 private fun EmptyState(title: String, text: String, showAdd: Boolean, onAdd: () -> Unit) {
+    val p = LocalAppPalette.current
     val shape = RoundedCornerShape(18.dp)
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .clip(shape)
-            .background(FcEmptyBg)
-            .border(1.dp, FcEmptyLine, shape)
+            .background(p.field)
+            .border(1.dp, p.cardLine, shape)
             .padding(horizontal = 15.dp, vertical = 30.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Text(title, color = Color(0xFFE0E9D9), fontSize = 14.sp, fontWeight = FontWeight.Medium, textAlign = TextAlign.Center)
-        Text(text, color = Color(0xFFA8B99C), fontSize = 12.sp, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 5.dp))
+        Text(title, color = p.ink, fontSize = 14.sp, fontWeight = FontWeight.Medium, textAlign = TextAlign.Center)
+        Text(text, color = p.body, fontSize = 12.sp, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 5.dp))
         if (showAdd) {
             Spacer(Modifier.height(17.dp))
             FcPrimaryButton(text = "Добавить продукт", onClick = onAdd)
