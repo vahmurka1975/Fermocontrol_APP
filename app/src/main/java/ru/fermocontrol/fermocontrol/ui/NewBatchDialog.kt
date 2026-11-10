@@ -25,6 +25,8 @@ import ru.fermocontrol.fermocontrol.ui.components.LabeledInput
 import ru.fermocontrol.fermocontrol.ui.theme.LocalAppPalette
 
 private const val CUSTOM_LABEL = "Свой продукт"
+private const val BASIS_PLACEHOLDER = "Выберите сырьё"
+private const val BASIS_ERROR = "Выберите сырьё в разделе «Паспорт партии и климат»"
 
 private fun parseNum(value: String): Double? =
     value.trim().replace(',', '.').toDoubleOrNull()?.takeIf { it.isFinite() }
@@ -32,28 +34,38 @@ private fun parseNum(value: String): Double? =
 private fun formatNum(value: Double): String =
     if (value % 1.0 == 0.0) value.toInt().toString() else value.toString()
 
+/**
+ * Начальное сырьё. Для партии с сохранённым сырьём берём его.
+ * Если сырья нет и позиция каталога требует выбора (Балык, Вырезка), оставляем пусто.
+ * В остальных случаях подставляем первое значение списка.
+ */
+private fun initialBasis(initial: Batch?): String {
+    val saved = initial?.rawMaterial.orEmpty()
+    if (saved.isNotBlank()) return saved
+    val item = Catalog.byId(initial?.productTypeId)
+    return if (item != null && item.rawMaterial == null) "" else Catalog.rawMaterials.first()
+}
+
 /** Панель «Новый продукт» по макету v0.4.1: сначала вес, остальное в раскрываемом разделе. */
 @Composable
 fun NewBatchDialog(
-	saving: Boolean,
+    saving: Boolean,
     error: String?,
     onDismiss: () -> Unit,
     onSave: (NewBatchDraft) -> Unit,
     initial: Batch? = null,
 ) {
     val p = LocalAppPalette.current
-	val editing = initial != null
+    val editing = initial != null
     val weightLocked = initial != null && initial.logs.isNotEmpty()
-    var catalogId by rememberSaveable { mutableStateOf(initial?.catalogId.orEmpty()) }
+    var productTypeId by rememberSaveable { mutableStateOf(initial?.productTypeId.orEmpty()) }
     var name by rememberSaveable { mutableStateOf(initial?.name.orEmpty()) }
     var weight by rememberSaveable { mutableStateOf(initial?.let { formatNum(it.startWeightGrams) } ?: "") }
     var target by rememberSaveable { mutableStateOf(initial?.let { formatNum(it.targetLossPercent) } ?: "35") }
     var category by rememberSaveable {
         mutableStateOf(initial?.category.orEmpty().ifBlank { Catalog.categories.first() })
     }
-    var basis by rememberSaveable {
-        mutableStateOf(initial?.rawMaterial.orEmpty().ifBlank { Catalog.rawMaterials.first() })
-    }
+    var basis by rememberSaveable { mutableStateOf(initialBasis(initial)) }
     var spices by rememberSaveable { mutableStateOf(initial?.spices.orEmpty()) }
     var casing by rememberSaveable {
         mutableStateOf(initial?.casing.orEmpty().ifBlank { Catalog.casings.first() })
@@ -71,28 +83,30 @@ fun NewBatchDialog(
     val nameErr = if (name.isBlank()) "Укажите название продукта" else null
     val weightErr = if (weightV == null || weightV <= 0.0) "Введите вес в граммах, больше 0" else null
     val targetErr = if (targetV == null || targetV < 1.0 || targetV > 80.0) "Усушка от 1 до 80 %" else null
+    val basisErr = if (basis.isBlank()) BASIS_ERROR else null
     val tempErr = if (temp.isNotBlank() && (tempV == null || tempV < -30.0 || tempV > 80.0)) "От −30 до 80 °C" else null
     val humErr = if (humidity.isNotBlank() && (humV == null || humV < 0.0 || humV > 100.0)) "От 0 до 100 %" else null
-    val valid = listOf(nameErr, weightErr, targetErr, tempErr, humErr).all { it == null }
+    val valid = listOf(nameErr, weightErr, targetErr, basisErr, tempErr, humErr).all { it == null }
 
-    val pickedItem = Catalog.byId(catalogId)
+    val pickedItem = Catalog.byId(productTypeId)
     val pickOptions = listOf(CUSTOM_LABEL) + Catalog.items.map { it.name }
 
     fun pick(label: String) {
         val item = Catalog.items.firstOrNull { it.name == label }
         if (item == null) {
-            catalogId = ""
+            productTypeId = ""
             return
         }
         // Название подставляем, только если пользователь его не менял.
         val previous = pickedItem?.name
         if (name.isBlank() || name == previous) name = item.name
 
-        catalogId = item.id
+        productTypeId = item.id
         category = item.category
-        basis = item.rawMaterial
+        // Если у позиции нет сырья (Балык, Вырезка), прежнее значение не переносим.
+        basis = item.rawMaterial.orEmpty()
         target = formatNum(item.targetLossPercent)
-        casing = item.casing
+        casing = item.casing ?: casing
     }
 
     FcSheet(
@@ -165,13 +179,29 @@ fun NewBatchDialog(
                         {
                             category = it
                             // Позиция другой категории больше не соответствует выбору.
-                            if (pickedItem != null && pickedItem.category != it) catalogId = ""
+                            if (pickedItem != null && pickedItem.category != it) productTypeId = ""
                         },
                         m,
                     )
                 },
-                second = { m -> FcSelect("Сырьё", basis, Catalog.rawMaterials, { basis = it }, m) },
+                second = { m ->
+                    FcSelect(
+                        "Сырьё",
+                        basis.ifEmpty { BASIS_PLACEHOLDER },
+                        Catalog.rawMaterials,
+                        { basis = it },
+                        m,
+                    )
+                },
             )
+            if (submitted && basisErr != null) {
+                Text(
+                    "Выберите сырьё",
+                    color = p.danger,
+                    fontSize = 11.5.sp,
+                    modifier = Modifier.padding(bottom = 10.dp),
+                )
+            }
             FieldPair(
                 first = { m ->
                     LabeledInput(
@@ -231,6 +261,16 @@ fun NewBatchDialog(
             )
         }
 
+        // Раздел с сырьём может быть свёрнут, поэтому ошибку дублируем рядом с кнопкой.
+        if (submitted && basisErr != null) {
+            Text(
+                basisErr,
+                color = p.danger,
+                fontSize = 12.sp,
+                modifier = Modifier.padding(bottom = 10.dp),
+            )
+        }
+
         FcPrimaryButton(
             text = when {
                 saving -> "Сохранение…"
@@ -250,7 +290,7 @@ fun NewBatchDialog(
                         rawMaterial = basis,
                         spices = spices.trim(),
                         casing = casing,
-                        catalogId = catalogId.ifEmpty { null },
+                        productTypeId = productTypeId.ifEmpty { null },
                         temperatureC = tempV,
                         humidityPercent = humV,
                         note = note.trim(),

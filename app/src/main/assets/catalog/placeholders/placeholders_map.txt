@@ -1,0 +1,32 @@
+file_name                | product_type_id  | title (в интерфейсе)   | raw (по умолчанию) | author | license | status
+-------------------------|------------------|------------------------|--------------------|--------|---------|-------
+ph_sausage.webp          | sausage          | Колбаса сыровяленая   | Свинина            |        |         | нужно
+ph_bresaola.webp         | bresaola         | Брезаола               | Говядина           |        |         | нужно
+ph_polendvitsa.webp      | polendvitsa      | Полендвица             | Свинина            |        |         | нужно
+ph_coppa.webp            | coppa            | Коппа (Капоколло)      | Свинина            |        |         | нужно
+ph_prosciutto.webp       | prosciutto       | Прошутто               | Свинина            |        |         | нужно
+ph_guanciale.webp        | guanciale        | Гуанчале               | Свинина            |        |         | нужно
+ph_pancetta.webp         | pancetta         | Панчетта               | Свинина            |        |         | нужно
+ph_salami.webp           | salami           | Салями                 | Свинина            |        |         | нужно
+ph_chorizo.webp          | chorizo          | Чоризо                 | Свинина            |        |         | нужно
+ph_fouett.webp           | fouett           | Фуэт                   | Свинина            |        |         | нужно
+ph_sujuk.webp            | sujuk            | Суджук                 | Говядина           |        |         | нужно
+ph_mahan.webp            | mahan            | Махан                  | Конина             |        |         | нужно
+ph_kazylik.webp          | kazylik          | Казылык                | Конина             |        |         | нужно
+ph_salchichon.webp       | salchichon       | Сальчичон              | Свинина            |        |         | нужно
+ph_longaniza.webp        | longaniza        | Лонганиза              | Свинина            |        |         | нужно
+ph_spiynata.webp         | spiynata         | Спьяната               | Свинина            |        |         | нужно
+ph_poultry_balyk.webp    | poultry_balyk    | Балык из птицы         | Птица              |        |         | нужно
+ph_duck_breast.webp      | duck_breast      | Утиная грудка          | Птица              |        |         | нужно
+ph_dried_fish.webp       | dried_fish       | Вяленая рыба           | Рыба               |        |         | нужно
+ph_basturma.webp         | basturma         | Бастурма               | Говядина           |        |         | нужно
+ph_balyk.webp            | balyk            | Балык                  | –                  |        |         | нужно
+ph_grudinka.webp         | grudinka         | Грудинка сыровяленая   | Свинина            |        |         | нужно
+ph_vyrezka.webp          | vyrezka          | Вырезка сыровяленая    | –                  |        |         | нужно
+ph_jamon.webp            | jamon            | Хамон                  | Свинина            |        |         | нужно
+ph_karbonad.webp         | karbonad         | Карбонад сыровяленый   | Свинина            |        |         | нужно
+ph_horse_meat.webp       | horse_meat       | Конина сыровяленая     | Конина             |        |         | нужно
+ph_dried_squid.webp      | dried_squid      | Кальмар сушёно-вяленый | Кальмар            |        |         | нужно
+ph_semi_hard_cheese.webp | semi_hard_cheese | Полутвердый сыр        | Сыр                |        |         | нужно
+ph_hard_cheese.webp      | hard_cheese      | Твердый сыр            | Сыр                |        |         | нужно
+ph_default.webp          | default          | Общая заглушка         | –                  |        |         | нужно

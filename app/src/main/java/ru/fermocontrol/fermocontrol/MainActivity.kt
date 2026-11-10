@@ -63,18 +63,11 @@ import ru.fermocontrol.fermocontrol.ui.theme.AppPalettes
 import ru.fermocontrol.fermocontrol.ui.theme.FermocontrolTheme
 import ru.fermocontrol.fermocontrol.ui.theme.LocalAppPalette
 import ru.fermocontrol.fermocontrol.ui.theme.paletteById
-import ru.fermocontrol.fermocontrol.data.BackupManager
 import ru.fermocontrol.fermocontrol.ui.rememberBackupActions
+import ru.fermocontrol.fermocontrol.data.BackupManager
+
 
 class MainActivity : ComponentActivity() {
-
-    private val backupManager by lazy {
-        BackupManager(
-            application,
-            BatchRepository(application),
-            PhotoStore(application),
-        )
-    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -83,18 +76,15 @@ class MainActivity : ComponentActivity() {
         val journal = ViewModelProvider(this)[JournalViewModel::class.java]
 
         setContent {
-            val palette = paletteById(journal.paletteId)
+    val context = LocalContext.current
+    val backup = rememberBackupActions(
+        manager = journal.backupManager,
+        onMessage = { Toast.makeText(context, it, Toast.LENGTH_LONG).show() },
+        onRestored = { journal.reload() },
+    )
+    val palette = paletteById(journal.paletteId)
 
             FermocontrolTheme(palette = palette) {
-                val context = LocalContext.current
-                val backup = rememberBackupActions(
-                    manager = backupManager,
-                    onMessage = {
-                        Toast.makeText(context, it, Toast.LENGTH_LONG).show()
-                    },
-                    onRestored = { journal.reload() },
-                )
-
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background,
@@ -255,9 +245,10 @@ private fun SettingsHost(
 class JournalViewModel(application: Application) :
     AndroidViewModel(application) {
 
-    val repository = BatchRepository(application)
+    private val repository = BatchRepository(application)
     val photos = PhotoStore(application)
     private val settingsStore = SettingsStore(application)
+	val backupManager = BackupManager(application, repository, photos)
 
     // Область переживает поворот экрана вместе с ViewModel.
     private val scope = CoroutineScope(
@@ -485,7 +476,7 @@ class JournalViewModel(application: Application) :
                     rawMaterial = draft.rawMaterial,
                     spices = draft.spices,
                     casing = draft.casing,
-                    catalogId = draft.catalogId,
+                    productTypeId = draft.productTypeId,
                     startWeightGrams = draft.startWeightGrams,
                     targetLossPercent = draft.targetLossPercent,
                     temperatureC = draft.temperatureC,
@@ -721,7 +712,7 @@ class JournalViewModel(application: Application) :
             rawMaterial = draft.rawMaterial,
             spices = draft.spices,
             casing = draft.casing,
-            catalogId = draft.catalogId,
+            productTypeId = draft.productTypeId,
             startWeightGrams = startWeight,
             targetLossPercent = draft.targetLossPercent,
             temperatureC = draft.temperatureC,
