@@ -1,26 +1,41 @@
 package ru.fermocontrol.fermocontrol.ui.components
 
+import android.graphics.BitmapFactory
+import android.util.LruCache
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
-import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.produceState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import java.io.File
+import java.io.InputStream
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import ru.fermocontrol.fermocontrol.model.Batch
+import ru.fermocontrol.fermocontrol.model.Catalog
 import ru.fermocontrol.fermocontrol.model.computeMetrics
 import ru.fermocontrol.fermocontrol.model.computeStatus
 import ru.fermocontrol.fermocontrol.model.nextActionText
@@ -40,6 +55,8 @@ fun BatchCard(
     onClick: () -> Unit,
     onWeigh: () -> Unit,
     nowEpochMs: Long = System.currentTimeMillis(),
+    /** Файл фото из журнала по имени. Если null, обложкой служит заглушка каталога. */
+    photoFile: ((String) -> File)? = null,
 ) {
     val p = LocalAppPalette.current
     val metrics = computeMetrics(batch, nowEpochMs)
@@ -57,6 +74,10 @@ fun BatchCard(
     val caption = if (lastLog != null) "замер " + fmtDateShort(lastLog.atEpochMs)
     else "начальный вес · без замеров"
 
+    // Обложка квадратная, как и файлы фото (1:1).
+    val narrow = LocalConfiguration.current.screenWidthDp < 390
+    val coverSize = if (narrow) 92.dp else 112.dp
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -70,7 +91,7 @@ fun BatchCard(
                 .clickable(role = Role.Button, onClick = onClick)
                 .padding(start = 18.dp, top = 18.dp, end = 18.dp, bottom = 15.dp),
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(verticalAlignment = Alignment.Top) {
                 val numShape = RoundedCornerShape(12.dp)
                 Box(
                     modifier = Modifier
@@ -95,7 +116,7 @@ fun BatchCard(
                         fontSize = 16.sp,
                         lineHeight = 21.sp,
                         fontWeight = FontWeight.SemiBold,
-                        maxLines = 2,
+                        maxLines = 3,
                         overflow = TextOverflow.Ellipsis,
                     )
                     Text(
@@ -107,10 +128,11 @@ fun BatchCard(
                         modifier = Modifier.padding(top = 3.dp),
                     )
                 }
-                Icon(
-                    imageVector = Icons.AutoMirrored.Outlined.KeyboardArrowRight,
-                    contentDescription = null,
-                    tint = p.muted,
+                Spacer(Modifier.width(10.dp))
+                BatchCover(
+                    batch = batch,
+                    photoFile = photoFile,
+                    size = coverSize,
                 )
             }
 
@@ -240,4 +262,80 @@ fun BatchCard(
             }
         }
     }
+}
+
+// ───────────────────────── Обложка ─────────────────────────
+
+/**
+ * Квадратная обложка карточки. Порядок выбора:
+ * 1. исходное фото партии из журнала, если оно есть и файл на месте;
+ * 2. заглушка позиции каталога assets/catalog/placeholders/ph_<id>.webp;
+ * 3. ph_default.webp.
+ * Если ничего не нашлось, остаётся плашка цвета p.chip.
+ */
+@Composable
+private fun BatchCover(
+    batch: Batch,
+    photoFile: ((String) -> File)?,
+    size: Dp,
+    modifier: Modifier = Modifier,
+) {
+    val p = LocalAppPalette.current
+    val context = LocalContext.current
+    val density = LocalDensity.current
+    val shape = RoundedCornerShape(14.dp)
+    val reqPx = with(density) { size.roundToPx() }
+
+    val userFile = batch.photoFileName?.let { name -> photoFile?.invoke(name) }
+    val placeholder = Catalog.byId(batch.productTypeId)?.photoFile ?: Catalog.DEFAULT_PHOTO_FILE
+    val key = (userFile?.let { "u:${it.name}:${it.lastModified()}" } ?: "p:$placeholder") + ":$reqPx"
+
+    val bitmap by produceState<ImageBitmap?>(CoverCache.get(key), key) {
+        value = CoverCache.get(key) ?: withContext(Dispatchers.IO) {
+            val assets = context.applicationContext.assets
+            fun fromAsset(name: String) =
+                decodeSampled({ runCatching { assets.open(PLACEHOLDER_DIR + name) }.getOrNull() }, reqPx, reqPx)
+            val loaded =
+                (userFile?.takeIf { it.isFile }?.let { f ->
+                    decodeSampled({ runCatching { f.inputStream() }.getOrNull() }, reqPx, reqPx)
+                })
+                    ?: fromAsset(placeholder)
+                    ?: fromAsset(Catalog.DEFAULT_PHOTO_FILE)
+            loaded?.also { CoverCache.put(key, it) }
+        }
+    }
+
+    Box(
+        modifier = modifier
+            .size(size)
+            .clip(shape)
+            .background(p.chip)
+            .border(1.dp, Color.White.copy(alpha = 0.12f), shape),
+    ) {
+        bitmap?.let {
+            Image(
+                bitmap = it,
+                contentDescription = null,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize(),
+            )
+        }
+    }
+}
+
+private const val PLACEHOLDER_DIR = "catalog/placeholders/"
+
+private object CoverCache : LruCache<String, ImageBitmap>(48)
+
+/** Читает картинку с уменьшением: сторона выборки не меньше нужного размера. */
+private fun decodeSampled(open: () -> InputStream?, reqW: Int, reqH: Int): ImageBitmap? {
+    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+    val boundsStream = open() ?: return null
+    boundsStream.use { BitmapFactory.decodeStream(it, null, bounds) }
+    if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
+    var sample = 1
+    while (bounds.outWidth / (sample * 2) >= reqW && bounds.outHeight / (sample * 2) >= reqH) sample *= 2
+    val options = BitmapFactory.Options().apply { inSampleSize = sample }
+    val pixelsStream = open() ?: return null
+    return pixelsStream.use { BitmapFactory.decodeStream(it, null, options) }?.asImageBitmap()
 }
