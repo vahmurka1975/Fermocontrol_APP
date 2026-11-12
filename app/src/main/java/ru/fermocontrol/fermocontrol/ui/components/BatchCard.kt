@@ -274,7 +274,7 @@ fun BatchCard(
  * Если ничего не нашлось, остаётся плашка цвета p.chip.
  */
 @Composable
-private fun BatchCover(
+fun BatchCover(
     batch: Batch,
     photoFile: ((String) -> File)?,
     size: Dp,

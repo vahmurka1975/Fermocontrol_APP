@@ -90,6 +90,7 @@ import ru.fermocontrol.fermocontrol.ui.theme.WarnLine
 import ru.fermocontrol.fermocontrol.ui.theme.WarnPanel
 import ru.fermocontrol.fermocontrol.ui.theme.WarnPillInk
 import ru.fermocontrol.fermocontrol.ui.theme.WarnPillLine
+import ru.fermocontrol.fermocontrol.ui.components.BatchCover
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -100,6 +101,12 @@ import kotlin.math.floor
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToLong
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.runtime.saveable.rememberSaveable
+
 
 private val RU: Locale = Locale.forLanguageTag("ru-RU")
 
@@ -115,6 +122,8 @@ fun BatchDetailSheet(
     onWeigh: () -> Unit,
     onSetArchived: (Boolean) -> Unit,
     onEdit: () -> Unit,
+	onCoverPicked: (Uri?) -> Unit,
+    newCameraUri: () -> Uri,
     onDeleteLog: (WeightLog) -> Unit,
     onDeleteBatch: () -> Unit,
 ) {
@@ -124,6 +133,7 @@ fun BatchDetailSheet(
     var viewerPhoto by remember { mutableStateOf<PhotoRef?>(null) }
     var logToDelete by remember { mutableStateOf<WeightLog?>(null) }
     var confirmDeleteBatch by remember { mutableStateOf(false) }
+	var coverOpen by remember { mutableStateOf(false) }
 
     val metrics = remember(batch) { computeMetrics(batch) }
     val attention = remember(batch, metrics) { batch.requiresAttention(metrics) }
@@ -153,17 +163,33 @@ fun BatchDetailSheet(
 
                 SectionTitle("Паспорт партии")
                 Passport(batch)
-                OutlinedButton(
-                    onClick = onEdit,
-                    enabled = !saving,
-                    shape = RoundedCornerShape(12.dp),
-                    border = BorderStroke(1.dp, p.secondaryLine),
-                    colors = ButtonDefaults.outlinedButtonColors(
-                        containerColor = p.secondary,
-                        contentColor = p.onSecondary,
-                    ),
-                    modifier = Modifier.padding(top = 12.dp).heightIn(min = 44.dp),
-                ) { Text("Редактировать паспорт") }
+                    Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.padding(top = 12.dp),
+                ) {
+                    OutlinedButton(
+                        onClick = onEdit,
+                        enabled = !saving,
+                        shape = RoundedCornerShape(12.dp),
+                        border = BorderStroke(1.dp, p.secondaryLine),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            containerColor = p.secondary,
+                            contentColor = p.onSecondary,
+                        ),
+                        modifier = Modifier.weight(1f).heightIn(min = 44.dp),
+                    ) { Text("Редактировать", maxLines = 1) }
+                    OutlinedButton(
+                        onClick = { coverOpen = true },
+                        enabled = !saving,
+                        shape = RoundedCornerShape(12.dp),
+                        border = BorderStroke(1.dp, p.secondaryLine),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            containerColor = p.secondary,
+                            contentColor = p.onSecondary,
+                        ),
+                        modifier = Modifier.weight(1f).heightIn(min = 44.dp),
+                    ) { Text("Обложка", maxLines = 1) }
+                }
 
                 SectionTitle("Фотографии")
                 PhotoSection(batch, logsAsc, photoFile) { viewerPhoto = it }
@@ -237,7 +263,15 @@ fun BatchDetailSheet(
             }
         }
     }
-
+    if (coverOpen) {
+        CoverDialog(
+            batch = batch,
+            photoFile = photoFile,
+            newCameraUri = newCameraUri,
+            onPicked = onCoverPicked,
+            onDismiss = { coverOpen = false },
+        )
+    }
     if (confirmArchive) {
         val toArchive = !batch.archived
         AlertDialog(
@@ -1109,3 +1143,81 @@ private fun signed(d: Double): String {
 }
 private fun fmtDate(ms: Long) = SimpleDateFormat("d MMM yyyy, HH:mm", RU).format(Date(ms))
 private fun fmtDay(ms: Long) = SimpleDateFormat("d MMM yyyy", RU).format(Date(ms))
+@Composable
+private fun CoverDialog(
+    batch: Batch,
+    photoFile: (String) -> File,
+    newCameraUri: () -> Uri,
+    onPicked: (Uri?) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val p = LocalAppPalette.current
+    var cameraUri by rememberSaveable { mutableStateOf<Uri?>(null) }
+
+    val picker = rememberLauncherForActivityResult(
+        ActivityResultContracts.PickVisualMedia(),
+    ) { picked ->
+        if (picked != null) {
+            onPicked(picked)
+            onDismiss()
+        }
+    }
+    val camera = rememberLauncherForActivityResult(
+        ActivityResultContracts.TakePicture(),
+    ) { ok ->
+        val uri = cameraUri
+        cameraUri = null
+        if (ok && uri != null) {
+            onPicked(uri)
+            onDismiss()
+        }
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = p.card,
+        titleContentColor = p.ink,
+        textContentColor = p.muted,
+        title = { Text("Обложка партии") },
+        text = {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                BatchCover(batch = batch, photoFile = photoFile, size = 112.dp)
+                Text(
+                    "Фото обрежется по центру до квадрата.",
+                    fontSize = 12.sp,
+                    modifier = Modifier.padding(bottom = 4.dp),
+                )
+                OutlinedButton(
+                    onClick = {
+                        val uri = newCameraUri()
+                        cameraUri = uri
+                        camera.launch(uri)
+                    },
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.fillMaxWidth(),
+                ) { Text("Сфотографировать") }
+                OutlinedButton(
+                    onClick = {
+                        picker.launch(
+                            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly),
+                        )
+                    },
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.fillMaxWidth(),
+                ) { Text("Выбрать из галереи") }
+                if (batch.photoFileName != null) {
+                    TextButton(onClick = { onPicked(null); onDismiss() }) {
+                        Text("Вернуть заглушку", color = p.danger)
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text("Закрыть", color = p.muted) }
+        },
+    )
+}

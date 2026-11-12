@@ -7,6 +7,7 @@ import android.graphics.Matrix
 import android.media.ExifInterface
 import android.net.Uri
 import androidx.core.content.FileProvider
+import android.os.Build
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
@@ -84,7 +85,48 @@ class PhotoStore(context: Context) {
     fun delete(name: String) {
         file(name).delete()
     }
-    
+        /** Обложка: центральный квадрат 512 px в WebP. Возвращает имя файла. */
+    suspend fun saveCover(uri: Uri): String = withContext(Dispatchers.IO) {
+        val source = decodeOriented(uri, COVER_DECODE_SIDE)
+        val side = minOf(source.width, source.height)
+        val cropped = Bitmap.createBitmap(
+            source, (source.width - side) / 2, (source.height - side) / 2, side, side,
+        )
+        val cover = if (side > COVER_SIDE) {
+            Bitmap.createScaledBitmap(cropped, COVER_SIDE, COVER_SIDE, true)
+        } else {
+            cropped
+        }
+        try {
+            photoDir.mkdirs()
+            val name = "c_${UUID.randomUUID()}.webp"
+            val tmp = File(photoDir, "$name.tmp")
+            try {
+                FileOutputStream(tmp).use { out ->
+                    if (!cover.compress(coverFormat(), 85, out)) {
+                        throw IOException("Не удалось сжать обложку")
+                    }
+                    out.flush()
+                    out.fd.sync()
+                }
+                if (!tmp.renameTo(file(name))) throw IOException("Не удалось сохранить обложку")
+            } catch (error: Exception) {
+                tmp.delete()
+                throw error
+            }
+            name
+        } finally {
+            if (cover !== cropped) cover.recycle()
+            if (cropped !== source) cropped.recycle()
+            source.recycle()
+        }
+    }
+
+    @Suppress("DEPRECATION")
+    private fun coverFormat(): Bitmap.CompressFormat =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) Bitmap.CompressFormat.WEBP_LOSSY
+        else Bitmap.CompressFormat.WEBP
+		
 	/** Допустимы только имена, которые создаёт saveFrom. Остальное при восстановлении отбрасывается. */
     fun isValidName(name: String): Boolean = PHOTO_NAME.matches(name)
 
@@ -176,6 +218,8 @@ class PhotoStore(context: Context) {
         const val SAVE_MAX_SIDE = 1600
         const val PREVIEW_MAX_SIDE = 480
         const val DAY_MS = 86_400_000L
-		val PHOTO_NAME = Regex("p_[0-9a-fA-F-]{36}\\.jpg")
+		const val COVER_SIDE = 512
+        const val COVER_DECODE_SIDE = 1024
+		val PHOTO_NAME = Regex("[pc]_[0-9a-fA-F-]{36}\\.(?:jpg|webp)")
     }
 }

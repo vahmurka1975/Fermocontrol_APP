@@ -124,6 +124,8 @@ class MainActivity : ComponentActivity() {
                                 onWeigh = { journal.openWeigh(detailBatch) },
                                 onSetArchived = { archived -> journal.setArchived(archived) },
                                 onEdit = journal::openEdit,
+								onCoverPicked = journal::changeCover,
+                                newCameraUri = journal.photos::newCameraUri,
                                 onDeleteLog = journal::deleteLog,
                                 onDeleteBatch = journal::deleteBatch,
                             )
@@ -727,7 +729,45 @@ class JournalViewModel(application: Application) :
             onSaved = { editOpen = false },
         )
     }
+    
+	// ───────────── Обложка ─────────────
 
+    /** uri = null возвращает обложку-заглушку каталога. */
+    fun changeCover(uri: Uri?) {
+        if (loading || saving || loadError != null) return
+
+        val batch = detailBatch ?: return
+        if (uri == null && batch.photoFileName == null) return
+
+        saving = true
+        actionError = null
+
+        scope.launch {
+            var newName: String? = null
+            try {
+                newName = uri?.let { photos.saveCover(it) }
+
+                val updated = batches.map {
+                    if (it.id == batch.id) it.copy(photoFileName = newName) else it
+                }
+                repository.save(updated)
+                batches = updated
+                newName = null // журнал записан, откатывать нечего
+
+                batch.photoFileName?.let { removePhotos(listOf(it)) }
+            } catch (cancelled: CancellationException) {
+                newName?.let { runCatching { photos.delete(it) } }
+                throw cancelled
+            } catch (error: Exception) {
+                Log.e("Fermocontrol", "Cannot change cover", error)
+                newName?.let { runCatching { photos.delete(it) } }
+                actionError = "Не удалось сменить обложку: " +
+                    (error.localizedMessage ?: "ошибка записи")
+            } finally {
+                saving = false
+            }
+        }
+    }
     // ───────────── Удаление ─────────────
 
     fun deleteLog(log: WeightLog) {
