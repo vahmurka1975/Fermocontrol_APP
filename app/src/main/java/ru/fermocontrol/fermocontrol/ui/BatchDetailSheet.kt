@@ -375,9 +375,10 @@ private fun DetailHeader(batch: Batch, onClose: () -> Unit) {
         Column(Modifier.weight(1f)) {
             Text(
                 "ПАРТИЯ №${batch.number.toString().padStart(2, '0')}",
-                color = p.kicker, fontSize = 10.sp, letterSpacing = 1.3.sp,
+                color = p.soft, fontSize = 15.sp, fontWeight = FontWeight.SemiBold,
+				letterSpacing = 1.2.sp,
             )
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(6.dp))
             Text(
                 batch.name, color = p.ink, fontSize = 22.sp,
                 fontWeight = FontWeight.Medium, lineHeight = 27.sp,
@@ -437,8 +438,8 @@ private fun MetricsGrid(batch: Batch, m: Metrics) {
         }
         Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
             MetricCard(
-                "До цели", if (targetReached) "достигнута" else fmtPct(m.toTargetPercent),
-                if (targetReached) "цель усушки по весу" else "ещё ${fmtWeight(m.toTargetGrams)}",
+                "До цели", if (targetReached) "достигнута" else fmtWeight(m.toTargetGrams),
+                if (targetReached) "цель усушки по весу" else "ещё ${fmtPct(m.toTargetPercent)} от начального веса",
                 Modifier.weight(1f), small = targetReached,
             )
             MetricCard(
@@ -872,30 +873,77 @@ private fun fmtShortDate(ms: Long): String = SimpleDateFormat("d MMM", RU).forma
 @Composable
 private fun Passport(batch: Batch) {
     val p = LocalAppPalette.current
-    val rows = listOf(
-        "Категория" to batch.category,
-        "Сырьё" to batch.rawMaterial,
-        "Посол и специи" to batch.spices,
-        "Оболочка" to batch.casing,
-        "Температура" to (batch.temperatureC?.let { "${fmtNum(it)} °C" } ?: ""),
-        "Влажность" to (batch.humidityPercent?.let { "${fmtNum(it)} %" } ?: ""),
-        "Заметка" to batch.note,
-    )
-    Column {
-        rows.forEach { (label, value) ->
-            Row(
-                Modifier.fillMaxWidth().padding(vertical = 12.dp),
-                horizontalArrangement = Arrangement.spacedBy(18.dp),
-            ) {
-                Text(label, color = p.body, fontSize = 12.sp, modifier = Modifier.weight(1f))
-                Text(
-                    value.ifBlank { "—" }, color = p.ink, fontSize = 12.sp,
-                    textAlign = TextAlign.End, lineHeight = 19.sp, modifier = Modifier.weight(1f),
-                )
+    val material = listOf(batch.rawMaterial, batch.casing)
+        .filter { it.isNotBlank() }
+        .joinToString(" · ")
+        .ifBlank { batch.category.ifBlank { "—" } }
+    val temp = batch.temperatureC?.let { "${fmtNum(it)} °C" } ?: "—"
+    val humidity = batch.humidityPercent?.let { "${fmtNum(it)}% RH" } ?: "—"
+    val created = SimpleDateFormat("d MMM yyyy 'г.', HH:mm", RU).format(Date(batch.createdAtEpochMs))
+
+    Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
+        Row(
+            Modifier.fillMaxWidth().height(IntrinsicSize.Min),
+            horizontalArrangement = Arrangement.spacedBy(9.dp),
+        ) {
+            PassportCell("Сырьё и оболочка", Modifier.weight(1f).fillMaxHeight()) {
+                PassportValue(material)
             }
-            Box(Modifier.fillMaxWidth().height(1.dp).background(p.divider))
+            PassportCell("Посол / специи", Modifier.weight(1f).fillMaxHeight()) {
+                PassportValue(batch.spices.ifBlank { "—" })
+            }
+        }
+        Row(
+            Modifier.fillMaxWidth().height(IntrinsicSize.Min),
+            horizontalArrangement = Arrangement.spacedBy(9.dp),
+        ) {
+            PassportCell("Начальный вес", Modifier.weight(1f).fillMaxHeight()) {
+                PassportValue(fmtWeight(batch.startWeightGrams))
+                Text(created, color = p.muted, fontSize = 10.5.sp,
+                    modifier = Modifier.padding(top = 4.dp))
+            }
+            PassportCell("Климат, введённый вручную", Modifier.weight(1f).fillMaxHeight()) {
+                PassportValue("Температура: $temp")
+                PassportValue("Влажность: $humidity", Modifier.padding(top = 5.dp))
+            }
+        }
+        PassportCell("Технологическая заметка", Modifier.fillMaxWidth()) {
+            Text(
+                batch.note.ifBlank { "—" }, color = p.body, fontSize = 13.sp,
+                lineHeight = 20.sp, modifier = Modifier.padding(top = 6.dp),
+            )
         }
     }
+}
+
+@Composable
+private fun PassportCell(
+    label: String,
+    modifier: Modifier,
+    content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit,
+) {
+    val p = LocalAppPalette.current
+    val shape = RoundedCornerShape(15.dp)
+    Column(
+        modifier = modifier
+            .clip(shape)
+            .background(p.card)
+            .border(1.dp, p.cardLine, shape)
+            .padding(horizontal = 14.dp, vertical = 13.dp),
+    ) {
+        Text(label, color = p.muted, fontSize = 11.sp)
+        Spacer(Modifier.height(6.dp))
+        content()
+    }
+}
+
+@Composable
+private fun PassportValue(text: String, modifier: Modifier = Modifier) {
+    val p = LocalAppPalette.current
+    Text(
+        text, color = p.strong, fontSize = 14.sp, lineHeight = 20.sp,
+        fontWeight = FontWeight.Bold, modifier = modifier,
+    )
 }
 
 @Composable
