@@ -6,6 +6,7 @@ import kotlin.math.max
 const val WEIGH_INTERVAL_DAYS = 3
 const val FAST_PACE_PERCENT_PER_DAY = 1.5
 private const val DAY_MS = 86_400_000L
+private const val CLOCK_TOLERANCE_MS = 5 * 60_000L
 
 /**
  * Состояние партии по правилам макета v0.4.1 (calcMetrics):
@@ -39,7 +40,7 @@ fun computeStatus(
     val lastMeasured = last?.atEpochMs ?: batch.createdAtEpochMs
     val active = !batch.archived
 
-    val clock = active && lastMeasured > nowEpochMs
+    val clock = active && lastMeasured > nowEpochMs + CLOCK_TOLERANCE_MS
     val daysSince = max(0L, (nowEpochMs - lastMeasured) / DAY_MS).toInt()
     val due = active && !clock && daysSince >= intervalDays
 

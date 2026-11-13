@@ -7,7 +7,7 @@ class SettingsStore(context: Context) {
         .getSharedPreferences("settings", Context.MODE_PRIVATE)
 
     var paletteId: String
-        get() = prefs.getString("palette", null) ?: "forest"
+        get() = prefs.getString("palette", null) ?: "graphite"
         set(v) = prefs.edit().putString("palette", v).apply()
 
     var cloud: String

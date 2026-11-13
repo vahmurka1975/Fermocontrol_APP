@@ -19,7 +19,6 @@ import ru.fermocontrol.fermocontrol.model.Batch
 import ru.fermocontrol.fermocontrol.model.Catalog
 import ru.fermocontrol.fermocontrol.model.NewBatchDraft
 import ru.fermocontrol.fermocontrol.model.SpiceCodec
-import ru.fermocontrol.fermocontrol.ui.components.CollapsibleSection
 import ru.fermocontrol.fermocontrol.ui.components.FcPrimaryButton
 import ru.fermocontrol.fermocontrol.ui.components.FcSelect
 import ru.fermocontrol.fermocontrol.ui.components.FcSheet
@@ -31,7 +30,7 @@ import ru.fermocontrol.fermocontrol.ui.theme.LocalAppPalette
 
 private const val CUSTOM_LABEL = "Свой продукт"
 private const val BASIS_PLACEHOLDER = "Выберите сырьё"
-private const val BASIS_ERROR = "Выберите сырьё в разделе «Паспорт партии и климат»"
+private const val BASIS_ERROR = "Выберите сырьё"
 
 private fun parseNum(value: String): Double? =
     value.trim().replace(',', '.').toDoubleOrNull()?.takeIf { it.isFinite() }
@@ -51,7 +50,7 @@ private fun initialBasis(initial: Batch?): String {
     return if (item != null && item.rawMaterial == null) "" else Catalog.rawMaterials.first()
 }
 
-/** Панель «Новый продукт» по макету v0.4.1: сначала вес, остальное в раскрываемом разделе. */
+/** Панель «Новый продукт» и «Редактировать паспорт»: все параметры в одном списке, сначала вес. */
 @Composable
 fun NewBatchDialog(
     saving: Boolean,
@@ -65,8 +64,12 @@ fun NewBatchDialog(
     val weightLocked = initial != null && initial.logs.isNotEmpty()
     var productTypeId by rememberSaveable { mutableStateOf(initial?.productTypeId.orEmpty()) }
     var name by rememberSaveable { mutableStateOf(initial?.name.orEmpty()) }
-    var weight by rememberSaveable { mutableStateOf(initial?.let { formatNum(it.startWeightGrams) } ?: "") }
-    var target by rememberSaveable { mutableStateOf(initial?.let { formatNum(it.targetLossPercent) } ?: "35") }
+    var weight by rememberSaveable {
+        mutableStateOf(initial?.let { formatNum(it.startWeightGrams) } ?: "")
+    }
+    var target by rememberSaveable {
+        mutableStateOf(initial?.let { formatNum(it.targetLossPercent) } ?: "35")
+    }
     var category by rememberSaveable {
         mutableStateOf(initial?.category.orEmpty().ifBlank { Catalog.categories.first() })
     }
@@ -77,8 +80,12 @@ fun NewBatchDialog(
     var casing by rememberSaveable {
         mutableStateOf(initial?.casing.orEmpty().ifBlank { Catalog.casings.first() })
     }
-    var temp by rememberSaveable { mutableStateOf(initial?.temperatureC?.let { formatNum(it) }.orEmpty()) }
-    var humidity by rememberSaveable { mutableStateOf(initial?.humidityPercent?.let { formatNum(it) }.orEmpty()) }
+    var temp by rememberSaveable {
+        mutableStateOf(initial?.temperatureC?.let { formatNum(it) }.orEmpty())
+    }
+    var humidity by rememberSaveable {
+        mutableStateOf(initial?.humidityPercent?.let { formatNum(it) }.orEmpty())
+    }
     var note by rememberSaveable { mutableStateOf(initial?.note.orEmpty()) }
     var submitted by rememberSaveable { mutableStateOf(false) }
 
@@ -88,13 +95,24 @@ fun NewBatchDialog(
     val humV = parseNum(humidity)
 
     val nameErr = if (name.isBlank()) "Укажите название продукта" else null
-    val weightErr = if (weightV == null || weightV <= 0.0) "Введите вес в граммах, больше 0" else null
-    val targetErr = if (targetV == null || targetV < 1.0 || targetV > 80.0) "Усушка от 1 до 80 %" else null
+    val weightErr =
+        if (weightV == null || weightV <= 0.0) "Введите вес в граммах, больше 0" else null
+    val targetErr =
+        if (targetV == null || targetV < 1.0 || targetV > 80.0) "Усушка от 1 до 80 %" else null
     val basisErr = if (basis.isBlank()) BASIS_ERROR else null
-    val tempErr = if (temp.isNotBlank() && (tempV == null || tempV < -30.0 || tempV > 80.0)) "От −30 до 80 °C" else null
-    val humErr = if (humidity.isNotBlank() && (humV == null || humV < 0.0 || humV > 100.0)) "От 0 до 100 %" else null
+    val tempErr =
+        if (temp.isNotBlank() && (tempV == null || tempV < -30.0 || tempV > 80.0)) "От −30 до 80 °C" else null
+    val humErr =
+        if (humidity.isNotBlank() && (humV == null || humV < 0.0 || humV > 100.0)) "От 0 до 100 %" else null
     val spicesOk = SpiceCodec.isValid(nitrite, spiceRows)
-    val valid = listOf(nameErr, weightErr, targetErr, basisErr, tempErr, humErr).all { it == null } && spicesOk
+    val valid = listOf(
+        nameErr,
+        weightErr,
+        targetErr,
+        basisErr,
+        tempErr,
+        humErr
+    ).all { it == null } && spicesOk
 
     val pickedItem = Catalog.byId(productTypeId)
     val pickOptions = listOf(CUSTOM_LABEL) + Catalog.items.map { it.name }
@@ -125,7 +143,12 @@ fun NewBatchDialog(
         dismissible = !saving,
     ) {
         if (error != null) {
-            Text(error, color = p.danger, fontSize = 12.sp, modifier = Modifier.padding(bottom = 12.dp))
+            Text(
+                error,
+                color = p.danger,
+                fontSize = 12.sp,
+                modifier = Modifier.padding(bottom = 12.dp)
+            )
         }
 
         FcSelect(
@@ -179,83 +202,82 @@ fun NewBatchDialog(
                 modifier = Modifier.padding(bottom = 10.dp),
             )
         }
-        CollapsibleSection("Паспорт партии и климат") {
-            FieldPair(
-                first = { m ->
-                    FcSelect(
-                        "Категория", category, Catalog.categories,
-                        {
-                            category = it
-                            // Позиция другой категории больше не соответствует выбору.
-                            if (pickedItem != null && pickedItem.category != it) productTypeId = ""
-                        },
-                        m,
-                    )
-                },
-                second = { m ->
-                    FcSelect(
-                        "Сырьё",
-                        basis.ifEmpty { BASIS_PLACEHOLDER },
-                        Catalog.rawMaterials,
-                        { basis = it },
-                        m,
-                    )
-                },
-            )
-            if (submitted && basisErr != null) {
-                Text(
-                    "Выберите сырьё",
-                    color = p.danger,
-                    fontSize = 11.5.sp,
-                    modifier = Modifier.padding(bottom = 10.dp),
+        FieldPair(
+            first = { m ->
+                FcSelect(
+                    "Категория", category, Catalog.categories,
+                    {
+                        category = it
+                        // Позиция другой категории больше не соответствует выбору.
+                        if (pickedItem != null && pickedItem.category != it) productTypeId = ""
+                    },
+                    m,
                 )
-            }
-            SpiceEditor(
-                nitrite = nitrite,
-                onNitrite = { nitrite = it },
-                rows = spiceRows,
-                onRows = { spiceRows = it },
-                enabled = !saving,
-                submitted = submitted,
-                startWeightGrams = weightV,
-                legacy = initialRecipe.legacy,
-            )
-            FcSelect("Оболочка", casing, Catalog.casings, { casing = it }, Modifier.fillMaxWidth())
-            FieldPair(
-                first = { m ->
-                    LabeledInput(
-                        label = "Температура, °C",
-                        value = temp,
-                        onValueChange = { temp = it },
-                        modifier = m,
-                        placeholder = "Не указана",
-                        enabled = !saving,
-                        error = if (submitted) tempErr else null,
-                    )
-                },
-                second = { m ->
-                    LabeledInput(
-                        label = "Влажность, % RH",
-                        value = humidity,
-                        onValueChange = { humidity = it },
-                        modifier = m,
-                        placeholder = "Не указана",
-                        enabled = !saving,
-                        keyboardType = KeyboardType.Decimal,
-                        error = if (submitted) humErr else null,
-                    )
-                },
-            )
-            LabeledInput(
-                label = "Заметка по технологии",
-                value = note,
-                onValueChange = { note = it.take(5000) },
-                placeholder = "Рецепт, особенности сырья, этапы…",
-                enabled = !saving,
-                singleLine = false,
-                minHeight = 96.dp,
+            },
+            second = { m ->
+                FcSelect(
+                    "Сырьё",
+                    basis.ifEmpty { BASIS_PLACEHOLDER },
+                    Catalog.rawMaterials,
+                    { basis = it },
+                    m,
+                )
+            },
+        )
+        if (submitted && basisErr != null) {
+            Text(
+                "Выберите сырьё",
+                color = p.danger,
+                fontSize = 11.5.sp,
+                modifier = Modifier.padding(bottom = 10.dp),
             )
         }
+        SpiceEditor(
+            nitrite = nitrite,
+            onNitrite = { nitrite = it },
+            rows = spiceRows,
+            onRows = { spiceRows = it },
+            enabled = !saving,
+            submitted = submitted,
+            startWeightGrams = weightV,
+            legacy = initialRecipe.legacy,
+        )
+        FcSelect("Оболочка", casing, Catalog.casings, { casing = it }, Modifier.fillMaxWidth())
+        FieldPair(
+            first = { m ->
+                LabeledInput(
+                    label = "Температура, °C",
+                    value = temp,
+                    onValueChange = { temp = it },
+                    modifier = m,
+                    placeholder = "Не указана",
+                    enabled = !saving,
+                    keyboardType = KeyboardType.Decimal,
+                    error = if (submitted) tempErr else null,
+                )
+            },
+            second = { m ->
+                LabeledInput(
+                    label = "Влажность, % RH",
+                    value = humidity,
+                    onValueChange = { humidity = it },
+                    modifier = m,
+                    placeholder = "Не указана",
+                    enabled = !saving,
+                    keyboardType = KeyboardType.Decimal,
+                    error = if (submitted) humErr else null,
+                )
+            },
+        )
+        LabeledInput(
+            label = "Заметка по технологии",
+            value = note,
+            onValueChange = { note = it.take(5000) },
+            placeholder = "Рецепт, особенности сырья, этапы…",
+            enabled = !saving,
+            singleLine = false,
+            minHeight = 96.dp,
+        )
 
         if (!editing) {
             Text(
@@ -265,21 +287,12 @@ fun NewBatchDialog(
                 lineHeight = 19.sp,
                 modifier = Modifier.padding(bottom = 10.dp),
             )
-        }
 
-        // Раздел с сырьём может быть свёрнут, поэтому ошибку дублируем рядом с кнопкой.
-        if (submitted && basisErr != null) {
-            Text(
-                basisErr,
-                color = p.danger,
-                fontSize = 12.sp,
-                modifier = Modifier.padding(bottom = 10.dp),
-            )
         }
 
         if (submitted && !spicesOk) {
             Text(
-                "Проверьте нитритную соль и специи в разделе «Паспорт партии и климат»",
+                "Проверьте нитритную соль и специи",
                 color = p.danger,
                 fontSize = 12.sp,
                 modifier = Modifier.padding(bottom = 10.dp),

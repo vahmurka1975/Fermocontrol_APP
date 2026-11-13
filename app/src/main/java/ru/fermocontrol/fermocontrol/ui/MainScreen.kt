@@ -89,9 +89,9 @@ fun MainScreen(
     val focus = LocalFocusManager.current
 
     val now by produceState(System.currentTimeMillis()) {
-        while (true) {
-            delay(60_000L)
-            value = System.currentTimeMillis()
+      while (true) {
+          delay(60_000L)
+          value = System.currentTimeMillis()
         }
     }
 

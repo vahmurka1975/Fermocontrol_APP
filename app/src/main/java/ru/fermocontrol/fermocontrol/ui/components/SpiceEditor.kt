@@ -38,8 +38,12 @@ import ru.fermocontrol.fermocontrol.model.SpiceCatalog
 import ru.fermocontrol.fermocontrol.model.SpiceCodec
 import ru.fermocontrol.fermocontrol.model.SpiceRow
 import ru.fermocontrol.fermocontrol.ui.theme.LocalAppPalette
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.text.input.ImeAction
 
 private const val SUFFIX = " г/кг"
+private val GRAMS_WIDTH = 92.dp
 
 val SpiceRowsSaver = listSaver<List<SpiceRow>, String>(
     save = { rows -> rows.flatMap { listOf(it.name, it.grams) } },
@@ -84,12 +88,19 @@ private fun GramsField(
 ) {
     val p = LocalAppPalette.current
     val shape = RoundedCornerShape(12.dp)
+	val focusManager = LocalFocusManager.current
     BasicTextField(
         value = value,
         onValueChange = { onValueChange(cleanGrams(it)) },
         enabled = enabled,
         singleLine = true,
-        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+        keyboardOptions = KeyboardOptions(
+    keyboardType = KeyboardType.Decimal,
+    imeAction = ImeAction.Done,
+),
+keyboardActions = KeyboardActions(
+    onDone = { focusManager.clearFocus() },
+),
         textStyle = TextStyle(color = p.ink, fontSize = 14.sp),
         cursorBrush = SolidColor(p.accent),
         visualTransformation = GramsSuffix(p.muted),
@@ -99,7 +110,7 @@ private fun GramsField(
             .clip(shape)
             .background(p.field)
             .border(1.dp, if (error) p.danger else p.fieldLine, shape)
-            .padding(horizontal = 12.dp, vertical = 13.dp),
+            .padding(horizontal = 8.dp, vertical = 13.dp),
         decorationBox = { inner ->
             Box(contentAlignment = Alignment.CenterStart) {
                 if (value.isEmpty()) Text("г/кг", color = p.muted, fontSize = 14.sp)
@@ -201,10 +212,9 @@ fun SpiceEditor(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(SpiceCatalog.NITRITE, color = p.ink, fontSize = 14.sp, modifier = Modifier.weight(1f), maxLines = 1)
-                Text("по умолчанию", color = p.muted, fontSize = 10.sp, maxLines = 1)
             }
-            GramsField(nitrite, onNitrite, enabled, submitted && nErr != null, Modifier.width(118.dp))
-            Spacer(Modifier.size(36.dp))
+            GramsField(nitrite, onNitrite, enabled, submitted && nErr != null, Modifier.width(GRAMS_WIDTH))
+            Spacer(Modifier.size(32.dp))
         }
         if (submitted && nErr != null) Text(nErr, color = p.danger, fontSize = 11.sp, modifier = Modifier.padding(top = 5.dp))
 
@@ -226,10 +236,10 @@ fun SpiceEditor(
                     { g -> onRows(rows.toMutableList().also { it[i] = r.copy(grams = g) }) },
                     enabled && r.name.isNotBlank(),
                     show && r.name.isNotBlank(),
-                    Modifier.width(118.dp),
+                    Modifier.width(GRAMS_WIDTH),
                 )
                 Box(
-                    Modifier.size(36.dp).clip(shape)
+                    Modifier.size(32.dp).clip(shape)
                         .clickable(enabled = enabled, role = Role.Button) {
                             onRows(rows.toMutableList().also { it.removeAt(i) })
                         },

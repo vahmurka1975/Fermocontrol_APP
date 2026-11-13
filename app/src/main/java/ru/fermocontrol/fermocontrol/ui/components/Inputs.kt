@@ -37,6 +37,9 @@ import ru.fermocontrol.fermocontrol.ui.theme.LocalAppPalette
 import ru.fermocontrol.fermocontrol.ui.theme.WarnCheckBg
 import ru.fermocontrol.fermocontrol.ui.theme.WarnCheckInk
 import ru.fermocontrol.fermocontrol.ui.theme.WarnCheckLine
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.text.input.ImeAction
 
 /** Поле макета: подпись сверху, фон и рамка из палитры, скругление 12. */
 @Composable
@@ -58,6 +61,7 @@ fun LabeledInput(
     var focused by remember { mutableStateOf(false) }
     val focusRequester = remember { FocusRequester() }
     val keyboard = LocalSoftwareKeyboardController.current
+	val focusManager = LocalFocusManager.current
     LaunchedEffect(autoFocus) {
         if (autoFocus) {
             delay(200) // лист должен успеть отрисоваться, иначе requestFocus падает
@@ -81,7 +85,16 @@ fun LabeledInput(
             singleLine = singleLine,
             textStyle = TextStyle(color = p.ink, fontSize = 14.sp),
             cursorBrush = SolidColor(p.accent),
-            keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
+            keyboardOptions = KeyboardOptions(
+    keyboardType = keyboardType,
+    imeAction = if (singleLine) ImeAction.Done else ImeAction.Default,
+),
+keyboardActions = KeyboardActions(
+    onDone = {
+        focusManager.clearFocus()
+        keyboard?.hide()
+    },
+),
             modifier = Modifier
                 .fillMaxWidth()
                 .clip(shape)

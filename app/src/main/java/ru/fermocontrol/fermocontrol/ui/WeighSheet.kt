@@ -76,6 +76,7 @@ private val SURFACES = listOf(
 
 private const val MAX_WEIGHT_G = 1_000_000.0
 private const val HOUR_MS = 3_600_000L
+private const val CLOCK_TOLERANCE_MS = 5 * 60_000L
 private const val DAY_MS = 86_400_000.0
 
 private fun weighNum(v: String): Double? =
@@ -147,7 +148,7 @@ fun WeighSheet(
     val lastLog = batch.logs.maxByOrNull { it.atEpochMs }
     val prevWeight = lastLog?.weightGrams ?: start
     val prevTime = lastLog?.atEpochMs ?: batch.createdAtEpochMs
-    val clockIssue = prevTime > now
+    val clockIssue = prevTime > now + CLOCK_TOLERANCE_MS
 
     val parsed = weighNum(weightText)
     val entered = parsed?.takeIf { it > 0.0 && it <= MAX_WEIGHT_G }
