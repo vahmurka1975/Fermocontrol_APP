@@ -1,231 +1,265 @@
 package ru.fermocontrol.fermocontrol.ui.components
 
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.*
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.KeyboardArrowDown
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.key
+import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.OffsetMapping
+import androidx.compose.ui.text.input.TransformedText
+import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import ru.fermocontrol.fermocontrol.model.MAX_SPICE_GRAMS_PER_KG
-import ru.fermocontrol.fermocontrol.model.NITRITE_SALT
-import ru.fermocontrol.fermocontrol.model.SpiceItem
-import ru.fermocontrol.fermocontrol.model.formatGrams
+import ru.fermocontrol.fermocontrol.model.SpiceCatalog
+import ru.fermocontrol.fermocontrol.model.SpiceCodec
+import ru.fermocontrol.fermocontrol.model.SpiceRow
 import ru.fermocontrol.fermocontrol.ui.theme.LocalAppPalette
-import kotlin.math.round
 
-/** Строка формы. id = 0 только у «Нитритной соли»: её нельзя удалить и переименовать. */
-data class SpiceRow(val id: Int, val name: String, val grams: String) {
-    val fixed: Boolean get() = id == 0
-}
+private const val SUFFIX = " г/кг"
 
-data class SpiceRowError(val name: String? = null, val grams: String? = null)
-
-/** Сохраняет строки при повороте экрана. */
 val SpiceRowsSaver = listSaver<List<SpiceRow>, String>(
-    save = { rows -> rows.flatMap { listOf(it.id.toString(), it.name, it.grams) } },
-    restore = { flat -> flat.chunked(3).map { SpiceRow(it[0].toInt(), it[1], it[2]) } },
+    save = { rows -> rows.flatMap { listOf(it.name, it.grams) } },
+    restore = { list -> list.chunked(2).map { SpiceRow(it[0], it[1]) } },
 )
 
-fun parseSpiceGrams(value: String): Double? =
-    value.trim().replace(',', '.').toDoubleOrNull()?.takeIf { it.isFinite() }
-
-/** Начальные строки: «Нитритная соль» всегда первая, затем сохранённые специи. */
-fun initialSpiceRows(saved: List<SpiceItem>): List<SpiceRow> {
-    val nitrite = saved.firstOrNull { it.name.trim().equals(NITRITE_SALT, ignoreCase = true) }
-    val others = saved.filter { it !== nitrite }
-    return listOf(
-        SpiceRow(0, NITRITE_SALT, nitrite?.let { formatGrams(it.gramsPerKg) }.orEmpty())
-    ) + others.mapIndexed { i, s -> SpiceRow(i + 1, s.name, formatGrams(s.gramsPerKg)) }
-}
-
-/** Ошибки по id строки. Полностью пустые строки пропускаются. */
-fun spiceErrors(rows: List<SpiceRow>): Map<Int, SpiceRowError> {
-    val counts = rows.map { it.name.trim().lowercase() }
-        .filter { it.isNotEmpty() }
-        .groupingBy { it }.eachCount()
-    val result = mutableMapOf<Int, SpiceRowError>()
-    rows.forEach { row ->
-        val name = row.name.trim()
-        val text = row.grams.trim()
-        if (name.isEmpty() && text.isEmpty()) return@forEach
-        val nameErr = when {
-            name.isEmpty() -> "Укажите название"
-            !row.fixed && (counts[name.lowercase()] ?: 0) > 1 -> "Уже есть в списке"
-            else -> null
+/** Подставляет «г/кг» после числа. Курсор в суффикс не заходит. */
+private class GramsSuffix(private val color: Color) : VisualTransformation {
+    override fun filter(text: AnnotatedString): TransformedText {
+        if (text.isEmpty()) return TransformedText(text, OffsetMapping.Identity)
+        val out = buildAnnotatedString {
+            append(text)
+            withStyle(SpanStyle(color = color)) { append(SUFFIX) }
         }
-        val g = parseSpiceGrams(text)
-        val gramsErr = when {
-            text.isEmpty() -> if (row.fixed) null else "Укажите граммы"
-            g == null || g <= 0.0 || g > MAX_SPICE_GRAMS_PER_KG -> "От 0 до 100"
-            else -> null
-        }
-        if (nameErr != null || gramsErr != null) result[row.id] = SpiceRowError(nameErr, gramsErr)
+        val len = text.length
+        return TransformedText(out, object : OffsetMapping {
+            override fun originalToTransformed(offset: Int) = offset
+            override fun transformedToOriginal(offset: Int) = offset.coerceAtMost(len)
+        })
     }
-    return result
 }
 
-/** Специи для сохранения. Вызывать, когда spiceErrors пуст. */
-fun spiceItems(rows: List<SpiceRow>): List<SpiceItem> = rows.mapNotNull { row ->
-    val g = parseSpiceGrams(row.grams) ?: return@mapNotNull null
-    val name = row.name.trim()
-    if (name.isEmpty()) null else SpiceItem(name, g)
+private fun cleanGrams(v: String): String {
+    val s = v.filter { it.isDigit() || it == ',' || it == '.' }.replace('.', ',')
+    val i = s.indexOf(',')
+    val r = if (i >= 0) s.substring(0, i + 1) + s.substring(i + 1).replace(",", "") else s
+    return r.take(6)
 }
 
-private val SUGGESTED = listOf(
-    "Чёрный перец", "Кориандр", "Мускатный орех", "Паприка",
-    "Чеснок", "Сахар", "Декстроза", "Коньяк",
-)
-
-private fun round1(v: Double) = round(v * 10.0) / 10.0
+private fun fmt(x: Double): String {
+    val r = Math.round(x * 100) / 100.0
+    return (if (r % 1.0 == 0.0) r.toLong().toString() else r.toString()).replace('.', ',')
+}
 
 @Composable
-fun SpiceEditor(
-    rows: List<SpiceRow>,
-    onRowsChange: (List<SpiceRow>) -> Unit,
-    errors: Map<Int, SpiceRowError>,
-    showErrors: Boolean,
-    batchWeightG: Double?,
+private fun GramsField(
+    value: String,
+    onValueChange: (String) -> Unit,
     enabled: Boolean,
-    legacyText: String = "",
+    error: Boolean,
+    modifier: Modifier = Modifier,
 ) {
     val p = LocalAppPalette.current
     val shape = RoundedCornerShape(12.dp)
-
-    fun update(id: Int, change: (SpiceRow) -> SpiceRow) =
-        onRowsChange(rows.map { if (it.id == id) change(it) else it })
-
-    fun nextId() = (rows.maxOfOrNull { it.id } ?: 0) + 1
-
-    val total = rows.sumOf { r ->
-        parseSpiceGrams(r.grams)?.takeIf { it > 0.0 && it <= MAX_SPICE_GRAMS_PER_KG } ?: 0.0
-    }
-    val available = SUGGESTED.filter { s -> rows.none { it.name.trim().equals(s, ignoreCase = true) } }
-
-    Column(Modifier.padding(bottom = 12.dp)) {
-        Text("Посол и специи", color = p.label, fontSize = 12.sp, fontWeight = FontWeight.Medium)
-        Text(
-            "Граммы на 1 кг сырья. Нитритная соль без граммов в паспорт не попадёт.",
-            color = p.muted, fontSize = 11.5.sp, lineHeight = 17.sp,
-            modifier = Modifier.padding(top = 2.dp, bottom = 10.dp),
-        )
-
-        rows.forEach { row ->
-            key(row.id) {
-                val err = if (showErrors) errors[row.id] else null
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.Top) {
-                    FcTextField(
-                        label = "Название",
-                        value = row.name,
-                        onValueChange = { v -> update(row.id) { r -> r.copy(name = v.take(60)) } },
-                        modifier = Modifier.weight(1f),
-                        placeholder = "Например, Чёрный перец",
-                        enabled = enabled && !row.fixed,
-                        error = err?.name,
-                    )
-                    FcTextField(
-                        label = "г на 1 кг",
-                        value = row.grams,
-                        onValueChange = { v -> update(row.id) { r -> r.copy(grams = v.take(7)) } },
-                        modifier = Modifier.width(110.dp),
-                        placeholder = "0",
-                        keyboardType = KeyboardType.Decimal,
-                        enabled = enabled,
-                        error = err?.grams,
-                    )
-                    if (!row.fixed) {
-                        Box(
-                            modifier = Modifier
-                                .padding(top = 22.dp)
-                                .size(46.dp)
-                                .clip(shape)
-                                .border(1.dp, p.divider, shape)
-                                .clickable(enabled = enabled, role = Role.Button) {
-                                    onRowsChange(rows.filter { it.id != row.id })
-                                },
-                            contentAlignment = Alignment.Center,
-                        ) {
-                            Icon(
-                                Icons.Outlined.Close,
-                                contentDescription = "Удалить специю",
-                                tint = p.ink,
-                                modifier = Modifier.size(18.dp),
-                            )
-                        }
-                    }
-                }
-                val g = parseSpiceGrams(row.grams)
-                if (g != null && g > 0.0 && g <= MAX_SPICE_GRAMS_PER_KG && batchWeightG != null) {
-                    Text(
-                        "≈ ${formatGrams(round1(g * batchWeightG / 1000.0))} г на партию",
-                        color = p.muted, fontSize = 11.sp,
-                        modifier = Modifier.padding(start = 2.dp, bottom = 10.dp),
-                    )
-                }
+    BasicTextField(
+        value = value,
+        onValueChange = { onValueChange(cleanGrams(it)) },
+        enabled = enabled,
+        singleLine = true,
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+        textStyle = TextStyle(color = p.ink, fontSize = 14.sp),
+        cursorBrush = SolidColor(p.accent),
+        visualTransformation = GramsSuffix(p.muted),
+        modifier = modifier
+            .alpha(if (enabled) 1f else 0.5f)
+            .heightIn(min = 46.dp)
+            .clip(shape)
+            .background(p.field)
+            .border(1.dp, if (error) p.danger else p.fieldLine, shape)
+            .padding(horizontal = 12.dp, vertical = 13.dp),
+        decorationBox = { inner ->
+            Box(contentAlignment = Alignment.CenterStart) {
+                if (value.isEmpty()) Text("г/кг", color = p.muted, fontSize = 14.sp)
+                inner()
             }
-        }
+        },
+    )
+}
 
+@Composable
+private fun SpicePicker(
+    value: String,
+    options: List<String>,
+    enabled: Boolean,
+    error: Boolean,
+    onSelect: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val p = LocalAppPalette.current
+    var open by remember { mutableStateOf(false) }
+    val shape = RoundedCornerShape(12.dp)
+    Box(modifier) {
         Row(
-            modifier = Modifier
+            Modifier
                 .fillMaxWidth()
+                .alpha(if (enabled) 1f else 0.5f)
                 .heightIn(min = 46.dp)
                 .clip(shape)
-                .border(1.dp, p.divider, shape)
-                .clickable(enabled = enabled, role = Role.Button) {
-                    onRowsChange(rows + SpiceRow(nextId(), "", ""))
-                }
-                .padding(horizontal = 12.dp),
-            horizontalArrangement = Arrangement.Center,
+                .background(p.field)
+                .border(1.dp, if (error) p.danger else p.fieldLine, shape)
+                .clickable(enabled = enabled, role = Role.DropdownList) { open = true }
+                .padding(horizontal = 12.dp, vertical = 13.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Icon(Icons.Outlined.Add, contentDescription = null, tint = p.ink, modifier = Modifier.size(18.dp))
-            Text("Добавить специю", color = p.ink, fontSize = 14.sp, modifier = Modifier.padding(start = 6.dp))
+            Text(
+                value.ifEmpty { "Выберите специю" },
+                color = if (value.isEmpty()) p.muted else p.ink,
+                fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
+            )
+            Icon(Icons.Outlined.KeyboardArrowDown, null, tint = p.muted, modifier = Modifier.size(18.dp))
         }
-
-        if (available.isNotEmpty()) {
-            Column(Modifier.padding(top = 12.dp)) {
-                FcSelect(
-                    label = "Быстрый выбор",
-                    value = "Выбрать из списка",
-                    options = available,
-                    onSelect = { name -> onRowsChange(rows + SpiceRow(nextId(), name, "")) },
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }, modifier = Modifier.background(p.field)) {
+            options.forEach { o ->
+                DropdownMenuItem(
+                    text = { Text(o, color = if (o == value) p.accent else p.ink) },
+                    onClick = { open = false; onSelect(o) },
                 )
             }
         }
+    }
+}
 
-        if (total > 0.0) {
-            val onBatch = batchWeightG?.let { " · на партию ${formatGrams(round1(total * it / 1000.0))} г" }.orEmpty()
+/**
+ * Блок «Посол и специи»: нитритная соль первой (не удаляется), затем специи только из списка.
+ * Хранит граммы на 1 кг сырья. startWeightGrams нужен только для подсказки пересчёта.
+ */
+@Composable
+fun SpiceEditor(
+    nitrite: String,
+    onNitrite: (String) -> Unit,
+    rows: List<SpiceRow>,
+    onRows: (List<SpiceRow>) -> Unit,
+    enabled: Boolean,
+    submitted: Boolean,
+    startWeightGrams: Double?,
+    legacy: String,
+) {
+    val p = LocalAppPalette.current
+    val shape = RoundedCornerShape(12.dp)
+    val taken = rows.map { it.name }
+    val free = SpiceCatalog.items.count { it !in taken }
+    val pending = rows.lastOrNull()?.name?.isBlank() == true
+    val canAdd = enabled && !pending && free > 0
+
+    fun ok(s: String) = SpiceCodec.parseGrams(s)?.takeIf { it > 0 && it <= SpiceCatalog.MAX_GRAMS_PER_KG } ?: 0.0
+    val total = ok(nitrite) + rows.sumOf { if (it.name.isNotBlank()) ok(it.grams) else 0.0 }
+    val kg = startWeightGrams?.takeIf { it > 0 }?.div(1000.0)
+
+    Column(Modifier.fillMaxWidth().padding(bottom = 12.dp)) {
+        Text("Посол и специи", color = p.label, fontSize = 12.sp, fontWeight = FontWeight.Medium,
+            modifier = Modifier.padding(bottom = 6.dp))
+        Text(
+            "Сначала укажите нитритную соль. Затем нажмите «Добавить специю», выберите её из списка и введите граммы на 1 кг сырья.",
+            color = p.muted, fontSize = 11.5.sp, lineHeight = 17.sp, modifier = Modifier.padding(bottom = 10.dp),
+        )
+        if (legacy.isNotBlank()) {
             Text(
-                "Итого: ${formatGrams(round1(total))} г на 1 кг$onBatch",
-                color = p.ink, fontSize = 12.sp, fontWeight = FontWeight.Medium,
+                "Прежняя запись: $legacy. После сохранения её заменит список ниже.",
+                color = p.muted, fontSize = 11.5.sp, lineHeight = 17.sp, modifier = Modifier.padding(bottom = 10.dp),
             )
         }
-        if (legacyText.isNotBlank()) {
+
+        val nErr = SpiceCodec.gramsError(nitrite)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                Modifier.weight(1f).heightIn(min = 46.dp).clip(shape).background(p.field)
+                    .border(1.dp, p.fieldLine, shape).padding(horizontal = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(SpiceCatalog.NITRITE, color = p.ink, fontSize = 14.sp, modifier = Modifier.weight(1f), maxLines = 1)
+                Text("по умолчанию", color = p.muted, fontSize = 10.sp, maxLines = 1)
+            }
+            GramsField(nitrite, onNitrite, enabled, submitted && nErr != null, Modifier.width(118.dp))
+            Spacer(Modifier.size(36.dp))
+        }
+        if (submitted && nErr != null) Text(nErr, color = p.danger, fontSize = 11.sp, modifier = Modifier.padding(top = 5.dp))
+
+        rows.forEachIndexed { i, r ->
+            val err = SpiceCodec.rowError(r)
+            val show = submitted && err != null
+            Spacer(Modifier.height(8.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                SpicePicker(
+                    value = r.name,
+                    options = SpiceCatalog.items.filter { it == r.name || it !in taken },
+                    enabled = enabled,
+                    error = show && r.name.isBlank(),
+                    onSelect = { n -> onRows(rows.toMutableList().also { it[i] = r.copy(name = n) }) },
+                    modifier = Modifier.weight(1f),
+                )
+                GramsField(
+                    r.grams,
+                    { g -> onRows(rows.toMutableList().also { it[i] = r.copy(grams = g) }) },
+                    enabled && r.name.isNotBlank(),
+                    show && r.name.isNotBlank(),
+                    Modifier.width(118.dp),
+                )
+                Box(
+                    Modifier.size(36.dp).clip(shape)
+                        .clickable(enabled = enabled, role = Role.Button) {
+                            onRows(rows.toMutableList().also { it.removeAt(i) })
+                        },
+                    contentAlignment = Alignment.Center,
+                ) { Icon(Icons.Outlined.Close, "Удалить", tint = p.muted, modifier = Modifier.size(18.dp)) }
+            }
+            if (show) Text(err!!, color = p.danger, fontSize = 11.sp, modifier = Modifier.padding(top = 5.dp))
+            else if (kg != null && r.grams.isNotBlank() && SpiceCodec.gramsError(r.grams) == null)
+                Text("${fmt(ok(r.grams) * kg)} г на ${fmt(kg)} кг сырья", color = p.muted, fontSize = 11.sp,
+                    modifier = Modifier.padding(top = 5.dp))
+        }
+
+        Spacer(Modifier.height(10.dp))
+        Box(
+            Modifier.fillMaxWidth().heightIn(min = 44.dp).clip(shape)
+                .background(p.secondary.copy(alpha = if (canAdd) 1f else 0.4f))
+                .border(1.dp, p.secondaryLine.copy(alpha = if (canAdd) 1f else 0.4f), shape)
+                .clickable(enabled = canAdd, role = Role.Button) { onRows(rows + SpiceRow("", "")) },
+            contentAlignment = Alignment.Center,
+        ) { Text("+ Добавить специю", color = p.onSecondary.copy(alpha = if (canAdd) 1f else 0.5f), fontSize = 14.sp, fontWeight = FontWeight.Medium) }
+        val step = when {
+            free == 0 -> "Все специи из списка уже добавлены"
+            pending -> "Выберите специю из списка"
+            else -> null
+        }
+        if (step != null) Text(step, color = p.muted, fontSize = 11.5.sp, modifier = Modifier.padding(top = 6.dp))
+        if (total > 0) {
             Text(
-                "Прежняя запись: «$legacyText». Она заменится списком, когда вы укажете граммы.",
-                color = p.muted, fontSize = 11.5.sp, lineHeight = 17.sp,
-                modifier = Modifier.padding(top = 8.dp),
+                "Всего на 1 кг сырья: ${fmt(total)} г" + if (kg != null) ". На ${fmt(kg)} кг сырья: ${fmt(total * kg)} г" else "",
+                color = p.ink, fontSize = 12.5.sp, modifier = Modifier.padding(top = 8.dp),
             )
         }
     }

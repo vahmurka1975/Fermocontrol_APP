@@ -1,6 +1,8 @@
 package ru.fermocontrol.fermocontrol.ui
 
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.runtime.remember
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Text
@@ -16,19 +18,16 @@ import androidx.compose.ui.unit.sp
 import ru.fermocontrol.fermocontrol.model.Batch
 import ru.fermocontrol.fermocontrol.model.Catalog
 import ru.fermocontrol.fermocontrol.model.NewBatchDraft
+import ru.fermocontrol.fermocontrol.model.SpiceCodec
 import ru.fermocontrol.fermocontrol.ui.components.CollapsibleSection
 import ru.fermocontrol.fermocontrol.ui.components.FcPrimaryButton
 import ru.fermocontrol.fermocontrol.ui.components.FcSelect
 import ru.fermocontrol.fermocontrol.ui.components.FcSheet
 import ru.fermocontrol.fermocontrol.ui.components.FieldPair
-import ru.fermocontrol.fermocontrol.ui.components.LabeledInput
-import ru.fermocontrol.fermocontrol.ui.theme.LocalAppPalette
-import ru.fermocontrol.fermocontrol.model.toSummary
 import ru.fermocontrol.fermocontrol.ui.components.SpiceEditor
 import ru.fermocontrol.fermocontrol.ui.components.SpiceRowsSaver
-import ru.fermocontrol.fermocontrol.ui.components.initialSpiceRows
-import ru.fermocontrol.fermocontrol.ui.components.spiceErrors
-import ru.fermocontrol.fermocontrol.ui.components.spiceItems
+import ru.fermocontrol.fermocontrol.ui.components.LabeledInput
+import ru.fermocontrol.fermocontrol.ui.theme.LocalAppPalette
 
 private const val CUSTOM_LABEL = "Свой продукт"
 private const val BASIS_PLACEHOLDER = "Выберите сырьё"
@@ -72,11 +71,9 @@ fun NewBatchDialog(
         mutableStateOf(initial?.category.orEmpty().ifBlank { Catalog.categories.first() })
     }
     var basis by rememberSaveable { mutableStateOf(initialBasis(initial)) }
-        var spiceRows by rememberSaveable(stateSaver = SpiceRowsSaver) {
-        mutableStateOf(initialSpiceRows(initial?.spiceItems.orEmpty()))
-    }
-    // Старый текстовый посол, если в партии ещё нет списка специй.
-    val legacySpices = if (initial != null && initial.spiceItems.isEmpty()) initial.spices else ""
+    val initialRecipe = remember { SpiceCodec.decode(initial?.spices.orEmpty()) }
+    var nitrite by rememberSaveable { mutableStateOf(initialRecipe.nitrite) }
+    var spiceRows by rememberSaveable(stateSaver = SpiceRowsSaver) { mutableStateOf(initialRecipe.rows) }
     var casing by rememberSaveable {
         mutableStateOf(initial?.casing.orEmpty().ifBlank { Catalog.casings.first() })
     }
@@ -96,9 +93,8 @@ fun NewBatchDialog(
     val basisErr = if (basis.isBlank()) BASIS_ERROR else null
     val tempErr = if (temp.isNotBlank() && (tempV == null || tempV < -30.0 || tempV > 80.0)) "От −30 до 80 °C" else null
     val humErr = if (humidity.isNotBlank() && (humV == null || humV < 0.0 || humV > 100.0)) "От 0 до 100 %" else null
-	val spiceErrs = spiceErrors(spiceRows)
-    val valid = listOf(nameErr, weightErr, targetErr, basisErr, tempErr, humErr).all { it == null } &&
-    spiceErrs.isEmpty()
+    val spicesOk = SpiceCodec.isValid(nitrite, spiceRows)
+    val valid = listOf(nameErr, weightErr, targetErr, basisErr, tempErr, humErr).all { it == null } && spicesOk
 
     val pickedItem = Catalog.byId(productTypeId)
     val pickOptions = listOf(CUSTOM_LABEL) + Catalog.items.map { it.name }
@@ -214,16 +210,17 @@ fun NewBatchDialog(
                     modifier = Modifier.padding(bottom = 10.dp),
                 )
             }
-            FcSelect("Оболочка", casing, Catalog.casings, { casing = it }, Modifier)
             SpiceEditor(
+                nitrite = nitrite,
+                onNitrite = { nitrite = it },
                 rows = spiceRows,
-                onRowsChange = { spiceRows = it },
-                errors = spiceErrs,
-                showErrors = submitted,
-                batchWeightG = weightV?.takeIf { it > 0.0 },
+                onRows = { spiceRows = it },
                 enabled = !saving,
-                legacyText = legacySpices,
+                submitted = submitted,
+                startWeightGrams = weightV,
+                legacy = initialRecipe.legacy,
             )
+            FcSelect("Оболочка", casing, Catalog.casings, { casing = it }, Modifier.fillMaxWidth())
             FieldPair(
                 first = { m ->
                     LabeledInput(
@@ -279,14 +276,16 @@ fun NewBatchDialog(
                 modifier = Modifier.padding(bottom = 10.dp),
             )
         }
-        if (submitted && spiceErrs.isNotEmpty()) {
+
+        if (submitted && !spicesOk) {
             Text(
-                "Проверьте специи в разделе «Паспорт партии и климат»",
+                "Проверьте нитритную соль и специи в разделе «Паспорт партии и климат»",
                 color = p.danger,
                 fontSize = 12.sp,
                 modifier = Modifier.padding(bottom = 10.dp),
             )
         }
+
         FcPrimaryButton(
             text = when {
                 saving -> "Сохранение…"
@@ -304,10 +303,7 @@ fun NewBatchDialog(
                         targetLossPercent = targetV,
                         category = category,
                         rawMaterial = basis,
-                        spices = spiceItems(spiceRows).let { items ->
-                            if (items.isEmpty()) legacySpices else items.toSummary()
-                        },
-                        spiceItems = spiceItems(spiceRows),
+                        spices = SpiceCodec.encode(nitrite, spiceRows),
                         casing = casing,
                         productTypeId = productTypeId.ifEmpty { null },
                         temperatureC = tempV,
