@@ -104,6 +104,7 @@ class MainActivity : ComponentActivity() {
 
                         else -> MainScreen(
                             batches = journal.batches,
+                            photoFile = journal.photos::file,
                             onSelect = journal::openDetail,
                             onWeigh = journal::openWeigh,
                             onAdd = journal::openNewBatch,
@@ -477,6 +478,7 @@ class JournalViewModel(application: Application) :
                     category = draft.category,
                     rawMaterial = draft.rawMaterial,
                     spices = draft.spices,
+                    spiceItems = draft.spiceItems,					
                     casing = draft.casing,
                     productTypeId = draft.productTypeId,
                     startWeightGrams = draft.startWeightGrams,
@@ -713,6 +715,7 @@ class JournalViewModel(application: Application) :
             category = draft.category,
             rawMaterial = draft.rawMaterial,
             spices = draft.spices,
+            spiceItems = draft.spiceItems,			
             casing = draft.casing,
             productTypeId = draft.productTypeId,
             startWeightGrams = startWeight,

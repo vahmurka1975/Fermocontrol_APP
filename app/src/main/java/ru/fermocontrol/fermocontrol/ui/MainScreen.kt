@@ -52,6 +52,8 @@ import ru.fermocontrol.fermocontrol.ui.theme.WarnBgSoft
 import ru.fermocontrol.fermocontrol.ui.theme.WarnInk
 import ru.fermocontrol.fermocontrol.ui.theme.WarnLine
 import ru.fermocontrol.fermocontrol.ui.theme.WarnTint
+import java.io.File
+import kotlinx.coroutines.delay
 
 private enum class MainTab(val label: String) {
     PRODUCTS("Продукты"),
@@ -70,6 +72,7 @@ private enum class BatchSort(val label: String) {
 @Composable
 fun MainScreen(
     batches: List<Batch>,
+	photoFile: ((String) -> File)? = null,
     onSelect: (Batch) -> Unit = {},
     onWeigh: (Batch) -> Unit = {},
     onAdd: () -> Unit = {},
@@ -350,13 +353,14 @@ fun MainScreen(
                     }
                 } else {
                     items(filtered, key = { it.first.id }) { row ->
-                        BatchCard(
-                            batch = row.first,
-                            onClick = { focus.clearFocus(); onSelect(row.first) },
-                            onWeigh = { focus.clearFocus(); onWeigh(row.first) },
-                            nowEpochMs = now,
-                        )
-                    }
+    BatchCard(
+        batch = row.first,
+        onClick = { focus.clearFocus(); onSelect(row.first) },
+        onWeigh = { focus.clearFocus(); onWeigh(row.first) },
+        nowEpochMs = now,
+        photoFile = photoFile,
+    )
+}
                     item(key = "footnote") {
                         Text(
                             "Нажмите на продукт, чтобы открыть подробности",

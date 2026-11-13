@@ -23,6 +23,12 @@ import ru.fermocontrol.fermocontrol.ui.components.FcSheet
 import ru.fermocontrol.fermocontrol.ui.components.FieldPair
 import ru.fermocontrol.fermocontrol.ui.components.LabeledInput
 import ru.fermocontrol.fermocontrol.ui.theme.LocalAppPalette
+import ru.fermocontrol.fermocontrol.model.toSummary
+import ru.fermocontrol.fermocontrol.ui.components.SpiceEditor
+import ru.fermocontrol.fermocontrol.ui.components.SpiceRowsSaver
+import ru.fermocontrol.fermocontrol.ui.components.initialSpiceRows
+import ru.fermocontrol.fermocontrol.ui.components.spiceErrors
+import ru.fermocontrol.fermocontrol.ui.components.spiceItems
 
 private const val CUSTOM_LABEL = "Свой продукт"
 private const val BASIS_PLACEHOLDER = "Выберите сырьё"
@@ -66,7 +72,11 @@ fun NewBatchDialog(
         mutableStateOf(initial?.category.orEmpty().ifBlank { Catalog.categories.first() })
     }
     var basis by rememberSaveable { mutableStateOf(initialBasis(initial)) }
-    var spices by rememberSaveable { mutableStateOf(initial?.spices.orEmpty()) }
+        var spiceRows by rememberSaveable(stateSaver = SpiceRowsSaver) {
+        mutableStateOf(initialSpiceRows(initial?.spiceItems.orEmpty()))
+    }
+    // Старый текстовый посол, если в партии ещё нет списка специй.
+    val legacySpices = if (initial != null && initial.spiceItems.isEmpty()) initial.spices else ""
     var casing by rememberSaveable {
         mutableStateOf(initial?.casing.orEmpty().ifBlank { Catalog.casings.first() })
     }
@@ -86,7 +96,9 @@ fun NewBatchDialog(
     val basisErr = if (basis.isBlank()) BASIS_ERROR else null
     val tempErr = if (temp.isNotBlank() && (tempV == null || tempV < -30.0 || tempV > 80.0)) "От −30 до 80 °C" else null
     val humErr = if (humidity.isNotBlank() && (humV == null || humV < 0.0 || humV > 100.0)) "От 0 до 100 %" else null
-    val valid = listOf(nameErr, weightErr, targetErr, basisErr, tempErr, humErr).all { it == null }
+	val spiceErrs = spiceErrors(spiceRows)
+    val valid = listOf(nameErr, weightErr, targetErr, basisErr, tempErr, humErr).all { it == null } &&
+    spiceErrs.isEmpty()
 
     val pickedItem = Catalog.byId(productTypeId)
     val pickOptions = listOf(CUSTOM_LABEL) + Catalog.items.map { it.name }
@@ -202,18 +214,15 @@ fun NewBatchDialog(
                     modifier = Modifier.padding(bottom = 10.dp),
                 )
             }
-            FieldPair(
-                first = { m ->
-                    LabeledInput(
-                        label = "Посол и специи",
-                        value = spices,
-                        onValueChange = { spices = it.take(300) },
-                        modifier = m,
-                        placeholder = "По вашему рецепту",
-                        enabled = !saving,
-                    )
-                },
-                second = { m -> FcSelect("Оболочка", casing, Catalog.casings, { casing = it }, m) },
+            FcSelect("Оболочка", casing, Catalog.casings, { casing = it }, Modifier)
+            SpiceEditor(
+                rows = spiceRows,
+                onRowsChange = { spiceRows = it },
+                errors = spiceErrs,
+                showErrors = submitted,
+                batchWeightG = weightV?.takeIf { it > 0.0 },
+                enabled = !saving,
+                legacyText = legacySpices,
             )
             FieldPair(
                 first = { m ->
@@ -270,7 +279,14 @@ fun NewBatchDialog(
                 modifier = Modifier.padding(bottom = 10.dp),
             )
         }
-
+        if (submitted && spiceErrs.isNotEmpty()) {
+            Text(
+                "Проверьте специи в разделе «Паспорт партии и климат»",
+                color = p.danger,
+                fontSize = 12.sp,
+                modifier = Modifier.padding(bottom = 10.dp),
+            )
+        }
         FcPrimaryButton(
             text = when {
                 saving -> "Сохранение…"
@@ -288,7 +304,10 @@ fun NewBatchDialog(
                         targetLossPercent = targetV,
                         category = category,
                         rawMaterial = basis,
-                        spices = spices.trim(),
+                        spices = spiceItems(spiceRows).let { items ->
+                            if (items.isEmpty()) legacySpices else items.toSummary()
+                        },
+                        spiceItems = spiceItems(spiceRows),
                         casing = casing,
                         productTypeId = productTypeId.ifEmpty { null },
                         temperatureC = tempV,

@@ -10,6 +10,7 @@ data class Batch(
     val category: String = "",
     val rawMaterial: String = "",
     val spices: String = "",
+    val spiceItems: List<SpiceItem> = emptyList(),
     val casing: String = "",
 	val productTypeId: String? = null,
     val startWeightGrams: Double,

@@ -4,6 +4,8 @@ import org.json.JSONArray
 import org.json.JSONObject
 import ru.fermocontrol.fermocontrol.model.Batch
 import ru.fermocontrol.fermocontrol.model.WeightLog
+import ru.fermocontrol.fermocontrol.model.MAX_SPICE_GRAMS_PER_KG
+import ru.fermocontrol.fermocontrol.model.SpiceItem
 
 object JournalCodec {
 
@@ -60,6 +62,16 @@ object JournalCodec {
             put("category", batch.category)
             put("rawMaterial", batch.rawMaterial)
             put("spices", batch.spices)
+			            if (batch.spiceItems.isNotEmpty()) {
+                val items = JSONArray()
+                batch.spiceItems.forEach {
+                    items.put(JSONObject().apply {
+                        put("name", it.name)
+                        put("gramsPerKg", it.gramsPerKg)
+                    })
+                }
+                put("spiceItems", items)
+            }
             put("casing", batch.casing)
             put("startWeightGrams", batch.startWeightGrams)
             put("targetLossPercent", batch.targetLossPercent)
@@ -98,6 +110,7 @@ object JournalCodec {
             category = obj.textOrEmpty("category"),
             rawMaterial = obj.textOrEmpty("rawMaterial"),
             spices = obj.textOrEmpty("spices"),
+			spiceItems = decodeSpiceItems(obj),
             casing = obj.textOrEmpty("casing"),
 			productTypeId = obj.nullableText("productTypeId") ?: obj.nullableText("catalogId"),
             startWeightGrams = obj.getDouble("startWeightGrams"),
@@ -131,7 +144,17 @@ object JournalCodec {
             },
             photoFileName = obj.nullableText("photoFileName"),
         )
-
+    private fun decodeSpiceItems(obj: JSONObject): List<SpiceItem> {
+        if (obj.isNull("spiceItems")) return emptyList()
+        val array = obj.getJSONArray("spiceItems")
+        return List(array.length()) { index ->
+            val item = array.getJSONObject(index)
+            SpiceItem(
+                name = item.getString("name"),
+                gramsPerKg = item.getDouble("gramsPerKg"),
+            )
+        }
+    }
     private fun JSONObject.textOrEmpty(key: String): String =
         if (isNull(key)) "" else getString(key)
 
@@ -179,7 +202,23 @@ object JournalCodec {
                     "Влажность должна быть от 0 до 100"
                 }
             }
-            require(batch.logs.all {
+            require(
+                batch.spiceItems.all {
+                    it.name.isNotBlank() &&
+                        it.gramsPerKg.isFinite() &&
+                        it.gramsPerKg > 0.0 &&
+                        it.gramsPerKg <= MAX_SPICE_GRAMS_PER_KG
+                }
+            ) {
+                "Некорректные специи партии №${batch.number}"
+            }
+            require(
+                batch.spiceItems.map { it.name.trim().lowercase() }.toSet().size ==
+                    batch.spiceItems.size
+            ) {
+                "В партии №${batch.number} повторяются специи"
+            }
+			require(batch.logs.all {
                 it.atEpochMs > 0L &&
                     it.weightGrams.isFinite() &&
                     it.weightGrams > 0.0
