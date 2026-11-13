@@ -14,13 +14,13 @@ val keystoreProperties = Properties().apply {
 }
 
 android {
-    namespace = "ru.fermocontrol.fermocontrol"
+    namespace = "ru.fermocontrol"
     compileSdk {
         version = release(37)
     }
 
     defaultConfig {
-        applicationId = "ru.fermocontrol.fermocontrol"
+        applicationId = "ru.fermocontrol"
         minSdk = 26
         targetSdk = 37
         versionCode = 1
@@ -73,6 +73,7 @@ dependencies {
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation("androidx.compose.material:material-icons-core")
     implementation("androidx.compose.material:material-icons-extended")
+	implementation("androidx.documentfile:documentfile:1.0.1")
     testImplementation(libs.junit)
 	testImplementation("org.json:json:20240303")
     androidTestImplementation(platform(libs.androidx.compose.bom))
