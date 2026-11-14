@@ -21,6 +21,11 @@ data class Batch(
     val photoFileName: String? = null,
     val createdAtEpochMs: Long,
     val archived: Boolean = false,
+    val outcome: BatchOutcome? = null,
+    val closedAtEpochMs: Long? = null,
+    val finalWeightGrams: Double? = null,
+    val spoilReason: String? = null,
+    val closeComment: String = "",
     val logs: List<WeightLog> = emptyList(),
 )
 
@@ -34,4 +39,15 @@ data class WeightLog(
     val surfaceNote: String = "",
     val needsCheck: Boolean = false,
     val photoFileName: String? = null,
+)
+
+/** Итог закрытия партии. null у партии, которая в работе. */
+enum class BatchOutcome { READY, SPOILED }
+
+val SPOIL_REASONS = listOf(
+    "Плесень",
+    "Порча или запах",
+    "Пересушена, корка",
+    "Нарушена температура",
+    "Другое",
 )

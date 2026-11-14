@@ -42,6 +42,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
 import ru.fermocontrol.model.Batch
+import ru.fermocontrol.model.BatchOutcome
 import ru.fermocontrol.model.BatchStatus
 import ru.fermocontrol.model.computeStatus
 import ru.fermocontrol.ui.components.BatchCard
@@ -58,7 +59,8 @@ import kotlinx.coroutines.delay
 private enum class MainTab(val label: String) {
     PRODUCTS("Продукты"),
     WEIGH("Взвесить"),
-    ARCHIVE("Архив"),
+    READY("Готовые"),
+    SPOILED("Испорченные"),
 }
 
 private enum class BatchSort(val label: String) {
@@ -97,18 +99,20 @@ fun MainScreen(
 
     val rows = remember(batches, now) { batches.map { it to computeStatus(it, now) } }
     val activeCount = rows.count { !it.first.archived }
-    val dueCount = rows.count { it.second.isDueWeigh }
-    val archiveCount = rows.count { it.first.archived }
-    val attentionCount = rows.count { it.second.needsAttention }
+    val dueCount = rows.count { it.first.outcome == null && it.second.isDueWeigh }
+    val readyCount = rows.count { it.first.outcome == BatchOutcome.READY }
+    val spoiledCount = rows.count { it.first.outcome == BatchOutcome.SPOILED }
+    val attentionCount = rows.count { it.first.outcome == null && it.second.needsAttention }
     val q = query.trim()
 
     val filtered = remember(rows, tab, attentionOnly, q, sort) {
         val matching = rows.filter { (b, s) ->
             val inTab = when {
-                attentionOnly -> s.needsAttention
+                attentionOnly -> b.outcome == null && s.needsAttention
                 tab == MainTab.PRODUCTS -> !b.archived
-                tab == MainTab.WEIGH -> s.isDueWeigh
-                else -> b.archived
+                tab == MainTab.WEIGH -> b.outcome == null && s.isDueWeigh
+                tab == MainTab.READY -> b.outcome == BatchOutcome.READY
+                else -> b.outcome == BatchOutcome.SPOILED
             }
             inTab && (
                 q.isEmpty() ||
@@ -134,7 +138,8 @@ fun MainScreen(
         attentionOnly -> "Требуют внимания"
         tab == MainTab.PRODUCTS -> "Активные продукты"
         tab == MainTab.WEIGH -> "Пора взвесить"
-        else -> "Архив"
+        tab == MainTab.READY -> "Готовые партии"
+        else -> "Испорченные партии"
     }
 
     BoxWithConstraints(
@@ -268,31 +273,33 @@ fun MainScreen(
                         val count = when (t) {
                             MainTab.PRODUCTS -> activeCount
                             MainTab.WEIGH -> dueCount
-                            MainTab.ARCHIVE -> archiveCount
+                            MainTab.READY -> readyCount
+                            MainTab.SPOILED -> spoiledCount
                         }
                         val s = RoundedCornerShape(10.dp)
-                        Row(
+                        Column(
                             modifier = Modifier
                                 .weight(1f)
-                                .heightIn(min = 44.dp)
+                                .heightIn(min = 48.dp)
                                 .clip(s)
                                 .background(if (selected) p.selected else Color.Transparent)
                                 .clickable(role = Role.Tab) {
                                     focus.clearFocus()
                                     attentionOnly = false
                                     tab = t
-                                },
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.Center,
+                                }
+                                .padding(vertical = 4.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center,
                         ) {
                             Text(
                                 t.label,
                                 color = if (selected) p.ink else p.muted,
-                                fontSize = 12.sp,
+                                fontSize = 11.sp,
                                 fontWeight = FontWeight.Medium,
                                 maxLines = 1,
                             )
-                            Spacer(Modifier.width(7.dp))
+                            Spacer(Modifier.height(3.dp))
                             Text(
                                 count.toString(),
                                 color = if (selected) p.onSecondary else p.soft,
@@ -337,14 +344,16 @@ fun MainScreen(
                                 q.isNotEmpty() -> "Ничего не найдено"
                                 attentionOnly -> "Нет продуктов, требующих внимания"
                                 tab == MainTab.WEIGH -> "Взвешивать пока нечего"
-                                tab == MainTab.ARCHIVE -> "Архив пуст"
+                                tab == MainTab.READY -> "Готовых партий нет"
+                                tab == MainTab.SPOILED -> "Испорченных партий нет"
                                 else -> "Пока нет продуктов"
                             },
                             text = when {
                                 q.isNotEmpty() -> "Измените поисковый запрос."
                                 attentionOnly -> "Все партии в порядке."
                                 tab == MainTab.WEIGH -> "Здесь появятся партии, у которых подошёл срок замера."
-                                tab == MainTab.ARCHIVE -> "Завершённые партии появятся здесь."
+                                tab == MainTab.READY -> "Здесь появятся партии, закрытые как готовые."
+                                tab == MainTab.SPOILED -> "Здесь появятся партии, закрытые как испорченные."
                                 else -> "Добавьте первый продукт, чтобы начать журнал."
                             },
                             showAdd = q.isEmpty() && !attentionOnly && tab == MainTab.PRODUCTS,

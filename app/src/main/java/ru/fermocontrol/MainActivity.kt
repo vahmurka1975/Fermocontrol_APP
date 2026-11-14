@@ -49,6 +49,7 @@ import ru.fermocontrol.data.BatchRepository
 import ru.fermocontrol.data.PhotoStore
 import ru.fermocontrol.data.SettingsStore
 import ru.fermocontrol.model.Batch
+import ru.fermocontrol.model.BatchOutcome
 import ru.fermocontrol.model.NewBatchDraft
 import ru.fermocontrol.model.WeightLog
 import ru.fermocontrol.ui.BatchDetailSheet
@@ -126,7 +127,9 @@ class MainActivity : ComponentActivity() {
                                 photoFile = journal.photos::file,
                                 onDismiss = journal::closeDetail,
                                 onWeigh = { journal.openWeigh(detailBatch) },
-                                onSetArchived = { archived -> journal.setArchived(archived) },
+                                onFinish = journal::closeBatch,
+                                onReopen = journal::reopenBatch,
+                                onSaveNote = journal::saveNote,
                                 onEdit = journal::openEdit,
 								onCoverPicked = journal::changeCover,
                                 newCameraUri = journal.photos::newCameraUri,
@@ -781,6 +784,87 @@ class JournalViewModel(application: Application) :
             }
         }
     }
+    // ───────────── Завершение партии ─────────────
+
+    /** Закрывает партию или меняет уже сохранённый итог. */
+    fun closeBatch(
+        outcome: BatchOutcome,
+        closedAtMs: Long,
+        finalWeightGrams: Double?,
+        reason: String?,
+        comment: String,
+    ) {
+        if (loading || saving || loadError != null) return
+
+        val batch = detailBatch ?: return
+
+        val error = when {
+            closedAtMs <= 0L -> "Некорректная дата закрытия."
+            outcome == BatchOutcome.READY &&
+                (finalWeightGrams == null || !finalWeightGrams.isFinite() || finalWeightGrams <= 0.0) ->
+                "Введите конечный вес больше нуля."
+            outcome == BatchOutcome.SPOILED && reason.isNullOrBlank() ->
+                "Выберите причину."
+            else -> null
+        }
+        if (error != null) {
+            actionError = error
+            return
+        }
+
+        val closed = batch.copy(
+            archived = true,
+            outcome = outcome,
+            closedAtEpochMs = closedAtMs,
+            finalWeightGrams = if (outcome == BatchOutcome.READY) finalWeightGrams else null,
+            spoilReason = if (outcome == BatchOutcome.SPOILED) reason?.trim() else null,
+            closeComment = comment.trim(),
+        )
+
+        commit(
+            updated = batches.map { if (it.id == batch.id) closed else it },
+            failText = "Не удалось сохранить итог",
+            setError = { actionError = it },
+        )
+    }
+
+    fun reopenBatch() {
+        if (loading || saving || loadError != null) return
+
+        val batch = detailBatch ?: return
+        if (batch.outcome == null && !batch.archived) return
+
+        val reopened = batch.copy(
+            archived = false,
+            outcome = null,
+            closedAtEpochMs = null,
+            finalWeightGrams = null,
+            spoilReason = null,
+            closeComment = "",
+        )
+
+        commit(
+            updated = batches.map { if (it.id == batch.id) reopened else it },
+            failText = "Не удалось вернуть партию в работу",
+            setError = { actionError = it },
+        )
+    }
+
+    /** Заметка по технологии редактируется и в закрытой партии. */
+    fun saveNote(note: String) {
+        if (loading || saving || loadError != null) return
+
+        val batch = detailBatch ?: return
+        val text = note.trim()
+        if (text == batch.note) return
+
+        commit(
+            updated = batches.map { if (it.id == batch.id) it.copy(note = text) else it },
+            failText = "Не удалось сохранить заметку",
+            setError = { actionError = it },
+        )
+    }
+
     // ───────────── Удаление ─────────────
 
     fun deleteLog(log: WeightLog) {

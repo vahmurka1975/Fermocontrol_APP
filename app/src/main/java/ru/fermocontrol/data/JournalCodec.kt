@@ -3,6 +3,7 @@ package ru.fermocontrol.data
 import org.json.JSONArray
 import org.json.JSONObject
 import ru.fermocontrol.model.Batch
+import ru.fermocontrol.model.BatchOutcome
 import ru.fermocontrol.model.WeightLog
 import ru.fermocontrol.model.MAX_SPICE_GRAMS_PER_KG
 import ru.fermocontrol.model.SpiceItem
@@ -44,7 +45,7 @@ object JournalCodec {
         // а не повод вернуть пустой журнал.
         val array = root.getJSONArray("batches")
         val batches = List(array.length()) { index ->
-            decodeBatch(array.getJSONObject(index))
+            decodeBatch(array.getJSONObject(index)).normalizeClosing()
         }
 
         validate(batches)
@@ -77,6 +78,11 @@ object JournalCodec {
             put("targetLossPercent", batch.targetLossPercent)
             put("createdAtEpochMs", batch.createdAtEpochMs)
             put("archived", batch.archived)
+            batch.outcome?.let { put("outcome", it.name) }
+            batch.closedAtEpochMs?.let { put("closedAtEpochMs", it) }
+            batch.finalWeightGrams?.let { put("finalWeightGrams", it) }
+            batch.spoilReason?.let { put("spoilReason", it) }
+            if (batch.closeComment.isNotBlank()) put("closeComment", batch.closeComment)
             put("note", batch.note)
             batch.temperatureC?.let { put("temperatureC", it) }
             batch.humidityPercent?.let { put("humidityPercent", it) }
@@ -120,6 +126,13 @@ object JournalCodec {
             note = obj.textOrEmpty("note"),
             photoFileName = obj.nullableText("photoFileName"),
             createdAtEpochMs = obj.getLong("createdAtEpochMs"),
+            outcome = obj.nullableText("outcome")?.let { name ->
+                BatchOutcome.entries.firstOrNull { it.name == name }
+            },
+            closedAtEpochMs = obj.nullableLong("closedAtEpochMs"),
+            finalWeightGrams = obj.nullableDouble("finalWeightGrams"),
+            spoilReason = obj.nullableText("spoilReason"),
+            closeComment = obj.textOrEmpty("closeComment"),
             archived = if (obj.isNull("archived")) {
                 false
             } else {
@@ -161,6 +174,21 @@ object JournalCodec {
     private fun JSONObject.nullableText(key: String): String? =
         if (isNull(key)) null else getString(key)
 
+    private fun JSONObject.nullableLong(key: String): Long? =
+        if (isNull(key)) null else getLong(key)
+
+    /** Старая архивная партия без итога считается готовой. Закрытая партия всегда archived. */
+    private fun Batch.normalizeClosing(): Batch {
+        if (outcome != null) return if (archived) this else copy(archived = true)
+        if (!archived) return this
+        val last = logs.maxByOrNull { it.atEpochMs }
+        return copy(
+            outcome = BatchOutcome.READY,
+            closedAtEpochMs = last?.atEpochMs ?: createdAtEpochMs,
+            finalWeightGrams = last?.weightGrams ?: startWeightGrams,
+        )
+    }
+
     private fun JSONObject.nullableDouble(key: String): Double? =
         if (isNull(key)) null else getDouble(key)
 
@@ -170,6 +198,20 @@ object JournalCodec {
         }
 
         batches.forEach { batch ->
+            require((batch.outcome == null) == (batch.closedAtEpochMs == null)) {
+                "Некорректное закрытие партии №${batch.number}"
+            }
+            require(
+                batch.outcome != BatchOutcome.READY ||
+                    batch.finalWeightGrams?.let { it.isFinite() && it > 0.0 } == true
+            ) {
+                "У готовой партии №${batch.number} не указан конечный вес"
+            }
+            require(
+                batch.outcome != BatchOutcome.SPOILED || !batch.spoilReason.isNullOrBlank()
+            ) {
+                "У испорченной партии №${batch.number} не указана причина"
+            }
             require(batch.id > 0L && batch.number > 0) {
                 "Некорректный идентификатор или номер партии"
             }

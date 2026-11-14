@@ -58,19 +58,19 @@ val GraphitePalette = AppPalette(
 )
 
 val HoneyPalette = AppPalette(
-    id = "honey", title = "Мёд",
-    background = Color(0xFF241C13), sheet = Color(0xFF2E241A),
-    card = Color(0xFF3B2E20), cardEnd = Color(0xFF33281B),
-    cardLine = Color(0xFF62503A), divider = Color(0xFF5A4934),
-    chip = Color(0xFF4D3C28), chipLine = Color(0xFF7A6244), chipIcon = Color(0xFFF0D8A8),
-    field = Color(0xFF2A2118), fieldLine = Color(0xFF86704A),
-    selected = Color(0xFF4A3A25), selectedLine = Color(0xFFC09A62),
-    ink = Color(0xFFFFF6E6), strong = Color(0xFFF5E9D3), soft = Color(0xFFDCCDB2),
-    label = Color(0xFFEADBBF), action = Color(0xFFE2D2B4),
-    body = Color(0xFFCDBDA2), muted = Color(0xFFB5A58A), kicker = Color(0xFFBBAB90),
-    accent = Color(0xFFF2C879), accentLine = Color(0xFFFFDDA0), onAccent = Color(0xFF2A1A06),
-    secondary = Color(0xFF5E4A2C), secondaryLine = Color(0xFF8A7048), onSecondary = Color(0xFFFFEFD0),
-    danger = Color(0xFFE9A092),
+    id = "honey", title = "Терракота",
+    background = Color(0xFF241E18), sheet = Color(0xFF2A231C),
+    card = Color(0xFF2F2720), cardEnd = Color(0xFF2A231C),
+    cardLine = Color(0xFF3A3027), divider = Color(0xFF3A3027),
+    chip = Color(0xFF3A3027), chipLine = Color(0xFF4A3D31), chipIcon = Color(0xFFE08A5F),
+    field = Color(0xFF1C1712), fieldLine = Color(0xFF4A3D31),
+    selected = Color(0xFF3A2A20), selectedLine = Color(0xFFC0562B),
+    ink = Color(0xFFF0E8DC), strong = Color(0xFFF0E8DC), soft = Color(0xFFCBBFAE),
+    label = Color(0xFFA99B88), action = Color(0xFFE08A5F),
+    body = Color(0xFFCBBFAE), muted = Color(0xFFA99B88), kicker = Color(0xFFA99B88),
+    accent = Color(0xFFC0562B), accentLine = Color(0xFFE08A5F), onAccent = Color(0xFFFFFFFF),
+    secondary = Color(0xFF3A3027), secondaryLine = Color(0xFF4A3D31), onSecondary = Color(0xFFF0E8DC),
+    danger = Color(0xFFF09A94),
 )
 
 val AppPalettes = listOf(GraphitePalette, ForestPalette, HoneyPalette)

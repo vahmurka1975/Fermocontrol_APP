@@ -106,6 +106,20 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDialog
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.SelectableDates
+import androidx.compose.material3.rememberDatePickerState
+import androidx.compose.ui.text.input.KeyboardType
+import ru.fermocontrol.model.BatchOutcome
+import ru.fermocontrol.model.SPOIL_REASONS
+import java.util.Calendar
+import java.util.TimeZone
 
 
 private val RU: Locale = Locale.forLanguageTag("ru-RU")
@@ -120,7 +134,9 @@ fun BatchDetailSheet(
     photoFile: (String) -> File,
     onDismiss: () -> Unit,
     onWeigh: () -> Unit,
-    onSetArchived: (Boolean) -> Unit,
+    onFinish: (BatchOutcome, Long, Double?, String?, String) -> Unit,
+    onReopen: () -> Unit,
+    onSaveNote: (String) -> Unit,
     onEdit: () -> Unit,
 	onCoverPicked: (Uri?) -> Unit,
     newCameraUri: () -> Uri,
@@ -129,7 +145,9 @@ fun BatchDetailSheet(
 ) {
     val p = LocalAppPalette.current
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    var confirmArchive by remember { mutableStateOf(false) }
+    var finishMode by remember { mutableStateOf<FinishMode?>(null) }
+    var confirmReopen by remember { mutableStateOf(false) }
+    var noteOpen by remember { mutableStateOf(false) }
     var viewerPhoto by remember { mutableStateOf<PhotoRef?>(null) }
     var logToDelete by remember { mutableStateOf<WeightLog?>(null) }
     var confirmDeleteBatch by remember { mutableStateOf(false) }
@@ -156,6 +174,11 @@ fun BatchDetailSheet(
             ) {
                 DetailHeader(batch, onClose = { if (!saving) onDismiss() })
                 DetailIntro(batch, metrics, attention)
+                batch.outcome?.let {
+                    ClosedResult(batch, enabled = !saving) {
+                        finishMode = FinishMode(it, true)
+                    }
+                }
                 MetricsGrid(batch, metrics)
                 ProgressLine(metrics.progress, attention)
 
@@ -168,7 +191,7 @@ fun BatchDetailSheet(
                     modifier = Modifier.padding(top = 12.dp),
                 ) {
                     OutlinedButton(
-                        onClick = onEdit,
+                        onClick = { if (batch.outcome == null) { onEdit() } else { noteOpen = true } },
                         enabled = !saving,
                         shape = RoundedCornerShape(12.dp),
                         border = BorderStroke(1.dp, p.secondaryLine),
@@ -177,7 +200,7 @@ fun BatchDetailSheet(
                             contentColor = p.onSecondary,
                         ),
                         modifier = Modifier.weight(1f).heightIn(min = 44.dp),
-                    ) { Text("Редактировать", maxLines = 1) }
+                    ) { Text(if (batch.outcome == null) "Редактировать" else "Заметка", maxLines = 1) }
                     OutlinedButton(
                         onClick = { coverOpen = true },
                         enabled = !saving,
@@ -195,7 +218,7 @@ fun BatchDetailSheet(
                 PhotoSection(batch, logsAsc, photoFile) { viewerPhoto = it }
 
                 SectionTitle("История взвешиваний", "${logsAsc.size} зап.")
-                WeighHistory(batch, logsAsc, !saving, { logToDelete = it }) { viewerPhoto = it }
+                WeighHistory(batch, logsAsc, !saving && batch.outcome == null, { logToDelete = it }) { viewerPhoto = it }
 
                 Text(
                     text = "Отметка «Требует проверки» — запись в журнале, " +
@@ -240,7 +263,13 @@ fun BatchDetailSheet(
                         ) { Text("Взвесить", fontWeight = FontWeight.SemiBold) }
                     }
                     OutlinedButton(
-                        onClick = { confirmArchive = true },
+                        onClick = {
+                            if (batch.outcome == null) {
+                                finishMode = FinishMode(BatchOutcome.READY, false)
+                            } else {
+                                confirmReopen = true
+                            }
+                        },
                         enabled = !saving,
                         shape = RoundedCornerShape(12.dp),
                         border = BorderStroke(1.dp, p.secondaryLine),
@@ -254,7 +283,7 @@ fun BatchDetailSheet(
                             .heightIn(min = 47.dp),
                     ) {
                         Text(
-                            if (batch.archived) "Вернуть из архива" else "В архив",
+                            if (batch.archived) "Вернуть в работу" else "Завершить",
                             fontSize = if (batch.archived) 13.sp else 14.sp,
                             maxLines = 1,
                         )
@@ -272,34 +301,51 @@ fun BatchDetailSheet(
             onDismiss = { coverOpen = false },
         )
     }
-    if (confirmArchive) {
-        val toArchive = !batch.archived
+        finishMode?.let { mode ->
+        FinishDialog(
+            batch = batch,
+            mode = mode,
+            onConfirm = { outcome, closedAt, weight, reason, comment ->
+                finishMode = null
+                onFinish(outcome, closedAt, weight, reason, comment)
+            },
+            onDismiss = { finishMode = null },
+        )
+    }
+
+    if (confirmReopen) {
         AlertDialog(
-            onDismissRequest = { confirmArchive = false },
+            onDismissRequest = { confirmReopen = false },
             containerColor = p.card,
             titleContentColor = p.ink,
             textContentColor = p.muted,
-            title = { Text(if (toArchive) "Отправить в архив?" else "Вернуть из архива?") },
+            title = { Text("Вернуть в работу?") },
             text = {
                 Text(
-                    if (toArchive)
-                        "Партия останется в журнале, но взвешивать её будет нельзя. " +
-                            "Вернуть её можно в любой момент."
-                    else
-                        "Партия снова появится среди активных, и её можно будет взвешивать.",
+                    "Итог закрытия будет сброшен, конечный вес не сохранится. " +
+                        "Паспорт и взвешивания снова станут редактируемыми.",
                 )
             },
             confirmButton = {
                 TextButton(onClick = {
-                    confirmArchive = false
-                    onSetArchived(toArchive)
-                }) { Text(if (toArchive) "В архив" else "Вернуть", color = p.accent) }
+                    confirmReopen = false
+                    onReopen()
+                }) { Text("Вернуть", color = p.accent) }
             },
             dismissButton = {
-                TextButton(onClick = { confirmArchive = false }) {
-                    Text("Отмена", color = p.muted)
-                }
+                TextButton(onClick = { confirmReopen = false }) { Text("Отмена", color = p.muted) }
             },
+        )
+    }
+
+    if (noteOpen) {
+        NoteDialog(
+            initial = batch.note,
+            onSave = {
+                noteOpen = false
+                onSaveNote(it)
+            },
+            onDismiss = { noteOpen = false },
         )
     }
 
@@ -399,6 +445,8 @@ private fun DetailHeader(batch: Batch, onClose: () -> Unit) {
 private fun DetailIntro(batch: Batch, m: Metrics, attention: Boolean) {
     val p = LocalAppPalette.current
     val (label, color) = when {
+        batch.outcome == BatchOutcome.READY -> "Готова" to ReadyInk
+        batch.outcome == BatchOutcome.SPOILED -> "Испорчена" to p.danger
         batch.archived -> "В архиве" to p.muted
         attention -> "Требует внимания" to Amber
         else -> "Идёт созревание" to p.accent
@@ -1268,4 +1316,287 @@ private fun CoverDialog(
             TextButton(onClick = onDismiss) { Text("Закрыть", color = p.muted) }
         },
     )
+}
+
+// ───────────────────── Завершение партии ─────────────────────
+
+private val ReadyInk = Color(0xFF8FD9A0)
+private val ReadyBg = Color(0xFF1F3326)
+private val SpoiledBg = Color(0xFF3A2221)
+
+private data class FinishMode(val outcome: BatchOutcome, val edit: Boolean)
+
+@Composable
+private fun ClosedResult(batch: Batch, enabled: Boolean, onChange: () -> Unit) {
+    val p = LocalAppPalette.current
+    val ready = batch.outcome == BatchOutcome.READY
+    val ink = if (ready) ReadyInk else p.danger
+    val shape = RoundedCornerShape(15.dp)
+    Column(
+        Modifier.padding(bottom = 18.dp).fillMaxWidth().clip(shape)
+            .background(if (ready) ReadyBg else SpoiledBg)
+            .border(1.dp, ink.copy(alpha = 0.4f), shape)
+            .padding(14.dp),
+    ) {
+        Text(
+            (if (ready) "Готова" else "Испорчена") + ", закрыта " +
+                (batch.closedAtEpochMs?.let { fmtDay(it) } ?: "—"),
+            color = ink, fontSize = 13.sp, fontWeight = FontWeight.Medium,
+        )
+        if (ready) {
+            batch.finalWeightGrams?.let { fw ->
+                val loss = (1 - fw / batch.startWeightGrams) * 100
+                Text(
+                    "Конечный вес: ${fmtWeight(fw)}, усушка ${fmtPct(loss)}",
+                    color = p.ink, fontSize = 13.sp, modifier = Modifier.padding(top = 5.dp),
+                )
+            }
+        } else {
+            Text(
+                "Причина: ${batch.spoilReason ?: "—"}",
+                color = p.ink, fontSize = 13.sp, modifier = Modifier.padding(top = 5.dp),
+            )
+        }
+        if (batch.closeComment.isNotBlank()) {
+            Text(
+                batch.closeComment, color = p.body, fontSize = 12.sp, lineHeight = 18.sp,
+                modifier = Modifier.padding(top = 4.dp),
+            )
+        }
+        Text(
+            "Паспорт и взвешивания закрыты. Заметку править можно.",
+            color = p.muted, fontSize = 11.sp, lineHeight = 17.sp,
+            modifier = Modifier.padding(top = 8.dp),
+        )
+        OutlinedButton(
+            onClick = onChange,
+            enabled = enabled,
+            shape = RoundedCornerShape(12.dp),
+            border = BorderStroke(1.dp, p.secondaryLine),
+            colors = ButtonDefaults.outlinedButtonColors(
+                containerColor = p.secondary, contentColor = p.onSecondary,
+            ),
+            modifier = Modifier.padding(top = 10.dp).fillMaxWidth().heightIn(min = 44.dp),
+        ) { Text("Изменить итог", maxLines = 1) }
+    }
+}
+
+@Composable
+private fun fieldColors() = LocalAppPalette.current.let { p ->
+    OutlinedTextFieldDefaults.colors(
+        focusedTextColor = p.ink, unfocusedTextColor = p.ink,
+        focusedBorderColor = p.selectedLine, unfocusedBorderColor = p.fieldLine,
+        focusedLabelColor = p.accent, unfocusedLabelColor = p.muted,
+        cursorColor = p.accent,
+    )
+}
+
+@Composable
+private fun OutcomeChoice(
+    text: String,
+    selected: Boolean,
+    ink: Color,
+    modifier: Modifier,
+    onClick: () -> Unit,
+) {
+    val p = LocalAppPalette.current
+    OutlinedButton(
+        onClick = onClick,
+        shape = RoundedCornerShape(10.dp),
+        border = BorderStroke(1.dp, if (selected) ink else p.secondaryLine),
+        colors = ButtonDefaults.outlinedButtonColors(
+            containerColor = if (selected) ink.copy(alpha = 0.18f) else Color.Transparent,
+            contentColor = if (selected) ink else p.muted,
+        ),
+        contentPadding = PaddingValues(horizontal = 8.dp),
+        modifier = modifier.heightIn(min = 44.dp),
+    ) { Text(text, maxLines = 1, fontSize = 13.sp) }
+}
+
+@Composable
+private fun FinishDialog(
+    batch: Batch,
+    mode: FinishMode,
+    onConfirm: (BatchOutcome, Long, Double?, String?, String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val p = LocalAppPalette.current
+    val lastWeight = batch.logs.maxByOrNull { it.atEpochMs }?.weightGrams ?: batch.startWeightGrams
+    val sameAsSaved = mode.edit && batch.outcome == mode.outcome
+
+    var outcome by remember { mutableStateOf(mode.outcome) }
+    var dateMs by remember { mutableStateOf(batch.closedAtEpochMs ?: System.currentTimeMillis()) }
+    var weightText by remember { mutableStateOf(fmtNum(batch.finalWeightGrams ?: lastWeight)) }
+    var reason by remember { mutableStateOf(if (sameAsSaved) batch.spoilReason else null) }
+    var comment by remember { mutableStateOf(if (sameAsSaved) batch.closeComment else "") }
+    var datePicker by remember { mutableStateOf(false) }
+    var reasonMenu by remember { mutableStateOf(false) }
+
+    val weight = weightText.replace(',', '.').replace(" ", "").toDoubleOrNull()
+    val ready = outcome == BatchOutcome.READY
+    val valid = if (ready) weight != null && weight.isFinite() && weight > 0.0
+    else !reason.isNullOrBlank()
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = p.card,
+        titleContentColor = p.ink,
+        textContentColor = p.muted,
+        title = { Text(if (mode.edit) "Изменить итог" else "Завершить партию") },
+        text = {
+            Column(
+                Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                Text(batch.name, color = p.muted, fontSize = 12.sp)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutcomeChoice("Готова", ready, ReadyInk, Modifier.weight(1f)) {
+                        outcome = BatchOutcome.READY
+                    }
+                    OutcomeChoice("Испорчена", !ready, p.danger, Modifier.weight(1f)) {
+                        outcome = BatchOutcome.SPOILED
+                    }
+                }
+                OutlinedButton(
+                    onClick = { datePicker = true },
+                    shape = RoundedCornerShape(12.dp),
+                    border = BorderStroke(1.dp, p.secondaryLine),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = p.onSecondary),
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp),
+                ) { Text("Дата закрытия: ${fmtDay(dateMs)}", maxLines = 1) }
+
+                if (ready) {
+                    OutlinedTextField(
+                        value = weightText,
+                        onValueChange = { weightText = it },
+                        label = { Text("Конечный вес, г") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        colors = fieldColors(),
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    if (weight != null && weight.isFinite() && weight > 0.0) {
+                        Text(
+                            "Усушка ${fmtPct((1 - weight / batch.startWeightGrams) * 100)}",
+                            color = p.soft, fontSize = 12.sp,
+                        )
+                    }
+                } else {
+                    Box {
+                        OutlinedButton(
+                            onClick = { reasonMenu = true },
+                            shape = RoundedCornerShape(12.dp),
+                            border = BorderStroke(1.dp, p.secondaryLine),
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                contentColor = if (reason == null) p.muted else p.ink,
+                            ),
+                            modifier = Modifier.fillMaxWidth().heightIn(min = 44.dp),
+                        ) { Text(reason ?: "Выберите причину", maxLines = 1) }
+                        DropdownMenu(expanded = reasonMenu, onDismissRequest = { reasonMenu = false }) {
+                            SPOIL_REASONS.forEach { r ->
+                                DropdownMenuItem(
+                                    text = { Text(r) },
+                                    onClick = { reason = r; reasonMenu = false },
+                                )
+                            }
+                        }
+                    }
+                }
+
+                OutlinedTextField(
+                    value = comment,
+                    onValueChange = { comment = it },
+                    label = { Text("Комментарий (необязательно)") },
+                    minLines = 2,
+                    colors = fieldColors(),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Text(
+                    if (mode.edit) "Итог можно менять в любой момент."
+                    else "После подтверждения паспорт и взвешивания блокируются. Партию можно вернуть в работу.",
+                    color = p.muted, fontSize = 11.sp, lineHeight = 17.sp,
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                enabled = valid,
+                onClick = {
+                    onConfirm(
+                        outcome,
+                        dateMs,
+                        if (ready) weight else null,
+                        if (ready) null else reason,
+                        comment,
+                    )
+                },
+            ) { Text(if (mode.edit) "Сохранить" else "Закрыть партию", color = if (valid) p.accent else p.muted) }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Отмена", color = p.muted) }
+        },
+    )
+
+    if (datePicker) {
+        val minUtc = localDayToUtc(batch.createdAtEpochMs)
+        val state = rememberDatePickerState(
+            initialSelectedDateMillis = localDayToUtc(dateMs),
+            selectableDates = object : SelectableDates {
+                override fun isSelectableDate(utcTimeMillis: Long): Boolean =
+                    utcTimeMillis >= minUtc &&
+                        utcTimeMillis <= System.currentTimeMillis() + 86_400_000L
+            },
+        )
+        DatePickerDialog(
+            onDismissRequest = { datePicker = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    state.selectedDateMillis?.let { dateMs = utcDayToLocal(it, dateMs) }
+                    datePicker = false
+                }) { Text("OK") }
+            },
+            dismissButton = { TextButton(onClick = { datePicker = false }) { Text("Отмена") } },
+        ) { DatePicker(state = state) }
+    }
+}
+
+@Composable
+private fun NoteDialog(initial: String, onSave: (String) -> Unit, onDismiss: () -> Unit) {
+    val p = LocalAppPalette.current
+    var text by remember { mutableStateOf(initial) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = p.card,
+        titleContentColor = p.ink,
+        textContentColor = p.muted,
+        title = { Text("Заметка по технологии") },
+        text = {
+            OutlinedTextField(
+                value = text,
+                onValueChange = { text = it },
+                minLines = 4,
+                colors = fieldColors(),
+                modifier = Modifier.fillMaxWidth(),
+            )
+        },
+        confirmButton = { TextButton(onClick = { onSave(text) }) { Text("Сохранить", color = p.accent) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Отмена", color = p.muted) } },
+    )
+}
+
+/** DatePicker работает в UTC: переводим локальную дату в полночь UTC и обратно. */
+private fun localDayToUtc(ms: Long): Long {
+    val local = Calendar.getInstance().apply { timeInMillis = ms }
+    return Calendar.getInstance(TimeZone.getTimeZone("UTC")).apply {
+        clear()
+        set(local.get(Calendar.YEAR), local.get(Calendar.MONTH), local.get(Calendar.DAY_OF_MONTH))
+    }.timeInMillis
+}
+
+private fun utcDayToLocal(utcMs: Long, timeOfDayFrom: Long): Long {
+    val utc = Calendar.getInstance(TimeZone.getTimeZone("UTC")).apply { timeInMillis = utcMs }
+    return Calendar.getInstance().apply {
+        timeInMillis = timeOfDayFrom
+        set(utc.get(Calendar.YEAR), utc.get(Calendar.MONTH), utc.get(Calendar.DAY_OF_MONTH))
+    }.timeInMillis
 }
