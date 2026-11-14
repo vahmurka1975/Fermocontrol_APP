@@ -120,6 +120,10 @@ import ru.fermocontrol.model.BatchOutcome
 import ru.fermocontrol.model.SPOIL_REASONS
 import java.util.Calendar
 import java.util.TimeZone
+import android.widget.Toast
+import androidx.compose.ui.platform.LocalContext
+import ru.fermocontrol.data.BatchPdf
+import ru.fermocontrol.data.PdfRequest
 
 
 private val RU: Locale = Locale.forLanguageTag("ru-RU")
@@ -156,6 +160,29 @@ fun BatchDetailSheet(
     val metrics = remember(batch) { computeMetrics(batch) }
     val attention = remember(batch, metrics) { batch.requiresAttention(metrics) }
     val logsAsc = remember(batch) { batch.logs.sortedBy { it.atEpochMs } }
+	
+	val context = LocalContext.current
+    val pdf = remember { BatchPdf(context.applicationContext) }
+    val pdfActions = rememberBatchPdfActions(pdf) {
+    Toast.makeText(context, it, Toast.LENGTH_LONG).show()
+    }
+   val pdfRequest = remember(batch) {
+    PdfRequest(
+        batch = batch,
+        extra = buildList {
+            add("Итог" to when (batch.outcome) {
+                BatchOutcome.READY -> "Готова"
+                BatchOutcome.SPOILED -> "Испорчена"
+                else -> "В работе"
+            })
+            batch.spoilReason?.let { add("Причина порчи" to it) }
+            if (batch.note.isNotBlank()) add("Заметка по технологии" to batch.note)
+            if (batch.closeComment.isNotBlank()) add("Комментарий при закрытии" to batch.closeComment)
+        },
+        cover = batch.photoFileName?.let(photoFile),
+        closedAtMs = batch.closedAtEpochMs,
+    )
+}
 
     ModalBottomSheet(
         onDismissRequest = { if (!saving) onDismiss() },
@@ -236,7 +263,32 @@ fun BatchDetailSheet(
                     Text(error, color = Amber, fontSize = 12.sp, lineHeight = 18.sp,
                         modifier = Modifier.padding(bottom = 8.dp))
                 }
-                Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
+                Row(
+    Modifier.fillMaxWidth().padding(bottom = 9.dp),
+    horizontalArrangement = Arrangement.spacedBy(9.dp),
+) {
+    OutlinedButton(
+        onClick = { pdfActions.save(pdfRequest) },
+        shape = RoundedCornerShape(12.dp),
+        border = BorderStroke(1.dp, p.secondaryLine),
+        colors = ButtonDefaults.outlinedButtonColors(
+            containerColor = p.secondary,
+            contentColor = p.onSecondary,
+        ),
+        modifier = Modifier.weight(1f).heightIn(min = 47.dp),
+    ) { Text("Сохранить PDF", fontSize = 14.sp, maxLines = 1) }
+    OutlinedButton(
+        onClick = { pdfActions.share(pdfRequest) },
+        shape = RoundedCornerShape(12.dp),
+        border = BorderStroke(1.dp, p.secondaryLine),
+        colors = ButtonDefaults.outlinedButtonColors(
+            containerColor = p.secondary,
+            contentColor = p.onSecondary,
+        ),
+        modifier = Modifier.weight(1f).heightIn(min = 47.dp),
+    ) { Text("Поделиться", fontSize = 14.sp, maxLines = 1) }
+}
+				Row(horizontalArrangement = Arrangement.spacedBy(9.dp)) {
                     if (batch.archived) {
                         OutlinedButton(
                             onClick = { confirmDeleteBatch = true },
@@ -373,7 +425,6 @@ fun BatchDetailSheet(
             },
         )
     }
-
     if (confirmDeleteBatch) {
         AlertDialog(
             onDismissRequest = { confirmDeleteBatch = false },
@@ -490,12 +541,14 @@ private fun MetricsGrid(batch: Batch, m: Metrics) {
                 if (targetReached) "цель усушки по весу" else "ещё ${fmtPct(m.toTargetPercent)} от начального веса",
                 Modifier.weight(1f), small = targetReached,
             )
+            val closed = batch.outcome != null
             MetricCard(
                 "Прогноз",
-                m.estimatedDaysLeft?.let { "≈ $it дн." } ?: "—",
-                m.pacePercentPerDay?.let { "темп ${fmtPct(it, 2)}/сут" }
+                if (closed) "—" else m.estimatedDaysLeft?.let { "≈ $it дн." } ?: "—",
+                if (closed) "партия закрыта"
+                else m.pacePercentPerDay?.let { "темп ${fmtPct(it, 2)}/сут" }
                     ?: "нужно взвешивание через сутки и позже",
-                Modifier.weight(1f), small = m.estimatedDaysLeft == null,
+                Modifier.weight(1f), small = closed || m.estimatedDaysLeft == null,
             )
         }
     }
@@ -599,7 +652,7 @@ private fun buildChartModel(batch: Batch, logsAsc: List<WeightLog>, m: Metrics, 
     val current = last?.weightGrams ?: start
     val lastMs = last?.atEpochMs ?: created
     val archived = batch.archived
-    val endMs = if (archived) lastMs else nowMs
+    val endMs = if (archived) (batch.closedAtEpochMs ?: lastMs) else nowMs
     val totalDays = max(0L, floor((endMs - created) / CHART_DAY_MS).toLong()).toInt()
     val targetWeight = Math.round(start * (1 - batch.targetLossPercent / 100.0) * 10.0) / 10.0
     val remain = max(0.0, Math.round((current - targetWeight) * 10.0) / 10.0)
@@ -662,6 +715,8 @@ private fun TrajectoryChart(batch: Batch, logsAsc: List<WeightLog>, m: Metrics) 
     val forecast = c.forecastDay
 
     val status = when {
+        batch.outcome == BatchOutcome.READY -> "Партия готова"
+        batch.outcome == BatchOutcome.SPOILED -> "Партия испорчена"
         c.archived -> "Партия в архиве"
         c.reached -> "Плановая усушка достигнута"
         forecast != null -> "Ориентир: ~" + c.etaDate
@@ -679,7 +734,7 @@ private fun TrajectoryChart(batch: Batch, logsAsc: List<WeightLog>, m: Metrics) 
         else -> "Пока не рассчитан"
     }
     val finishNote = when {
-        c.archived -> c.lastLogMs?.let { fmtShortDate(it) } ?: fmtShortDate(batch.createdAtEpochMs)
+        c.archived -> fmtShortDate(batch.closedAtEpochMs ?: c.lastLogMs ?: batch.createdAtEpochMs)
         c.reached -> "Это не подтверждение безопасности"
         forecast != null -> "~${c.etaDate} · при сохранении темпа"
         else -> c.reason
@@ -1538,7 +1593,9 @@ private fun FinishDialog(
     )
 
     if (datePicker) {
-        val minUtc = localDayToUtc(batch.createdAtEpochMs)
+        val minUtc = localDayToUtc(
+            max(batch.createdAtEpochMs, batch.logs.maxOfOrNull { it.atEpochMs } ?: 0L),
+        )
         val state = rememberDatePickerState(
             initialSelectedDateMillis = localDayToUtc(dateMs),
             selectableDates = object : SelectableDates {
